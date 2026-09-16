@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Motion Lab timeline composition playground" />
+    <title>Motion Lab — Timeline Composition</title>
+    <link rel="stylesheet" href="/playground/timeline-composition.css" />
+  </head>
+  <body>
+    <main>
+      <header class="masthead">
+        <p class="eyebrow">Motion Unit 002 / Timeline Composition</p>
+        <h1>Authored as content.<br />Played as one timeline.</h1>
+        <div class="controls" aria-label="Timeline controls">
+          <button data-action="play">Play</button>
+          <button data-action="pause">Pause</button>
+          <button data-action="reverse">Reverse</button>
+          <button data-action="restart">Restart</button>
+          <button data-action="finish">Finish</button>
+          <button data-action="cancel">Cancel</button>
+        </div>
+        <output id="timeline-state">idle</output>
+      </header>
+
+      <motion-timeline id="sequence" class="sequence">
+        <motion-tween id="sequence-a" class="panel panel-a">
+          <span>01</span><h2>No preset</h2><p>The target stays readable while idle.</p>
+        </motion-tween>
+        <div class="wrapper">
+          <motion-tween id="sequence-b" class="panel panel-b">
+            <span>02</span><h2>Overlap</h2><p>Authored positions retain GSAP timing grammar.</p>
+          </motion-tween>
+        </div>
+        <motion-tween id="sequence-c" class="panel panel-c">
+          <span>03</span><h2>One owner</h2><p>Wrappers do not change document order.</p>
+        </motion-tween>
+        <motion-timeline id="nested" class="nested">
+          <motion-tween id="nested-tween">
+            Nested timelines remain independently controlled.
+          </motion-tween>
+        </motion-timeline>
+      </motion-timeline>
+
+      <section class="evidence">
+        <div>
+          <p class="eyebrow">Async composition</p>
+          <h2>Play intent can arrive before content.</h2>
+        </div>
+        <motion-timeline id="empty" class="empty-timeline"></motion-timeline>
+        <button id="append-async">Append and play a late tween</button>
+      </section>
+
+      <section class="stress-section">
+        <p class="eyebrow">Resource evidence / 20 passive descriptors</p>
+        <motion-timeline id="stress" class="stress-grid"></motion-timeline>
+      </section>
+    </main>
+    <script type="module" src="/playground/timeline-composition.ts"></script>
+  </body>
+</html>
