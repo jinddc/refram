@@ -17,8 +17,9 @@ advancedReveal.options = {
   ease: "power4.out",
   from: { autoAlpha: 0, x: -32, y: 0 },
   to: {
-    autoAlpha: 1, x: 0, y: 0
+    autoAlpha: 1, x: 0, y: 0,
   },
+
 };
 
 for (let index = 1; index <= 20; index += 1) {
@@ -27,12 +28,14 @@ for (let index = 1; index <= 20; index += 1) {
   ) as MotionRevealElement;
   reveal.className = "reveal-card";
   reveal.options = {
+    ...(index === 1 ? { threshold: 0.35 } : {}),
     duration: 0.55 + (index % 4) * 0.1,
     from: {
       autoAlpha: 0,
       y: 16 + (index % 3) * 8,
     },
     to: { autoAlpha: 1, y: 0 },
+    threshold: 0.5,
   };
 
   const number = document.createElement("span");

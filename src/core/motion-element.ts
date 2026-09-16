@@ -1,11 +1,6 @@
 import type { EffectController } from "./effect-controller";
+import { HTMLElementBase } from "../internal/html-element-base";
 import { upgradeProperty } from "../internal/upgrade-property";
-
-const HTMLElementBase = (
-  typeof globalThis.HTMLElement === "undefined"
-    ? class {}
-    : globalThis.HTMLElement
-) as typeof HTMLElement;
 
 /**
  * Internal Custom Element base for controller-backed effects.
@@ -34,7 +29,9 @@ export abstract class MotionElement<
   public set options(value: TOptions) {
     const nextOptions = this.normalizeOptions(value);
     this.currentOptions = nextOptions;
-    this.currentController?.update(this.copyOptions(nextOptions));
+    this.currentController?.update(
+      this.prepareControllerOptions(this.copyOptions(nextOptions)),
+    );
   }
 
   public connectedCallback(): void {
@@ -44,7 +41,9 @@ export abstract class MotionElement<
 
     this.connected = true;
     this.currentController = this.createController(
-      this.copyOptions(this.currentOptions),
+      this.prepareControllerOptions(
+        this.copyOptions(this.currentOptions),
+      ),
     );
     this.currentController.connect();
   }
@@ -72,6 +71,16 @@ export abstract class MotionElement<
   /** Gives a concrete element access for approved imperative methods. */
   protected get controller(): TController | undefined {
     return this.currentController;
+  }
+
+  /**
+   * Produces the complete typed snapshot owned by a controller.
+   *
+   * Concrete elements may combine approved attribute inputs here without
+   * changing the public options value stored by this base.
+   */
+  protected prepareControllerOptions(options: TOptions): TOptions {
+    return options;
   }
 
   protected abstract normalizeOptions(value: TOptions): TOptions;

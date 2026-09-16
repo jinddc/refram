@@ -1,5 +1,7 @@
 import type { StandaloneRevealOptions } from "./reveal.types";
 
+export const DEFAULT_REVEAL_THRESHOLD = 0.15;
+
 export function copyRevealOptions(
   options: StandaloneRevealOptions,
 ): StandaloneRevealOptions {
@@ -20,6 +22,17 @@ export function normalizeRevealOptions(
   value: StandaloneRevealOptions,
 ): StandaloneRevealOptions {
   const options = copyRevealOptions(value ?? {});
+
+  if (
+    options.threshold !== undefined &&
+    (
+      !Number.isFinite(options.threshold) ||
+      options.threshold < 0 ||
+      options.threshold > 1
+    )
+  ) {
+    delete options.threshold;
+  }
 
   if (
     options.duration !== undefined &&

@@ -56,6 +56,22 @@ class TestMotionElement extends MotionElement<
 
 customElements.define("motion-element-test", TestMotionElement);
 
+class PreparedMotionElement extends TestMotionElement {
+  protected override prepareControllerOptions(
+    options: TestOptions,
+  ): TestOptions {
+    return {
+      ...options,
+      count: options.count + 10,
+    };
+  }
+}
+
+customElements.define(
+  "motion-element-prepared-test",
+  PreparedMotionElement,
+);
+
 beforeEach(() => {
   controllers = [];
 });
@@ -125,6 +141,30 @@ describe("MotionElement", () => {
       count: 0,
       nested: { label: "default" },
     });
+  });
+
+  it("prepares controller snapshots without changing public options", () => {
+    const element = document.createElement(
+      "motion-element-prepared-test",
+    ) as PreparedMotionElement;
+    element.options = { count: 2, nested: { label: "public" } };
+    document.body.append(element);
+
+    expect(element.options).toEqual({
+      count: 2,
+      nested: { label: "public" },
+    });
+    expect(controllers[0]?.initialOptions).toEqual({
+      count: 12,
+      nested: { label: "public" },
+    });
+
+    element.options = { count: 4, nested: { label: "updated" } };
+    expect(controllers[0]?.update).toHaveBeenCalledWith({
+      count: 14,
+      nested: { label: "updated" },
+    });
+    expect(element.options.count).toBe(4);
   });
 
   it("destroys once and creates a fresh controller on reconnect", () => {

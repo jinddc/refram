@@ -22,7 +22,11 @@ export function whenVisible(
     (entries) => {
       if (
         completed ||
-        !entries.some((entry) => entry.isIntersecting)
+        !entries.some(
+          (entry) =>
+            entry.isIntersecting &&
+            entry.intersectionRatio >= threshold,
+        )
       ) {
         return;
       }

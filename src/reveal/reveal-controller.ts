@@ -2,7 +2,11 @@ import { gsap } from "gsap";
 
 import type { EffectController } from "../core/effect-controller";
 import { whenVisible } from "../core/when-visible";
-import { copyRevealOptions } from "./reveal-options";
+import { sanitizePresentationVars } from "../gsap/presentation-vars";
+import {
+  copyRevealOptions,
+  DEFAULT_REVEAL_THRESHOLD,
+} from "./reveal-options";
 import type {
   MotionTweenVars,
   StandaloneRevealOptions,
@@ -51,6 +55,39 @@ function buildFromToVars(
   };
 }
 
+function haveSameTweenVars(
+  left: MotionTweenVars | undefined,
+  right: MotionTweenVars | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.is(left[key], right[key]))
+  );
+}
+
+function haveSameRendererOptions(
+  left: StandaloneRevealOptions,
+  right: StandaloneRevealOptions,
+): boolean {
+  return (
+    Object.is(left.duration, right.duration) &&
+    Object.is(left.ease, right.ease) &&
+    haveSameTweenVars(left.from, right.from) &&
+    haveSameTweenVars(left.to, right.to)
+  );
+}
+
 export class StandaloneRevealController
   implements EffectController<StandaloneRevealOptions>
 {
@@ -58,7 +95,9 @@ export class StandaloneRevealController
   private context?: GsapContext;
   private visibilityCleanup?: () => void;
   private connected = false;
+  private prepared = false;
   private triggered = false;
+  private preparationGeneration = 0;
 
   public constructor(
     private readonly target: HTMLElement,
@@ -73,24 +112,44 @@ export class StandaloneRevealController
     }
 
     this.connected = true;
-    this.visibilityCleanup = whenVisible(this.target, () => {
-      if (!this.connected) {
-        return;
-      }
-
-      this.triggered = true;
-      this.buildRun();
-    });
+    this.schedulePreparation();
   }
 
   public update(options: StandaloneRevealOptions): void {
-    this.options = copyRevealOptions(options);
+    const previousOptions = this.options;
+    const nextOptions = copyRevealOptions(options);
+    const thresholdChanged =
+      this.thresholdFor(previousOptions) !== this.thresholdFor(nextOptions);
+    const rendererChanged = !haveSameRendererOptions(
+      previousOptions,
+      nextOptions,
+    );
+    this.options = nextOptions;
 
-    if (!this.connected || !this.triggered) {
+    if (!this.connected) {
       return;
     }
 
-    this.buildRun();
+    if (!this.triggered) {
+      if (rendererChanged && this.prepared) {
+        this.prepareRun();
+      }
+
+      if (thresholdChanged) {
+        this.visibilityCleanup?.();
+        this.visibilityCleanup = undefined;
+
+        if (this.prepared) {
+          this.observe();
+        }
+      }
+
+      return;
+    }
+
+    if (rendererChanged) {
+      this.restartRun();
+    }
   }
 
   public resize(): void {
@@ -102,32 +161,120 @@ export class StandaloneRevealController
       return;
     }
 
+    this.connected = false;
+    this.preparationGeneration += 1;
     this.visibilityCleanup?.();
     this.visibilityCleanup = undefined;
     this.context?.revert();
     this.context = undefined;
+    this.prepared = false;
     this.triggered = false;
-    this.connected = false;
   }
 
-  private buildRun(): void {
-    this.context?.revert();
-    this.context = gsap.context(() => {
-      const fromToVars = buildFromToVars(this.options);
+  private schedulePreparation(): void {
+    const generation = ++this.preparationGeneration;
 
-      if (prefersReducedMotion()) {
-        gsap.set(this.target, {
-          ...fromToVars.to,
-          duration: 0,
-        });
+    queueMicrotask(() => {
+      if (
+        !this.connected ||
+        generation !== this.preparationGeneration
+      ) {
         return;
       }
 
-      gsap.fromTo(
+      if (prefersReducedMotion()) {
+        this.triggered = true;
+        this.applyFinalState();
+        return;
+      }
+
+      if (this.prepareRun()) {
+        this.observe();
+      }
+    });
+  }
+
+  private observe(): void {
+    this.visibilityCleanup = whenVisible(this.target, () => {
+      if (!this.connected) {
+        return;
+      }
+
+      this.triggered = true;
+      this.startRun();
+    }, this.thresholdFor(this.options));
+  }
+
+  private thresholdFor(options: StandaloneRevealOptions): number {
+    return options.threshold ?? DEFAULT_REVEAL_THRESHOLD;
+  }
+
+  private prepareRun(): boolean {
+    this.context?.revert();
+    this.context = undefined;
+    this.prepared = false;
+    const fromToVars = buildFromToVars(this.options);
+    const context = gsap.context(() => {
+      gsap.set(
         this.target,
-        fromToVars.from,
-        fromToVars.to,
+        sanitizePresentationVars(fromToVars.from),
       );
     }, this.target);
+
+    if (!this.connected) {
+      context.revert();
+      return false;
+    }
+
+    this.context = context;
+    this.prepared = true;
+    return true;
+  }
+
+  private startRun(): void {
+    if (prefersReducedMotion()) {
+      this.applyFinalState();
+      return;
+    }
+
+    if (!this.context && !this.prepareRun()) {
+      return;
+    }
+
+    const fromToVars = buildFromToVars(this.options);
+    this.context?.add(() => {
+      gsap.to(this.target, fromToVars.to);
+    });
+  }
+
+  private restartRun(): void {
+    if (prefersReducedMotion()) {
+      this.applyFinalState();
+      return;
+    }
+
+    if (this.prepareRun()) {
+      this.startRun();
+    }
+  }
+
+  private applyFinalState(): void {
+    this.context?.revert();
+    this.context = undefined;
+    this.prepared = false;
+    const fromToVars = buildFromToVars(this.options);
+    const context = gsap.context(() => {
+      gsap.set(
+        this.target,
+        sanitizePresentationVars(fromToVars.to),
+      );
+    }, this.target);
+
+    if (!this.connected) {
+      context.revert();
+      return;
+    }
+
+    this.context = context;
   }
 }

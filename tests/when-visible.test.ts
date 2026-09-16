@@ -27,9 +27,17 @@ class TestIntersectionObserver implements IntersectionObserver {
     return [];
   }
 
-  public emit(isIntersecting: boolean): void {
+  public emit(
+    isIntersecting: boolean,
+    intersectionRatio = isIntersecting ? 1 : 0,
+  ): void {
     this.callback(
-      [{ isIntersecting } as IntersectionObserverEntry],
+      [
+        {
+          isIntersecting,
+          intersectionRatio,
+        } as IntersectionObserverEntry,
+      ],
       this,
     );
   }
@@ -71,6 +79,29 @@ describe("whenVisible", () => {
 
     expect(order).toEqual(["disconnect", "callback"]);
     expect(observer?.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("waits for the configured ratio and accepts the exact boundary", () => {
+    const callback = vi.fn();
+    whenVisible(document.createElement("div"), callback, 0.6);
+    const observer = TestIntersectionObserver.instances[0];
+
+    observer?.emit(true, 0.59);
+    expect(callback).not.toHaveBeenCalled();
+    expect(observer?.disconnect).not.toHaveBeenCalled();
+
+    observer?.emit(true, 0.6);
+    expect(callback).toHaveBeenCalledOnce();
+    expect(observer?.thresholds).toEqual([0.6]);
+  });
+
+  it("allows an intersecting zero-ratio entry at threshold zero", () => {
+    const callback = vi.fn();
+    whenVisible(document.createElement("div"), callback, 0);
+
+    TestIntersectionObserver.instances[0]?.emit(true, 0);
+
+    expect(callback).toHaveBeenCalledOnce();
   });
 
   it("cleanup prevents a queued observation and is idempotent", () => {

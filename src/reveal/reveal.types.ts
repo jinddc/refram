@@ -1,8 +1,9 @@
-import type { gsap } from "gsap";
+import type { MotionTweenVars } from "../gsap/gsap.types";
 
-export type MotionTweenVars = Parameters<typeof gsap.to>[1];
+export type { MotionTweenVars } from "../gsap/gsap.types";
 
 export interface StandaloneRevealOptions {
+  threshold?: number;
   duration?: number;
   ease?: string;
   from?: MotionTweenVars;
