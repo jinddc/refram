@@ -42,6 +42,32 @@
         </motion-timeline>
       </motion-timeline>
 
+      <section id="scroll-driver" class="scroll-driver">
+        <div class="scroll-copy">
+          <p class="eyebrow">ScrollTrigger driver / one root owner</p>
+          <h2>Scroll controls the same authored timeline.</h2>
+          <p>Scrub forward and backward. Pinning, overlap, mutation, and cleanup remain owned by the root controller.</p>
+          <button id="mutate-scroll">Mutate scroll timeline</button>
+          <output id="scroll-state">idle</output>
+        </div>
+        <motion-timeline id="scroll-sequence" class="scroll-sequence">
+          <motion-tween id="scroll-a" class="scroll-card">
+            <span>01</span><strong>Prepare</strong>
+          </motion-tween>
+          <motion-tween id="scroll-b" class="scroll-card">
+            <span>02</span><strong>Overlap</strong>
+          </motion-tween>
+          <motion-tween id="scroll-c" class="scroll-card">
+            <span>03</span><strong>Rebuild</strong>
+          </motion-tween>
+          <motion-timeline id="scroll-nested" class="scroll-nested">
+            <motion-tween id="scroll-nested-tween">
+              Nested manual timeline stays independent.
+            </motion-tween>
+          </motion-timeline>
+        </motion-timeline>
+      </section>
+
       <section class="evidence">
         <div>
           <p class="eyebrow">Async composition</p>

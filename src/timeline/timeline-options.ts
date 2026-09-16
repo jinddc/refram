@@ -21,6 +21,10 @@ export function copyTimelineOptions(
     options.defaults = { ...options.defaults };
   }
 
+  if (options.scrollTrigger) {
+    options.scrollTrigger = { ...options.scrollTrigger };
+  }
+
   return options;
 }
 
@@ -31,6 +35,9 @@ export function createTimelineDefinition(
   const optionCopy = copyTimelineOptions(options);
   if (optionCopy.defaults) {
     Object.freeze(optionCopy.defaults);
+  }
+  if (optionCopy.scrollTrigger) {
+    Object.freeze(optionCopy.scrollTrigger);
   }
   const optionSnapshot = Object.freeze(optionCopy);
   const itemSnapshots = items.map((item) => Object.freeze({

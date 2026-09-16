@@ -67,6 +67,7 @@ describe("MotionTweenElement", () => {
     expect(inner[REQUEST_TIMELINE_SYNC]).toHaveBeenLastCalledWith("options");
 
     tween.remove();
+    await flushOwnership();
     expect(inner[REQUEST_TIMELINE_SYNC]).toHaveBeenLastCalledWith("structure");
   });
 

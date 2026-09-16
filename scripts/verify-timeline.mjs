@@ -146,6 +146,7 @@ async function main() {
   const mobile = join(artifacts, "timeline-mobile-reduced.png");
   const vite = startVite(appPort);
   let chrome;
+  const chromeErrors = [];
   let connection;
 
   try {
@@ -160,7 +161,12 @@ async function main() {
       `--user-data-dir=${profile}`,
       "--window-size=1440,1000",
       url,
-    ], { stdio: "ignore" });
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    chrome.stderr.setEncoding("utf8");
+    chrome.stderr.on("data", (chunk) => {
+      chromeErrors.push(chunk);
+      if (chromeErrors.length > 12) chromeErrors.shift();
+    });
     connection = await connect(debugPort);
     const { send } = connection;
     await send("Page.enable");
@@ -186,6 +192,66 @@ async function main() {
     assert(idle.nestedTransform === "none", "Outer timeline changed nested ownership.");
     assert(idle.outerDuration > 0 && idle.outerDuration < 1.65, "Overlap timing was not compiled.");
     assert(idle.stressCount === 20, "The 20-tween stress fixture is incomplete.");
+
+    const scrollInitial = await evaluate(send, `(() => {
+      const { ScrollTrigger, scrollNestedTween } = window.__timelineHarness;
+      const trigger = ScrollTrigger.getAll()[0];
+      return {
+        count: ScrollTrigger.getAll().length,
+        progress: trigger?.progress ?? -1,
+        opacity: Number(getComputedStyle(document.querySelector("#scroll-a")).opacity),
+        nestedTransform: getComputedStyle(scrollNestedTween).transform,
+      };
+    })()`);
+    assert(scrollInitial.count === 1, "Scroll mode did not create exactly one root trigger.");
+    assert(scrollInitial.opacity < 0.2, "Scroll mode did not prepare initial presentation.");
+    assert(scrollInitial.nestedTransform === "none", "Scroll mode captured a nested manual tween.");
+
+    const scrollBehavior = await evaluate(send, `(async () => {
+      const harness = window.__timelineHarness;
+      let trigger = harness.ScrollTrigger.getAll()[0];
+      const scrollToProgress = async (progress) => {
+        window.scrollTo(0, trigger.start + ((trigger.end - trigger.start) * progress));
+        harness.ScrollTrigger.update();
+        await new Promise((resolveWait) => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+      };
+
+      await scrollToProgress(0.68);
+      const forward = trigger.progress;
+      const forwardOpacity = Number(getComputedStyle(document.querySelector("#scroll-a")).opacity);
+      await scrollToProgress(0.24);
+      const reverse = trigger.progress;
+      const beforeMutation = trigger.progress;
+      harness.mutateScrollTimeline();
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolveWait) => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+      trigger = harness.ScrollTrigger.getAll()[0];
+      const afterMutation = trigger.progress;
+      const countAfterMutation = harness.ScrollTrigger.getAll().length;
+      window.scrollTo(0, trigger.end + 160);
+      harness.ScrollTrigger.update();
+      await new Promise((resolveWait) => requestAnimationFrame(() => requestAnimationFrame(resolveWait)));
+
+      return {
+        forward,
+        reverse,
+        forwardOpacity,
+        beforeMutation,
+        afterMutation,
+        countAfterMutation,
+        endProgress: trigger.progress,
+        activeAfterEnd: trigger.isActive,
+        nestedTransform: getComputedStyle(harness.scrollNestedTween).transform,
+      };
+    })()`, true);
+    assert(scrollBehavior.forward > 0.6, "Forward scroll did not scrub timeline progress.");
+    assert(scrollBehavior.reverse < scrollBehavior.forward, "Reverse scroll did not reverse timeline progress.");
+    assert(scrollBehavior.forwardOpacity > scrollInitial.opacity, "Scroll scrub did not render destination presentation.");
+    assert(Math.abs(scrollBehavior.afterMutation - scrollBehavior.beforeMutation) < 0.04, "Scroll mutation did not preserve progress.");
+    assert(scrollBehavior.countAfterMutation === 1, "Scroll mutation left duplicate root triggers.");
+    assert(scrollBehavior.endProgress === 1 && !scrollBehavior.activeAfterEnd, "Pin/trigger did not release after its end boundary.");
+    assert(scrollBehavior.nestedTransform === "none", "Scroll rebuild captured nested ownership.");
 
     const forward = await evaluate(send, `(async () => {
       const { sequence } = window.__timelineHarness;
@@ -253,14 +319,25 @@ async function main() {
     await new Promise((resolveWait) => setTimeout(resolveWait, 300));
     await waitFor(() => evaluate(send, `Boolean(window.__timelineHarness)`), "the reduced-motion playground");
     const reduced = await evaluate(send, `(async () => {
-      const { sequence } = window.__timelineHarness;
+      const { sequence, scrollSequence, ScrollTrigger } = window.__timelineHarness;
       await sequence.play();
       const first = document.querySelector("#sequence-a");
-      return { state: sequence.playState, opacity: Number(getComputedStyle(first).opacity), duration: sequence.totalDuration() };
+      const scrollFirst = document.querySelector("#scroll-a");
+      return {
+        state: sequence.playState,
+        opacity: Number(getComputedStyle(first).opacity),
+        duration: sequence.totalDuration(),
+        scrollState: scrollSequence.playState,
+        scrollOpacity: Number(getComputedStyle(scrollFirst).opacity),
+        triggerCount: ScrollTrigger.getAll().length,
+      };
     })()`, true);
     assert(reduced.state === "finished", "Reduced motion did not settle timeline state.");
     assert(reduced.opacity === 1, "Reduced motion did not apply final presentation.");
     assert(reduced.duration === 0, "Reduced motion allocated an interpolated timeline.");
+    assert(reduced.scrollState === "finished", "Reduced scroll mode did not expose finished state.");
+    assert(reduced.scrollOpacity === 1, "Reduced scroll mode did not apply final presentation.");
+    assert(reduced.triggerCount === 0, "Reduced scroll mode allocated a ScrollTrigger resource.");
     await screenshot(send, mobile);
 
     console.log(JSON.stringify({
@@ -269,6 +346,8 @@ async function main() {
         idle: "readable",
         overlapDuration: idle.outerDuration,
         nestedOwnership: "pass",
+        scrollDriver: "pass",
+        scrollMutation: "progress-preserved",
         asyncAppend: "pass",
         reducedMotion: "pass",
         stressTweens: idle.stressCount,
@@ -281,6 +360,8 @@ async function main() {
   } catch (error) {
     const viteError = vite.errors.join("").trim();
     if (viteError) error.message += `\nVite: ${viteError.slice(-2_000)}`;
+    const chromeError = chromeErrors.join("").trim();
+    if (chromeError) error.message += `\nChrome: ${chromeError.slice(-4_000)}`;
     throw error;
   } finally {
     if (connection?.send) {

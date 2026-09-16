@@ -5,6 +5,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import { MotionTimelineElement } from "../src/timeline/timeline-element";
 import { MotionTweenElement } from "../src/timeline/tween-element";
+import {
+  FakeScrollTrigger,
+  installFakeScrollTrigger,
+  removeFakeScrollTrigger,
+} from "./scroll-trigger-fake";
 
 beforeAll(() => {
   if (!customElements.get("motion-timeline")) {
@@ -23,6 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  removeFakeScrollTrigger(gsap);
   gsap.globalTimeline.clear();
   document.body.replaceChildren();
   vi.unstubAllGlobals();
@@ -229,5 +235,161 @@ describe("MotionTimelineElement", () => {
     expect(timeline.totalDuration()).toBeCloseTo(0.25);
     await vi.waitFor(() => expect(timeline.playState).toBe("running"));
     timeline.cancel();
+  });
+
+  it("rejects manual progress methods while ScrollTrigger owns progress", async () => {
+    installFakeScrollTrigger(gsap);
+    const timeline = createTimeline();
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    timeline.append(createTween({ to: { x: 10 }, duration: 1 }));
+    document.body.append(timeline);
+    await flushComposition();
+
+    for (const invoke of [
+      () => timeline.play(),
+      () => timeline.pause(),
+      () => timeline.reverse(),
+      () => timeline.restart(),
+      () => timeline.finish(),
+    ]) {
+      expect(invoke).toThrowError(expect.objectContaining({
+        name: "InvalidStateError",
+      }));
+    }
+
+    expect(() => timeline.totalDuration()).not.toThrow();
+    expect(() => timeline.refresh()).not.toThrow();
+    expect(() => timeline.cancel()).not.toThrow();
+  });
+
+  it("creates one promise and event pair per scroll endpoint traversal", async () => {
+    installFakeScrollTrigger(gsap);
+    const timeline = createTimeline();
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    timeline.append(createTween({
+      from: { x: 0 },
+      to: { x: 100 },
+      duration: 1,
+    }));
+    const events: string[] = [];
+    let traversal: Promise<void> | undefined;
+    timeline.addEventListener("motion-start", () => {
+      events.push(`start:${timeline.playState}`);
+      traversal = timeline.finished;
+    });
+    timeline.addEventListener("motion-finish", () => {
+      events.push(`finish:${timeline.playState}`);
+    });
+    document.body.append(timeline);
+    await flushComposition();
+
+    const trigger = FakeScrollTrigger.instances[0]!;
+    trigger.setProgress(0.2);
+    const forwardTraversal = traversal;
+    trigger.setProgress(0.7);
+    trigger.setProgress(0.4);
+    expect(timeline.finished).toBe(forwardTraversal);
+    trigger.setProgress(1);
+    await forwardTraversal;
+
+    trigger.setProgress(0.8);
+    const reverseTraversal = traversal;
+    expect(reverseTraversal).not.toBe(forwardTraversal);
+    trigger.setProgress(0);
+    await reverseTraversal;
+
+    expect(events).toEqual([
+      "start:running",
+      "finish:finished",
+      "start:running",
+      "finish:finished",
+    ]);
+  });
+
+  it("rebuilds scroll mutations once while preserving progress", async () => {
+    installFakeScrollTrigger(gsap);
+    const timeline = createTimeline();
+    const tween = createTween({ to: { x: 10 }, duration: 1 });
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    timeline.append(tween);
+    document.body.append(timeline);
+    await flushComposition();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    const initialBuildCount = FakeScrollTrigger.instances.length;
+    const original = FakeScrollTrigger.instances.at(-1)!;
+    original.setProgress(0.4);
+    const traversal = timeline.finished;
+    tween.options = { to: { x: 20 }, duration: 2 };
+    tween.options = { to: { x: 30 }, duration: 3 };
+    await flushComposition();
+
+    expect(FakeScrollTrigger.instances).toHaveLength(initialBuildCount + 1);
+    expect(original.kill).toHaveBeenCalledWith(true);
+    const replacement = FakeScrollTrigger.instances.at(-1)!;
+    expect(replacement.animation.totalProgress()).toBeCloseTo(0.4);
+    expect(timeline.totalDuration()).toBeCloseTo(3);
+    expect(timeline.playState).toBe("running");
+
+    replacement.setProgress(1);
+    await traversal;
+    expect(timeline.playState).toBe("finished");
+  });
+
+  it("retries missing plugin setup on refresh", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const timeline = createTimeline();
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    timeline.append(createTween({
+      from: { opacity: 0 },
+      to: { opacity: 1 },
+    }));
+    document.body.append(timeline);
+    await flushComposition();
+
+    expect(timeline.playState).toBe("idle");
+    expect(FakeScrollTrigger.instances).toHaveLength(0);
+    expect(warning).toHaveBeenCalledTimes(1);
+
+    installFakeScrollTrigger(gsap);
+    timeline.refresh();
+
+    expect(FakeScrollTrigger.instances).toHaveLength(1);
+  });
+
+  it("uses final presentation without lifecycle events in reduced motion", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true }) as MediaQueryList),
+    );
+    installFakeScrollTrigger(gsap);
+    const timeline = createTimeline();
+    const tween = createTween({
+      from: { opacity: 0 },
+      to: { opacity: 0.6 },
+    });
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, pin: true },
+    };
+    const events: string[] = [];
+    timeline.addEventListener("motion-start", () => events.push("start"));
+    timeline.addEventListener("motion-finish", () => events.push("finish"));
+    timeline.append(tween);
+    document.body.append(timeline);
+    await flushComposition();
+
+    expect(FakeScrollTrigger.instances).toHaveLength(0);
+    expect(tween.style.opacity).toBe("0.6");
+    expect(timeline.playState).toBe("finished");
+    await expect(timeline.finished).resolves.toBeUndefined();
+    expect(events).toEqual([]);
   });
 });

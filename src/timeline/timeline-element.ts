@@ -20,6 +20,76 @@ import type { TweenDefinition } from "./tween.types";
 
 type PlaybackMode = "paused" | "playing" | "reversed";
 
+function shallowEqual(
+  left: Record<string, unknown> | undefined,
+  right: Record<string, unknown> | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => left[key] === right[key])
+  );
+}
+
+function sameDefinition(
+  left: TimelineDefinition | undefined,
+  right: TimelineDefinition,
+): boolean {
+  if (!left || left.items.length !== right.items.length) {
+    return false;
+  }
+
+  const leftOptions = left.options as Record<string, unknown>;
+  const rightOptions = right.options as Record<string, unknown>;
+  const leftDefaults = leftOptions.defaults as Record<string, unknown> | undefined;
+  const rightDefaults = rightOptions.defaults as Record<string, unknown> | undefined;
+  const leftScroll = leftOptions.scrollTrigger as Record<string, unknown> | undefined;
+  const rightScroll = rightOptions.scrollTrigger as Record<string, unknown> | undefined;
+  const comparableLeftOptions = { ...leftOptions };
+  const comparableRightOptions = { ...rightOptions };
+  delete comparableLeftOptions.defaults;
+  delete comparableRightOptions.defaults;
+  delete comparableLeftOptions.scrollTrigger;
+  delete comparableRightOptions.scrollTrigger;
+
+  if (
+    !shallowEqual(comparableLeftOptions, comparableRightOptions) ||
+    !shallowEqual(leftDefaults, rightDefaults) ||
+    !shallowEqual(leftScroll, rightScroll)
+  ) {
+    return false;
+  }
+
+  return left.items.every((item, index) => {
+    const candidate = right.items[index];
+    return (
+      candidate !== undefined &&
+      item.source === candidate.source &&
+      item.target === candidate.target &&
+      item.authoredPosition === candidate.authoredPosition &&
+      item.options.duration === candidate.options.duration &&
+      item.options.ease === candidate.options.ease &&
+      item.options.position === candidate.options.position &&
+      shallowEqual(
+        item.options.from as Record<string, unknown> | undefined,
+        candidate.options.from as Record<string, unknown> | undefined,
+      ) &&
+      shallowEqual(
+        item.options.to as Record<string, unknown> | undefined,
+        candidate.options.to as Record<string, unknown> | undefined,
+      )
+    );
+  });
+}
+
 export class MotionTimelineElement
   extends MotionElement<MotionTimelineOptions, TimelineController>
   implements TimelineCompositionHost
@@ -34,6 +104,7 @@ export class MotionTimelineElement
   private resolveRun?: () => void;
   private cancelling = false;
   private syncedSources: MotionTweenElement[] = [];
+  private syncedDefinition?: TimelineDefinition;
 
   public constructor() {
     super({});
@@ -45,7 +116,15 @@ export class MotionTimelineElement
   }
 
   public override set options(value: MotionTimelineOptions) {
+    const wasScrollDriven = this.options.scrollTrigger !== undefined;
     super.options = value;
+
+    if (wasScrollDriven && value?.scrollTrigger === undefined) {
+      this.playbackMode = "paused";
+      this.currentPlayState = "idle";
+      this.settleRun();
+    }
+
     this.scheduleSync("options");
   }
 
@@ -65,18 +144,30 @@ export class MotionTimelineElement
   }
 
   public override disconnectedCallback(): void {
-    this.syncGeneration += 1;
+    const generation = ++this.syncGeneration;
     this.syncPending = false;
-    super.disconnectedCallback();
-    this.dirty = true;
-    this.pendingChange = "structure";
-    this.playbackMode = "paused";
-    this.currentPlayState = "idle";
-    this.syncedSources = [];
-    this.settleRun();
+
+    queueMicrotask(() => {
+      if (
+        this.isConnected ||
+        generation !== this.syncGeneration
+      ) {
+        return;
+      }
+
+      super.disconnectedCallback();
+      this.dirty = true;
+      this.pendingChange = "structure";
+      this.playbackMode = "paused";
+      this.currentPlayState = "idle";
+      this.syncedSources = [];
+      this.syncedDefinition = undefined;
+      this.settleRun();
+    });
   }
 
   public play(): Promise<void> {
+    this.assertManualDriver("play");
     this.playbackMode = "playing";
     this.prepareRun();
     this.syncNow();
@@ -91,6 +182,7 @@ export class MotionTimelineElement
   }
 
   public pause(): void {
+    this.assertManualDriver("pause");
     this.playbackMode = "paused";
     this.controller?.pause();
 
@@ -100,6 +192,7 @@ export class MotionTimelineElement
   }
 
   public reverse(): Promise<void> {
+    this.assertManualDriver("reverse");
     this.playbackMode = "reversed";
     this.prepareRun();
     this.syncNow();
@@ -108,6 +201,7 @@ export class MotionTimelineElement
   }
 
   public restart(): Promise<void> {
+    this.assertManualDriver("restart");
     this.playbackMode = "playing";
     this.prepareRun(true);
     this.syncNow(true);
@@ -116,6 +210,7 @@ export class MotionTimelineElement
   }
 
   public finish(): void {
+    this.assertManualDriver("finish");
     this.syncNow();
     if (!this.controller?.hasContent()) {
       return;
@@ -174,6 +269,10 @@ export class MotionTimelineElement
   ): TimelineController {
     return new TimelineController(this, options, {
       onStart: () => {
+        if (this.controller?.isScrollDriven()) {
+          this.prepareRun(true);
+        }
+
         this.currentPlayState = "running";
         this.dispatchPlaybackEvent("motion-start");
       },
@@ -193,6 +292,24 @@ export class MotionTimelineElement
         this.settleRun();
         this.dispatchPlaybackEvent("motion-interrupt");
       },
+      onScrollReady: (progress, reducedMotion) => {
+        this.playbackMode = "paused";
+
+        if (reducedMotion || progress >= 1) {
+          this.currentPlayState = "finished";
+          this.settleRun();
+          return;
+        }
+
+        if (progress > 0) {
+          this.currentPlayState = "running";
+          this.prepareRun();
+          return;
+        }
+
+        this.currentPlayState = "idle";
+        this.settleRun();
+      },
     });
   }
 
@@ -208,7 +325,10 @@ export class MotionTimelineElement
       this.pendingChange = "options";
     }
 
-    if (this.controller?.isActive() || this.syncPending) {
+    if (
+      (this.controller?.isActive() && !this.controller.isScrollDriven()) ||
+      this.syncPending
+    ) {
       return;
     }
 
@@ -236,14 +356,24 @@ export class MotionTimelineElement
   private syncNow(force = false): void {
     if (
       !this.isConnected ||
-      (!force && (!this.dirty || this.controller?.isActive()))
+      (!force && (
+        !this.dirty ||
+        (this.controller?.isActive() && !this.controller.isScrollDriven())
+      ))
     ) {
       return;
     }
 
     const definition = this.readDefinition();
     this.dirty = false;
+
+    if (!force && sameDefinition(this.syncedDefinition, definition)) {
+      this.pendingChange = "structure";
+      return;
+    }
+
     this.controller?.syncDefinition(definition, force);
+    this.syncedDefinition = definition;
     this.syncedSources = definition.items.map(
       (item) => item.source as MotionTweenElement,
     );
@@ -252,6 +382,10 @@ export class MotionTimelineElement
 
   private applyPlaybackMode(): void {
     if (!this.controller?.hasContent()) {
+      return;
+    }
+
+    if (this.controller.isScrollDriven()) {
       return;
     }
 
@@ -300,7 +434,8 @@ export class MotionTimelineElement
     if (
       this.currentPlayState !== "finished" ||
       this.pendingChange !== "structure" ||
-      !this.controller
+      !this.controller ||
+      this.controller.isScrollDriven()
     ) {
       return false;
     }
@@ -330,6 +465,7 @@ export class MotionTimelineElement
     this.syncedSources = definition.items.map(
       (item) => item.source as MotionTweenElement,
     );
+    this.syncedDefinition = definition;
 
     if (!appendedItems.some((item) => item.options.to !== undefined)) {
       this.controller.append(definition, appendedItems);
@@ -359,5 +495,16 @@ export class MotionTimelineElement
           authoredPosition: options.position,
         };
       });
+  }
+
+  private assertManualDriver(method: string): void {
+    if (this.options.scrollTrigger === undefined) {
+      return;
+    }
+
+    throw new DOMException(
+      `${method}() is unavailable while options.scrollTrigger owns timeline progress.`,
+      "InvalidStateError",
+    );
   }
 }

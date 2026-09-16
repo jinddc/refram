@@ -1,8 +1,13 @@
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
 import {
   registerMotionTimeline,
   type MotionTimelineElement,
   type MotionTweenElement,
 } from "../src";
+
+gsap.registerPlugin(ScrollTrigger);
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -14,11 +19,18 @@ const sequence = requireElement<MotionTimelineElement>("#sequence");
 const nested = requireElement<MotionTimelineElement>("#nested");
 const empty = requireElement<MotionTimelineElement>("#empty");
 const stress = requireElement<MotionTimelineElement>("#stress");
+const scrollSequence = requireElement<MotionTimelineElement>("#scroll-sequence");
+const scrollSection = requireElement<HTMLElement>("#scroll-driver");
 const state = requireElement<HTMLOutputElement>("#timeline-state");
+const scrollState = requireElement<HTMLOutputElement>("#scroll-state");
 const first = requireElement<MotionTweenElement>("#sequence-a");
 const second = requireElement<MotionTweenElement>("#sequence-b");
 const third = requireElement<MotionTweenElement>("#sequence-c");
 const nestedTween = requireElement<MotionTweenElement>("#nested-tween");
+const scrollFirst = requireElement<MotionTweenElement>("#scroll-a");
+const scrollSecond = requireElement<MotionTweenElement>("#scroll-b");
+const scrollThird = requireElement<MotionTweenElement>("#scroll-c");
+const scrollNestedTween = requireElement<MotionTweenElement>("#scroll-nested-tween");
 
 sequence.options = { defaults: { duration: 0.55, ease: "power3.out" }};
 first.options = {
@@ -41,6 +53,37 @@ nestedTween.options = {
   duration: 0.3,
 };
 
+scrollSequence.options = {
+  defaults: { duration: 1, ease: "none" },
+  scrollTrigger: {
+    trigger: scrollSection,
+    start: "top top",
+    end: "+=1800",
+    scrub: true,
+    pin: true,
+    invalidateOnRefresh: true,
+  },
+};
+scrollFirst.options = {
+  from: { opacity: 0.12, xPercent: -36, rotate: -5 },
+  to: { opacity: 1, xPercent: 0, rotate: 0 },
+};
+scrollSecond.options = {
+  from: { opacity: 0.12, yPercent: 45, scale: 0.88 },
+  to: { opacity: 1, yPercent: 0, scale: 1 },
+  position: "<35%",
+};
+scrollThird.options = {
+  from: { opacity: 0.12, xPercent: 36, rotate: 5 },
+  to: { opacity: 1, xPercent: 0, rotate: 0 },
+  position: "<45%",
+};
+scrollNestedTween.options = {
+  from: { opacity: 0, y: 18 },
+  to: { opacity: 1, y: 0 },
+  duration: 0.25,
+};
+
 for (let index = 1; index <= 20; index += 1) {
   const tween = document.createElement("motion-tween") as MotionTweenElement;
   tween.textContent = String(index).padStart(2, "0");
@@ -56,6 +99,12 @@ for (let index = 1; index <= 20; index += 1) {
 for (const type of ["motion-start", "motion-finish", "motion-cancel", "motion-interrupt"]) {
   sequence.addEventListener(type, () => {
     state.value = `${type.replace("motion-", "")} / ${sequence.playState}`;
+  });
+}
+
+for (const type of ["motion-start", "motion-finish", "motion-cancel", "motion-interrupt"]) {
+  scrollSequence.addEventListener(type, () => {
+    scrollState.value = `${type.replace("motion-", "")} / ${scrollSequence.playState}`;
   });
 }
 
@@ -90,7 +139,35 @@ document.querySelector("#append-async")?.addEventListener("click", () => {
 });
 
 registerMotionTimeline();
+queueMicrotask(() => {
+  scrollState.value = scrollSequence.playState;
+});
+
+function mutateScrollTimeline(): void {
+  scrollThird.options = {
+    from: { opacity: 0.12, xPercent: 36, rotate: 5 },
+    to: { opacity: 1, xPercent: 0, rotate: 0, scale: 1.04 },
+    duration: 1.2,
+    position: "<45%",
+  };
+}
+
+document.querySelector("#mutate-scroll")?.addEventListener(
+  "click",
+  mutateScrollTimeline,
+);
 
 Object.assign(window, {
-  __timelineHarness: { sequence, nested, empty, stress, appendAsyncTween },
+  __timelineHarness: {
+    sequence,
+    nested,
+    empty,
+    stress,
+    scrollSequence,
+    scrollSection,
+    scrollNestedTween,
+    ScrollTrigger,
+    appendAsyncTween,
+    mutateScrollTimeline,
+  },
 });

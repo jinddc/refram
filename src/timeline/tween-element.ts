@@ -46,10 +46,21 @@ export class MotionTweenElement extends HTMLElementBase {
   }
 
   public disconnectedCallback(): void {
-    this.ownershipGeneration += 1;
+    const generation = ++this.ownershipGeneration;
     const previousOwner = this.timelineOwner;
-    this.timelineOwner = undefined;
-    previousOwner?.[REQUEST_TIMELINE_SYNC]("structure");
+
+    queueMicrotask(() => {
+      if (
+        this.isConnected ||
+        generation !== this.ownershipGeneration ||
+        this.timelineOwner !== previousOwner
+      ) {
+        return;
+      }
+
+      this.timelineOwner = undefined;
+      previousOwner?.[REQUEST_TIMELINE_SYNC]("structure");
+    });
   }
 
   private resolveOwner(reason: "structure" | "options"): void {
