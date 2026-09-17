@@ -251,6 +251,51 @@ describe("timeline inspection", () => {
     structuralAttachment.detach();
   });
 
+  it("isolates progress listener failures and keeps shared sampling alive", async () => {
+    installFakeScrollTrigger(gsap);
+    const reportError = vi.fn();
+    vi.stubGlobal("reportError", reportError);
+    const timeline = createTimeline();
+    timeline.options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    timeline.append(createTween({ to: { x: 100 }, duration: 1 }));
+    document.body.append(timeline);
+    await flushInspection();
+
+    let shouldThrow = false;
+    const firstAttachment = attachTimelineInspector(
+      timeline,
+      () => {
+        if (shouldThrow) {
+          throw new Error("debugger render failed");
+        }
+      },
+      { progress: true },
+    );
+    const received: TimelineInspectionSnapshot[] = [];
+    const secondAttachment = attachTimelineInspector(
+      timeline,
+      (snapshot) => received.push(snapshot),
+      { progress: true },
+    );
+    const trigger = FakeScrollTrigger.instances.at(-1)!;
+    trigger.setProgress(0.2);
+    await flushInspection();
+    shouldThrow = true;
+
+    trigger.setProgress(0.4);
+    expect(() => runFrame()).not.toThrow();
+    expect(received.at(-1)?.progress).toBeCloseTo(0.4);
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "debugger render failed" }),
+    );
+    expect(frames.size).toBe(1);
+
+    firstAttachment.detach();
+    secondAttachment.detach();
+  });
+
   it("defers listener-caused mutations and keeps semantic state changes on one revision", async () => {
     const timeline = createTimeline();
     const tween = createTween({ to: { x: 10 }, duration: 1 });

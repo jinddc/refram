@@ -88,6 +88,44 @@ interface InspectionNotification {
   preserveAuthored?: boolean;
 }
 
+function reportInspectionError(error: unknown): void {
+  const reporter = (globalThis as typeof globalThis & {
+    reportError?: (cause: unknown) => void;
+  }).reportError;
+  if (typeof reporter === "function") {
+    reporter(error);
+    return;
+  }
+
+  queueMicrotask(() => {
+    throw error;
+  });
+}
+
+function createInspectorAttachment(
+  owner: TimelineInspectionHub | undefined,
+  entry: InspectionEntry | undefined,
+): TimelineInspectorAttachment {
+  return {
+    read() {
+      if (!entry?.active || !entry.snapshot) {
+        throw new DOMException(
+          "Timeline inspector attachment is detached.",
+          "InvalidStateError",
+        );
+      }
+      return entry.snapshot;
+    },
+    detach() {
+      const activeOwner = owner;
+      const activeEntry = entry;
+      owner = undefined;
+      entry = undefined;
+      activeOwner?.detachEntry(activeEntry);
+    },
+  };
+}
+
 type SnapshotReader = (
   revision: number,
   previousItems: readonly TimelineInspectionItem[] | undefined,
@@ -149,49 +187,31 @@ export class TimelineInspectionHub {
     try {
       listener(snapshot);
     } catch (error) {
-      entry.active = false;
-      entry.listener = undefined;
-      entry.snapshot = undefined;
-      this.entries.delete(entry);
-      if (this.entries.size === 0) {
-        this.current = undefined;
-      }
+      this.detachEntry(entry);
       throw error;
     }
 
     this.updateSampling();
+    return createInspectorAttachment(this, entry);
+  }
 
-    const attachment: TimelineInspectorAttachment = {
-      read: () => {
-        if (!entry.active || !entry.snapshot) {
-          throw new DOMException(
-            "Timeline inspector attachment is detached.",
-            "InvalidStateError",
-          );
-        }
-        return entry.snapshot;
-      },
-      detach: () => {
-        if (!entry.active) {
-          return;
-        }
+  public detachEntry(entry: InspectionEntry | undefined): void {
+    if (!entry?.active) {
+      return;
+    }
 
-        entry.active = false;
-        entry.listener = undefined;
-        entry.snapshot = undefined;
-        this.entries.delete(entry);
-        this.updateSampling();
+    entry.active = false;
+    entry.listener = undefined;
+    entry.snapshot = undefined;
+    this.entries.delete(entry);
+    this.updateSampling();
 
-        if (this.entries.size === 0) {
-          this.current = undefined;
-          this.revision = 0;
-          this.pendingReplacement = false;
-          this.pendingPreserveAuthored = false;
-        }
-      },
-    };
-
-    return attachment;
+    if (this.entries.size === 0) {
+      this.current = undefined;
+      this.revision = 0;
+      this.pendingReplacement = false;
+      this.pendingPreserveAuthored = false;
+    }
   }
 
   public notify(notification: InspectionNotification = {}): void {
@@ -254,6 +274,7 @@ export class TimelineInspectionHub {
     progressOnly: boolean,
   ): void {
     this.current = snapshot;
+    const errors: unknown[] = [];
     for (const entry of [...this.entries]) {
       if (
         !entry.active ||
@@ -264,7 +285,15 @@ export class TimelineInspectionHub {
       }
 
       entry.snapshot = snapshot;
-      entry.listener(snapshot);
+      try {
+        entry.listener(snapshot);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    for (const error of errors) {
+      reportInspectionError(error);
     }
   }
 
@@ -296,18 +325,20 @@ export class TimelineInspectionHub {
       return;
     }
 
-    const previous = this.current;
-    const snapshot = this.readSnapshot(
-      this.revision,
-      previous?.items,
-      false,
-      false,
-    );
-    if (!previous || !sameSnapshot(previous, snapshot)) {
-      this.deliver(snapshot, true);
+    try {
+      const previous = this.current;
+      const snapshot = this.readSnapshot(
+        this.revision,
+        previous?.items,
+        false,
+        false,
+      );
+      if (!previous || !sameSnapshot(previous, snapshot)) {
+        this.deliver(snapshot, true);
+      }
+    } finally {
+      this.updateSampling();
     }
-
-    this.updateSampling();
   }
 
   private stopSampling(): void {
