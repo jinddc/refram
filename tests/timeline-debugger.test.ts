@@ -50,7 +50,6 @@ function inspectionSnapshot(
   overrides: Partial<TimelineInspectionSnapshot> = {},
 ): TimelineInspectionSnapshot {
   return {
-    revision: 0,
     driver: "manual",
     readiness: items.length ? "ready" : "empty",
     playState: "idle",
@@ -282,7 +281,6 @@ describe("timeline debugger", () => {
       resolvedEnd: 0.5,
     })];
     timeline.emit(inspectionSnapshot(survivingItems, {
-      revision: 1,
       totalDuration: 0.5,
     }));
     runFrame();
@@ -293,7 +291,7 @@ describe("timeline debugger", () => {
 
     const sourceC = document.createElement("motion-tween");
     sourceC.id = "c";
-    timeline.emit(inspectionSnapshot([inspectionItem(sourceC)], { revision: 2 }));
+    timeline.emit(inspectionSnapshot([inspectionItem(sourceC)]));
     runFrame();
     expect(container.textContent).toContain("motion-tween#c");
     expect(container.textContent).not.toContain("motion-tween#b");

@@ -102,6 +102,50 @@ async function verifyTimelineDebugger({ artifactDirectory, send }) {
     "Authored string positions were not preserved verbatim.",
   );
 
+  await evaluate(send, `(() => {
+    window.__timelineDebuggerHarness.enableScrollDriver();
+    return true;
+  })()`);
+  await waitFor(
+    () => evaluate(send, `document.querySelector("#debugger-unsupported [data-role='readiness']")?.textContent === "ready" && window.__timelineDebuggerHarness.ScrollTrigger.getAll().length === 1`),
+    "the real ScrollTrigger debugger state",
+  );
+  await evaluate(send, `(() => {
+    const harness = window.__timelineDebuggerHarness;
+    const trigger = harness.ScrollTrigger.getAll()[0];
+    window.__debuggerScrollRow = document.querySelector("#debugger-unsupported tbody tr");
+    window.__debuggerScrollProgress = 0.55;
+    window.scrollTo(0, trigger.start + ((trigger.end - trigger.start) * window.__debuggerScrollProgress));
+    harness.ScrollTrigger.update();
+    return true;
+  })()`);
+  await settle(send);
+  await waitFor(
+    () => evaluate(send, `Number.parseFloat(document.querySelector("#debugger-unsupported [data-role='progress']")?.value ?? "0") > 40`),
+    "the real ScrollTrigger debugger progress",
+  );
+  const scrollBeforeMutation = await evaluate(send, `(() => ({
+    driver: document.querySelector("#debugger-unsupported [data-role='driver']")?.textContent,
+    progress: (window.__debuggerScrollProgress = window.__timelineDebuggerHarness.ScrollTrigger.getAll()[0]?.progress),
+  }))()`);
+  assert(scrollBeforeMutation.driver === "scroll", "Real ScrollTrigger debugger reported the wrong driver.");
+  assert(scrollBeforeMutation.progress > 0.4, "Real ScrollTrigger progress did not reach the inspection debugger.");
+
+  await evaluate(send, `(() => {
+    window.__timelineDebuggerHarness.mutateScrollTimeline();
+    return true;
+  })()`);
+  await waitFor(
+    () => evaluate(send, `(() => {
+      const harness = window.__timelineDebuggerHarness;
+      const trigger = harness.ScrollTrigger.getAll()[0];
+      return harness.ScrollTrigger.getAll().length === 1 &&
+        Math.abs(trigger.progress - window.__debuggerScrollProgress) < 0.04 &&
+        window.__debuggerScrollRow === document.querySelector("#debugger-unsupported tbody tr");
+    })()`),
+    "the progress-preserving ScrollTrigger debugger rebuild",
+  );
+
   const keyboard = await evaluate(send, `(() => {
     const buttons = document.querySelectorAll("#debugger-manual .timeline-debugger__row-button");
     buttons[1].focus();
@@ -248,6 +292,7 @@ async function verifyTimelineDebugger({ artifactDirectory, send }) {
       structuralReplacement: "pass",
       keyboardSelection: "pass",
       readinessStates: "pass",
+      realScrollTriggerPipeline: "pass",
       disconnectReconnect: "pass",
       hiddenSuspension: "pass",
       sourcePixelIsolation: "pass",

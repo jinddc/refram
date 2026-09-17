@@ -28,7 +28,6 @@ export interface TimelineInspectionItem {
 }
 
 export interface TimelineInspectionSnapshot {
-  readonly revision: number;
   readonly driver: TimelineInspectionDriver;
   readonly readiness: TimelineInspectionReadiness;
   readonly playState: MotionPlaybackState;
@@ -127,7 +126,6 @@ function createInspectorAttachment(
 }
 
 type SnapshotReader = (
-  revision: number,
   previousItems: readonly TimelineInspectionItem[] | undefined,
   rebuildItems: boolean,
   preserveAuthored: boolean,
@@ -138,7 +136,6 @@ function sameSnapshot(
   right: TimelineInspectionSnapshot,
 ): boolean {
   return (
-    left.revision === right.revision &&
     left.driver === right.driver &&
     left.readiness === right.readiness &&
     left.playState === right.playState &&
@@ -151,7 +148,6 @@ function sameSnapshot(
 export class TimelineInspectionHub {
   private readonly entries = new Set<InspectionEntry>();
   private current?: TimelineInspectionSnapshot;
-  private revision = 0;
   private connected: boolean;
   private flushPending = false;
   private pendingReplacement = false;
@@ -175,7 +171,6 @@ export class TimelineInspectionHub {
       progress: options.progress === true,
     };
     const snapshot = this.current ?? this.readSnapshot(
-      this.revision,
       undefined,
       true,
       false,
@@ -208,7 +203,6 @@ export class TimelineInspectionHub {
 
     if (this.entries.size === 0) {
       this.current = undefined;
-      this.revision = 0;
       this.pendingReplacement = false;
       this.pendingPreserveAuthored = false;
     }
@@ -251,13 +245,8 @@ export class TimelineInspectionHub {
     this.pendingReplacement = false;
     this.pendingPreserveAuthored = false;
 
-    if (replacement) {
-      this.revision += 1;
-    }
-
     const previous = this.current;
     const snapshot = this.readSnapshot(
-      this.revision,
       previous?.items,
       replacement || !previous,
       preserveAuthored,
@@ -328,7 +317,6 @@ export class TimelineInspectionHub {
     try {
       const previous = this.current;
       const snapshot = this.readSnapshot(
-        this.revision,
         previous?.items,
         false,
         false,

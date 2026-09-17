@@ -288,12 +288,10 @@ export class MotionTimelineElement
   ): TimelineInspectorAttachment {
     this.inspectionHub ??= new TimelineInspectionHub(
       (
-        revision,
         previousItems,
         rebuildItems,
         preserveAuthored,
       ) => this.readInspectionSnapshot(
-        revision,
         previousItems,
         rebuildItems,
         preserveAuthored,
@@ -379,7 +377,6 @@ export class MotionTimelineElement
   }
 
   private readInspectionSnapshot(
-    revision: number,
     previousItems: readonly TimelineInspectionItem[] | undefined,
     rebuildItems: boolean,
     preserveAuthored: boolean,
@@ -392,7 +389,6 @@ export class MotionTimelineElement
           )
         : previousItems ?? [];
       return Object.freeze({
-        revision,
         driver: this.options.scrollTrigger ? "scroll" : "manual",
         readiness: "disconnected",
         playState: this.currentPlayState,
@@ -427,7 +423,6 @@ export class MotionTimelineElement
       : previousItems ?? [];
 
     return Object.freeze({
-      revision,
       driver: controllerInspection?.driver ?? (
         this.options.scrollTrigger ? "scroll" : "manual"
       ),

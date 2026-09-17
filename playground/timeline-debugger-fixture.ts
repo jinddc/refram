@@ -1,3 +1,6 @@
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
 import {
   registerMotionTimeline,
   type MotionTimelineElement,
@@ -149,6 +152,19 @@ function mutateManualTimeline(): void {
   manual.append(tween);
 }
 
+function enableScrollDriver(): void {
+  gsap.registerPlugin(ScrollTrigger);
+  unsupported.refresh();
+}
+
+function mutateScrollTimeline(): void {
+  unsupportedTween.options = {
+    from: { opacity: 0.1, x: -54 },
+    to: { opacity: 1, x: 0 },
+    duration: 1.25,
+  };
+}
+
 document.querySelector("[data-debug-action='play']")?.addEventListener("click", () => {
   void manual.play();
 });
@@ -175,9 +191,12 @@ Object.assign(window, {
     unsupported,
     disconnected,
     stress,
+    ScrollTrigger,
     mountDebugger,
     unmountDebugger,
     mutateManualTimeline,
+    enableScrollDriver,
+    mutateScrollTimeline,
     reconnectTimeline,
     disconnectTimeline,
     playManual: () => manual.play(),

@@ -104,15 +104,14 @@ describe("timeline inspection", () => {
     );
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0]).toMatchObject({
-      revision: 0,
       readiness: "empty",
       progress: 0,
       totalDuration: 0,
     });
+    const emptyItems = snapshots[0]!.items;
 
     await flushInspection();
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       readiness: "ready",
       totalDuration: 0.5,
     });
@@ -120,6 +119,7 @@ describe("timeline inspection", () => {
       first,
       second,
     ]);
+    expect(snapshots.at(-1)?.items).not.toBe(emptyItems);
     attachment.detach();
   });
 
@@ -145,7 +145,6 @@ describe("timeline inspection", () => {
     expect(snapshots).toHaveLength(1);
     expect(attachment.read()).toBe(snapshots[0]);
     expect(snapshots[0]).toMatchObject({
-      revision: 0,
       driver: "manual",
       readiness: "ready",
       playState: "idle",
@@ -179,7 +178,6 @@ describe("timeline inspection", () => {
 
     expect(snapshots).toHaveLength(2);
     expect(snapshots[1]).toMatchObject({
-      revision: 1,
       readiness: "ready",
       totalDuration: 0.25,
     });
@@ -237,7 +235,6 @@ describe("timeline inspection", () => {
     expect(progressA).toHaveLength(progressACount + 1);
     expect(progressB).toHaveLength(progressBCount + 1);
     expect(progressA.at(-1)).toMatchObject({
-      revision: 0,
       progress: 0.35,
       playState: "running",
     });
@@ -296,7 +293,7 @@ describe("timeline inspection", () => {
     secondAttachment.detach();
   });
 
-  it("defers listener-caused mutations and keeps semantic state changes on one revision", async () => {
+  it("defers listener-caused mutations and reuses items for semantic state changes", async () => {
     const timeline = createTimeline();
     const tween = createTween({ to: { x: 10 }, duration: 1 });
     timeline.append(tween);
@@ -320,7 +317,6 @@ describe("timeline inspection", () => {
     expect(maximumDepth).toBe(1);
     expect(snapshots).toHaveLength(2);
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       totalDuration: 0.5,
     });
 
@@ -330,7 +326,6 @@ describe("timeline inspection", () => {
     expect(timeline.playState).toBe("running");
     await flushInspection();
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       playState: "running",
     });
     expect(snapshots.at(-1)?.items).toBe(items);
@@ -338,7 +333,6 @@ describe("timeline inspection", () => {
     timeline.pause();
     await flushInspection();
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       playState: "paused",
     });
     expect(snapshots.at(-1)?.items).toBe(items);
@@ -347,13 +341,13 @@ describe("timeline inspection", () => {
     await run;
     await flushInspection();
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       playState: "finished",
     });
+    expect(snapshots.at(-1)?.items).toBe(items);
     attachment.detach();
   });
 
-  it("survives true disconnect and reconnect with coherent revisions", async () => {
+  it("survives true disconnect and reconnect with coherent item replacements", async () => {
     const timeline = createTimeline();
     const tween = createTween({ to: { x: 20 }, duration: 0.5 });
     timeline.append(tween);
@@ -364,12 +358,12 @@ describe("timeline inspection", () => {
       timeline,
       (snapshot) => snapshots.push(snapshot),
     );
+    const connectedItems = snapshots[0]!.items;
 
     timeline.remove();
     await flushInspection();
 
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 1,
       readiness: "disconnected",
       playState: "idle",
       progress: 0,
@@ -381,15 +375,17 @@ describe("timeline inspection", () => {
       resolvedDuration: null,
       resolvedEnd: null,
     });
+    const disconnectedItems = snapshots.at(-1)!.items;
+    expect(disconnectedItems).not.toBe(connectedItems);
 
     document.body.append(timeline);
     await flushInspection();
 
     expect(snapshots.at(-1)).toMatchObject({
-      revision: 2,
       readiness: "ready",
       totalDuration: 0.5,
     });
+    expect(snapshots.at(-1)?.items).not.toBe(disconnectedItems);
     expect(snapshots.at(-1)?.items[0]?.resolvedDuration).toBeCloseTo(0.5);
     attachment.detach();
   });
@@ -404,15 +400,16 @@ describe("timeline inspection", () => {
       manual,
       (snapshot) => manualSnapshots.push(snapshot),
     );
+    const manualItems = manualSnapshots[0]!.items;
 
     manual.cancel();
     await flushInspection();
     expect(manualSnapshots.at(-1)).toMatchObject({
-      revision: 1,
       readiness: "ready",
       playState: "idle",
       progress: 0,
     });
+    expect(manualSnapshots.at(-1)?.items).not.toBe(manualItems);
 
     installFakeScrollTrigger(gsap);
     const scroll = createTimeline();
@@ -427,11 +424,11 @@ describe("timeline inspection", () => {
       scroll,
       (snapshot) => scrollSnapshots.push(snapshot),
     );
+    const readyItems = scrollSnapshots[0]!.items;
 
     scroll.cancel();
     await flushInspection();
     expect(scrollSnapshots.at(-1)).toMatchObject({
-      revision: 1,
       driver: "scroll",
       readiness: "cancelled",
       playState: "idle",
@@ -439,14 +436,16 @@ describe("timeline inspection", () => {
       totalDuration: 0,
     });
     expect(scrollSnapshots.at(-1)?.items[0]?.resolvedStart).toBeNull();
+    const cancelledItems = scrollSnapshots.at(-1)!.items;
+    expect(cancelledItems).not.toBe(readyItems);
 
     scroll.refresh();
     await flushInspection();
     expect(scrollSnapshots.at(-1)).toMatchObject({
-      revision: 2,
       readiness: "ready",
       totalDuration: 2,
     });
+    expect(scrollSnapshots.at(-1)?.items).not.toBe(cancelledItems);
 
     manualAttachment.detach();
     scrollAttachment.detach();
