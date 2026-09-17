@@ -11,5 +11,7 @@ describe("timeline SSR entry", () => {
     expect(entry.MotionTweenElement).toEqual(expect.any(Function));
     expect(entry.registerMotionTimeline).not.toThrow();
     expect(entry.registerMotionTween).not.toThrow();
+    expect(entry).not.toHaveProperty("attachTimelineInspector");
+    expect(entry).not.toHaveProperty("ATTACH_TIMELINE_INSPECTOR");
   });
 });

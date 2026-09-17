@@ -28,6 +28,7 @@ function setup(options = {}) {
     onComplete: vi.fn(),
     onInterrupt: vi.fn(),
     onScrollReady: vi.fn(),
+    onInspectionChange: vi.fn(),
   };
   const controller = new TimelineController(root, options, hooks);
   controller.connect();
@@ -58,6 +59,12 @@ describe("TimelineController", () => {
 
     expect(target.style.opacity).toBe("1");
     expect(controller.totalDuration()).toBeCloseTo(0.25);
+    expect(controller.readInspection()).toMatchObject({
+      driver: "manual",
+      readiness: "ready",
+      progress: 0,
+      totalDuration: 0.25,
+    });
   });
 
   it("applies sanitized from state synchronously when forward playback starts", () => {
@@ -144,6 +151,10 @@ describe("TimelineController", () => {
     expect(target.style.opacity).toBe("0");
     expect(controller.cancel()).toBe(true);
     expect(target.style.opacity).toBe("1");
+    expect(controller.readInspection()).toMatchObject({
+      readiness: "ready",
+      progress: 0,
+    });
     controller.destroy();
     controller.destroy();
   });
@@ -168,6 +179,12 @@ describe("TimelineController", () => {
     expect(target.style.opacity).toBe("1");
     expect(controller.totalDuration()).toBe(0);
     expect(hooks.onScrollReady).toHaveBeenLastCalledWith(0, false);
+    expect(controller.readInspection()).toMatchObject({
+      driver: "scroll",
+      readiness: "missing-plugin",
+      progress: 0,
+      totalDuration: 0,
+    });
     expect(warning).toHaveBeenCalledTimes(1);
 
     controller.syncDefinition(createTimelineDefinition(
@@ -274,5 +291,100 @@ describe("TimelineController", () => {
     expect(hooks.onScrollReady).toHaveBeenLastCalledWith(1, true);
     expect(hooks.onStart).not.toHaveBeenCalled();
     expect(hooks.onComplete).not.toHaveBeenCalled();
+    expect(controller.readInspection()).toMatchObject({
+      driver: "scroll",
+      readiness: "reduced-motion",
+      progress: 1,
+      totalDuration: 0,
+    });
+  });
+
+  it("retains authored descriptors and resolved child timing without exposing animations", () => {
+    mockMotionPreference(false);
+    const { controller, target, hooks } = setup({
+      defaults: { duration: 0.5 },
+    });
+    const inert = document.createElement("div");
+    const overlapping = document.createElement("div");
+    const advanced = { value: 1 };
+    const definition = createTimelineDefinition(
+      { defaults: { duration: 0.5 } },
+      [
+        {
+          source: target,
+          target,
+          options: { to: { x: 10, callbackScope: advanced } },
+        },
+        {
+          source: inert,
+          target: inert,
+          options: { from: { opacity: 0 } },
+        },
+        {
+          source: overlapping,
+          target: overlapping,
+          authoredPosition: "<",
+          options: { to: { x: 20 }, position: "<", duration: 0.25 },
+        },
+      ],
+    );
+
+    controller.syncDefinition(definition);
+
+    const inspection = controller.readInspection();
+    expect(inspection.items).toHaveLength(3);
+    expect(inspection.items[0]?.definition.options.to?.callbackScope).toBe(
+      advanced,
+    );
+    expect(inspection.items[0]).toMatchObject({
+      resolvedStart: 0,
+      resolvedDuration: 0.5,
+      resolvedEnd: 0.5,
+    });
+    expect(inspection.items[1]).toMatchObject({
+      resolvedStart: null,
+      resolvedDuration: null,
+      resolvedEnd: null,
+    });
+    expect(inspection.items[2]).toMatchObject({
+      resolvedStart: 0,
+      resolvedDuration: 0.25,
+      resolvedEnd: 0.25,
+    });
+    expect(inspection.items[0]).not.toHaveProperty("animation");
+    expect(hooks.onInspectionChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("reports cancelled scroll resources until refresh", () => {
+    mockMotionPreference(false);
+    installFakeScrollTrigger(gsap);
+    const options = {
+      scrollTrigger: { trigger: document.body, scrub: true },
+    };
+    const { controller, target } = setup(options);
+    controller.syncDefinition(createTimelineDefinition(options, [{
+      source: target,
+      target,
+      options: { to: { x: 10 }, duration: 1 },
+    }]));
+
+    controller.cancel();
+    expect(controller.readInspection()).toMatchObject({
+      readiness: "cancelled",
+      progress: 0,
+      totalDuration: 0,
+    });
+    expect(controller.readInspection().items[0]).toMatchObject({
+      resolvedStart: null,
+      resolvedDuration: null,
+      resolvedEnd: null,
+    });
+
+    controller.syncDefinition(createTimelineDefinition(options, [{
+      source: target,
+      target,
+      options: { to: { x: 10 }, duration: 1 },
+    }]), true);
+    expect(controller.readInspection().readiness).toBe("ready");
   });
 });

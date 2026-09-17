@@ -9,6 +9,15 @@ import {
   type TimelineChangeReason,
   type TimelineCompositionHost,
 } from "./timeline-protocol";
+import {
+  ATTACH_TIMELINE_INSPECTOR,
+  TimelineInspectionHub,
+  type TimelineInspectionItem,
+  type TimelineInspectionListener,
+  type TimelineInspectionSnapshot,
+  type TimelineInspectorAttachment,
+  type TimelineInspectorOptions,
+} from "./timeline-inspection";
 import type {
   MotionPlaybackEventDetail,
   MotionPlaybackState,
@@ -105,9 +114,19 @@ export class MotionTimelineElement
   private cancelling = false;
   private syncedSources: MotionTweenElement[] = [];
   private syncedDefinition?: TimelineDefinition;
+  private inspectionConnected = false;
+  private inspectionHub?: TimelineInspectionHub;
 
   public constructor() {
     super({});
+    Object.defineProperty(this, ATTACH_TIMELINE_INSPECTOR, {
+      configurable: false,
+      enumerable: false,
+      value: (
+        listener: TimelineInspectionListener,
+        options?: TimelineInspectorOptions,
+      ) => this.attachInspection(listener, options),
+    });
     this.upgradeOptionsProperty();
   }
 
@@ -123,6 +142,7 @@ export class MotionTimelineElement
       this.playbackMode = "paused";
       this.currentPlayState = "idle";
       this.settleRun();
+      this.notifyInspection();
     }
 
     this.scheduleSync("options");
@@ -138,6 +158,8 @@ export class MotionTimelineElement
 
   public override connectedCallback(): void {
     super.connectedCallback();
+    this.inspectionConnected = true;
+    this.inspectionHub?.setConnected(true);
     this.syncGeneration += 1;
     this.dirty = true;
     this.scheduleSync();
@@ -163,6 +185,12 @@ export class MotionTimelineElement
       this.syncedSources = [];
       this.syncedDefinition = undefined;
       this.settleRun();
+      this.inspectionConnected = false;
+      this.inspectionHub?.setConnected(false);
+      this.inspectionHub?.notify({
+        replacement: true,
+        preserveAuthored: true,
+      });
     });
   }
 
@@ -188,6 +216,7 @@ export class MotionTimelineElement
 
     if (this.currentPlayState === "running") {
       this.currentPlayState = "paused";
+      this.notifyInspection();
     }
   }
 
@@ -230,6 +259,7 @@ export class MotionTimelineElement
     this.cancelling = false;
     this.currentPlayState = "idle";
     this.settleRun();
+    this.notifyInspection();
 
     if (hadPendingRun || hadContent) {
       this.dispatchPlaybackEvent("motion-cancel");
@@ -250,6 +280,28 @@ export class MotionTimelineElement
     reason: TimelineChangeReason = "structure",
   ): void {
     this.scheduleSync(reason);
+  }
+
+  private attachInspection(
+    listener: TimelineInspectionListener,
+    options?: TimelineInspectorOptions,
+  ): TimelineInspectorAttachment {
+    this.inspectionHub ??= new TimelineInspectionHub(
+      (
+        revision,
+        previousItems,
+        rebuildItems,
+        preserveAuthored,
+      ) => this.readInspectionSnapshot(
+        revision,
+        previousItems,
+        rebuildItems,
+        preserveAuthored,
+      ),
+      this.inspectionConnected,
+    );
+
+    return this.inspectionHub.attach(listener, options);
   }
 
   protected normalizeOptions(
@@ -274,12 +326,14 @@ export class MotionTimelineElement
         }
 
         this.currentPlayState = "running";
+        this.notifyInspection();
         this.dispatchPlaybackEvent("motion-start");
       },
       onComplete: () => {
         this.currentPlayState = "finished";
         this.playbackMode = "paused";
         this.settleRun();
+        this.notifyInspection();
         this.dispatchPlaybackEvent("motion-finish");
       },
       onInterrupt: () => {
@@ -290,6 +344,7 @@ export class MotionTimelineElement
         this.currentPlayState = "idle";
         this.playbackMode = "paused";
         this.settleRun();
+        this.notifyInspection();
         this.dispatchPlaybackEvent("motion-interrupt");
       },
       onScrollReady: (progress, reducedMotion) => {
@@ -298,19 +353,120 @@ export class MotionTimelineElement
         if (reducedMotion || progress >= 1) {
           this.currentPlayState = "finished";
           this.settleRun();
+          this.notifyInspection();
           return;
         }
 
         if (progress > 0) {
           this.currentPlayState = "running";
           this.prepareRun();
+          this.notifyInspection();
           return;
         }
 
         this.currentPlayState = "idle";
         this.settleRun();
+        this.notifyInspection();
+      },
+      onInspectionChange: (replacement) => {
+        this.inspectionHub?.notify({ replacement });
       },
     });
+  }
+
+  private notifyInspection(): void {
+    this.inspectionHub?.notify();
+  }
+
+  private readInspectionSnapshot(
+    revision: number,
+    previousItems: readonly TimelineInspectionItem[] | undefined,
+    rebuildItems: boolean,
+    preserveAuthored: boolean,
+  ): TimelineInspectionSnapshot {
+    if (!this.inspectionConnected) {
+      const items = rebuildItems
+        ? this.readDisconnectedInspectionItems(
+            previousItems,
+            preserveAuthored,
+          )
+        : previousItems ?? [];
+      return Object.freeze({
+        revision,
+        driver: this.options.scrollTrigger ? "scroll" : "manual",
+        readiness: "disconnected",
+        playState: this.currentPlayState,
+        progress: 0,
+        totalDuration: 0,
+        items,
+      });
+    }
+
+    const controllerInspection = this.controller?.readInspection();
+    const definition = this.syncedDefinition;
+    const items = rebuildItems
+      ? Object.freeze((definition?.items ?? []).map((item, index) => {
+          const compiled = controllerInspection?.items[index];
+          const resolved = compiled?.definition === item
+            ? compiled
+            : undefined;
+          return Object.freeze({
+            source: item.source,
+            index,
+            runnable: item.options.to !== undefined,
+            authoredPosition: item.authoredPosition,
+            from: item.options.from,
+            to: item.options.to,
+            authoredDuration: item.options.duration,
+            authoredEase: item.options.ease,
+            resolvedStart: resolved?.resolvedStart ?? null,
+            resolvedDuration: resolved?.resolvedDuration ?? null,
+            resolvedEnd: resolved?.resolvedEnd ?? null,
+          });
+        }))
+      : previousItems ?? [];
+
+    return Object.freeze({
+      revision,
+      driver: controllerInspection?.driver ?? (
+        this.options.scrollTrigger ? "scroll" : "manual"
+      ),
+      readiness: controllerInspection?.readiness ?? "empty",
+      playState: this.currentPlayState,
+      progress: controllerInspection?.progress ?? 0,
+      totalDuration: controllerInspection?.totalDuration ?? 0,
+      items,
+    });
+  }
+
+  private readDisconnectedInspectionItems(
+    previousItems: readonly TimelineInspectionItem[] | undefined,
+    preserveAuthored: boolean,
+  ): readonly TimelineInspectionItem[] {
+    if (preserveAuthored && previousItems) {
+      return Object.freeze(previousItems.map((item) => Object.freeze({
+        ...item,
+        resolvedStart: null,
+        resolvedDuration: null,
+        resolvedEnd: null,
+      })));
+    }
+
+    return Object.freeze((this.syncedDefinition?.items ?? []).map(
+      (item, index) => Object.freeze({
+        source: item.source,
+        index,
+        runnable: item.options.to !== undefined,
+        authoredPosition: item.authoredPosition,
+        from: item.options.from,
+        to: item.options.to,
+        authoredDuration: item.options.duration,
+        authoredEase: item.options.ease,
+        resolvedStart: null,
+        resolvedDuration: null,
+        resolvedEnd: null,
+      }),
+    ));
   }
 
   private scheduleSync(

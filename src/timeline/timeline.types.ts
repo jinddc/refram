@@ -37,4 +37,5 @@ export interface TimelineLifecycleHooks {
   onComplete(): void;
   onInterrupt(): void;
   onScrollReady(progress: number, reducedMotion: boolean): void;
+  onInspectionChange(replacement: boolean): void;
 }

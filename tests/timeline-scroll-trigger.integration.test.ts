@@ -5,6 +5,10 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MotionTimelineElement } from "../src/timeline/timeline-element";
+import {
+  attachTimelineInspector,
+  type TimelineInspectionSnapshot,
+} from "../src/timeline/timeline-inspection";
 import { MotionTweenElement } from "../src/timeline/tween-element";
 
 beforeAll(() => {
@@ -70,22 +74,38 @@ describe("timeline ScrollTrigger integration", () => {
     document.body.append(timeline);
     await flushComposition();
 
+    const snapshots: TimelineInspectionSnapshot[] = [];
+    const attachment = attachTimelineInspector(
+      timeline,
+      (snapshot) => snapshots.push(snapshot),
+    );
+
     expect(ScrollTrigger.getAll()).toHaveLength(1);
     expect(tween.style.opacity).toBe("0");
     expect(timeline.totalDuration()).toBeCloseTo(1);
 
     timeline.refresh();
     expect(ScrollTrigger.getAll()).toHaveLength(1);
+    await flushComposition();
+    expect(snapshots.some(
+      (snapshot) => snapshot.readiness === "disconnected",
+    )).toBe(false);
 
     timeline.cancel();
     expect(ScrollTrigger.getAll()).toHaveLength(0);
     expect(document.querySelectorAll(".pin-spacer")).toHaveLength(0);
+    await flushComposition();
+    expect(snapshots.at(-1)?.readiness).toBe("cancelled");
 
     timeline.refresh();
     expect(ScrollTrigger.getAll()).toHaveLength(1);
+    await flushComposition();
+    expect(snapshots.at(-1)?.readiness).toBe("ready");
 
     timeline.remove();
     await flushComposition();
     expect(ScrollTrigger.getAll()).toHaveLength(0);
+    expect(snapshots.at(-1)?.readiness).toBe("disconnected");
+    attachment.detach();
   });
 });

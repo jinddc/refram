@@ -5,6 +5,11 @@ import type { EffectController } from "../core/effect-controller";
 import { sanitizePresentationVars } from "../gsap/presentation-vars";
 import { createTimelineDefinition } from "./timeline-options";
 import type {
+  TimelineControllerInspection,
+  TimelineControllerInspectionItem,
+  TimelineInspectionReadiness,
+} from "./timeline-inspection";
+import type {
   MotionTimelineOptions,
   TimelineDefinition,
   TimelineLifecycleHooks,
@@ -14,6 +19,11 @@ import type { TweenDefinition } from "./tween.types";
 type GsapContext = ReturnType<typeof gsap.context>;
 type GsapTimeline = ReturnType<typeof gsap.timeline>;
 
+interface CompiledTimelineItem {
+  readonly definition: TweenDefinition;
+  readonly animation?: gsap.core.Tween;
+}
+
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 const NOOP_HOOKS: TimelineLifecycleHooks = {
@@ -21,6 +31,7 @@ const NOOP_HOOKS: TimelineLifecycleHooks = {
   onComplete() {},
   onInterrupt() {},
   onScrollReady() {},
+  onInspectionChange() {},
 };
 
 const ENDPOINT_EPSILON = 0.000_001;
@@ -114,6 +125,9 @@ export class TimelineController
   private scrollCancelled = false;
   private warnedMissingScrollTrigger = false;
   private warnedChildScrollTrigger = false;
+  private inspectionReadiness: TimelineInspectionReadiness = "disconnected";
+  private compiledItems: readonly CompiledTimelineItem[] = [];
+  private inspectionItems: readonly TimelineControllerInspectionItem[] = [];
 
   public constructor(
     private readonly root: HTMLElement,
@@ -129,6 +143,7 @@ export class TimelineController
     }
 
     this.connected = true;
+    this.inspectionReadiness = "empty";
   }
 
   public update(options: MotionTimelineOptions): void {
@@ -303,7 +318,10 @@ export class TimelineController
     this.scrollCancelled = wasScrollDriven;
     this.scrollTraversalActive = false;
 
-    if (!wasScrollDriven) {
+    if (wasScrollDriven) {
+      this.replaceInspectionState("cancelled");
+      this.hooks.onInspectionChange(true);
+    } else {
       this.build();
     }
 
@@ -327,11 +345,15 @@ export class TimelineController
     this.pendingDefinition = undefined;
 
     if (runnable.length === 0) {
+      this.captureCompiledItems();
+      this.hooks.onInspectionChange(true);
       return false;
     }
 
     if (this.reducedMotion) {
       this.completeReducedMotion(runnable, "onComplete", "onCompleteParams");
+      this.replaceInspectionState("reduced-motion");
+      this.hooks.onInspectionChange(true);
       return true;
     }
 
@@ -367,6 +389,8 @@ export class TimelineController
     this.invokeTimelineCallback("onStart", "onStartParams");
     this.hooks.onStart();
     timeline.play(batchStart);
+    this.captureCompiledItems();
+    this.hooks.onInspectionChange(true);
     return true;
   }
 
@@ -398,6 +422,31 @@ export class TimelineController
     return source.options.scrollTrigger !== undefined;
   }
 
+  public readInspection(): TimelineControllerInspection {
+    const driver = this.isScrollDriven() ? "scroll" : "manual";
+    if (this.inspectionReadiness !== "ready") {
+      return {
+        driver,
+        readiness: this.inspectionReadiness,
+        progress: this.inspectionReadiness === "reduced-motion" ? 1 : 0,
+        totalDuration: 0,
+        items: this.inspectionItems,
+      };
+    }
+
+    return {
+      driver,
+      readiness: "ready",
+      progress: clampProgress(
+        this.isScrollDriven()
+          ? this.currentScrollProgress()
+          : this.timeline?.totalProgress() ?? 0,
+      ),
+      totalDuration: this.timeline?.totalDuration() ?? 0,
+      items: this.inspectionItems,
+    };
+  }
+
   public resize(): void {
     // Timeline composition has no size-dependent state.
   }
@@ -418,6 +467,8 @@ export class TimelineController
     this.releaseContext(true);
     this.pendingDefinition = undefined;
     this.scrollTraversalActive = false;
+    this.replaceInspectionState("disconnected");
+    this.hooks.onInspectionChange(true);
   }
 
   private scheduleRebuild(): void {
@@ -482,9 +533,17 @@ export class TimelineController
 
     if (items.length === 0 || !this.connected || this.scrollCancelled) {
       this.scrollTraversalActive = false;
+      this.replaceInspectionState(
+        !this.connected
+          ? "disconnected"
+          : this.scrollCancelled
+            ? "cancelled"
+            : "empty",
+      );
       if (scrollDriven) {
         this.hooks.onScrollReady(0, false);
       }
+      this.hooks.onInspectionChange(true);
       return;
     }
 
@@ -492,7 +551,9 @@ export class TimelineController
       this.scrollTraversalActive = false;
       this.applyFinalPresentation(items);
       this.lastScrollProgress = 1;
+      this.replaceInspectionState("reduced-motion");
       this.hooks.onScrollReady(1, true);
+      this.hooks.onInspectionChange(true);
       return;
     }
 
@@ -500,12 +561,16 @@ export class TimelineController
       this.scrollTraversalActive = false;
       this.warnMissingScrollTrigger();
       this.lastScrollProgress = 0;
+      this.replaceInspectionState("missing-plugin");
       this.hooks.onScrollReady(0, false);
+      this.hooks.onInspectionChange(true);
       return;
     }
 
     if (!scrollDriven && this.reducedMotion) {
       this.scrollTraversalActive = false;
+      this.replaceInspectionState("reduced-motion");
+      this.hooks.onInspectionChange(true);
       return;
     }
 
@@ -605,6 +670,9 @@ export class TimelineController
       this.scrollTraversalActive = false;
       this.suppressSemanticHooks = false;
     }
+
+    this.captureCompiledItems();
+    this.hooks.onInspectionChange(true);
   }
 
   private prepareInitialState(items: readonly TweenDefinition[]): void {
@@ -642,6 +710,9 @@ export class TimelineController
   }
 
   private releaseContext(suppressCallbacks: boolean): void {
+    this.compiledItems = [];
+    this.inspectionItems = [];
+
     if (suppressCallbacks && this.timeline) {
       this.timeline.eventCallback("onInterrupt", null);
       for (const child of this.timeline.getChildren(true, true, true)) {
@@ -663,6 +734,61 @@ export class TimelineController
     this.context = undefined;
     this.timeline = undefined;
     this.prepared = false;
+  }
+
+  private captureCompiledItems(): void {
+    if (!this.timeline) {
+      this.replaceInspectionState(this.inspectionReadiness);
+      return;
+    }
+
+    const animations = this.timeline.getChildren(
+      false,
+      true,
+      false,
+    ) as gsap.core.Tween[];
+    let animationIndex = 0;
+    this.compiledItems = this.definition.items.map((definition) => ({
+      definition,
+      animation: definition.options.to === undefined
+        ? undefined
+        : animations[animationIndex++],
+    }));
+    this.inspectionReadiness = "ready";
+    this.inspectionItems = this.compiledItems.map(({ definition, animation }) => {
+      if (!animation) {
+        return {
+          definition,
+          resolvedStart: null,
+          resolvedDuration: null,
+          resolvedEnd: null,
+        };
+      }
+
+      const resolvedStart = animation.startTime();
+      const resolvedDuration = animation.totalDuration();
+      return {
+        definition,
+        resolvedStart,
+        resolvedDuration,
+        resolvedEnd: resolvedStart + resolvedDuration,
+      };
+    });
+  }
+
+  private replaceInspectionState(
+    readiness: TimelineInspectionReadiness,
+  ): void {
+    this.inspectionReadiness = readiness;
+    this.compiledItems = this.definition.items.map((definition) => ({
+      definition,
+    }));
+    this.inspectionItems = this.definition.items.map((definition) => ({
+      definition,
+      resolvedStart: null,
+      resolvedDuration: null,
+      resolvedEnd: null,
+    }));
   }
 
   private applyInitialPresentation(
