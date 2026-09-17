@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Motion Lab internal read-only timeline debugger"
+    />
+    <title>Motion Lab — Timeline Debugger</title>
+    <link rel="stylesheet" href="/playground/timeline-debugger.css" />
+  </head>
+  <body>
+    <main class="debugger-fixture">
+      <header class="debugger-fixture__masthead">
+        <p class="debugger-fixture__eyebrow">Internal tool / read-only inspection</p>
+        <h1>See the authored timeline without touching it.</h1>
+        <p>
+          Each panel receives one timeline explicitly. Rows preserve authored
+          order; resolved timing comes only from the inspection snapshot.
+        </p>
+      </header>
+
+      <section id="source-isolation" class="debugger-fixture__case" aria-labelledby="manual-title">
+        <div class="debugger-fixture__case-heading">
+          <div>
+            <p class="debugger-fixture__eyebrow">Manual / overlap / missing destination</p>
+            <h2 id="manual-title">Authored sequence</h2>
+          </div>
+          <div class="debugger-fixture__controls" aria-label="Manual timeline controls">
+            <button data-debug-action="play">Play</button>
+            <button data-debug-action="pause">Pause</button>
+            <button data-debug-action="cancel">Cancel</button>
+            <button data-debug-action="mutate">Append</button>
+            <button data-debug-action="hide">Hide debugger</button>
+            <button data-debug-action="show">Show debugger</button>
+          </div>
+        </div>
+        <div class="debugger-fixture__split">
+          <motion-timeline id="debug-manual" class="debug-source debug-source--manual">
+            <motion-tween id="debug-manual-a" class="debug-source__card">Alpha</motion-tween>
+            <motion-tween id="debug-manual-b" class="debug-source__card">Beta</motion-tween>
+            <motion-tween id="debug-manual-c" class="debug-source__card">No destination</motion-tween>
+          </motion-timeline>
+          <div id="debugger-manual" class="debugger-fixture__debugger"></div>
+        </div>
+      </section>
+
+      <section class="debugger-fixture__case" aria-labelledby="states-title">
+        <div class="debugger-fixture__case-heading">
+          <div>
+            <p class="debugger-fixture__eyebrow">Explicit readiness</p>
+            <h2 id="states-title">Unavailable is not zero</h2>
+          </div>
+          <div class="debugger-fixture__controls">
+            <button data-debug-action="disconnect">Disconnect source</button>
+            <button data-debug-action="reconnect">Reconnect source</button>
+          </div>
+        </div>
+        <div class="debugger-fixture__state-grid">
+          <article>
+            <h3>Empty</h3>
+            <motion-timeline id="debug-empty"></motion-timeline>
+            <div id="debugger-empty" class="debugger-fixture__debugger"></div>
+          </article>
+          <article id="debug-unsupported-source">
+            <h3>Missing plugin</h3>
+            <motion-timeline id="debug-unsupported" class="debug-source">
+              <motion-tween id="debug-unsupported-a" class="debug-source__card">Scroll item</motion-tween>
+            </motion-timeline>
+            <div id="debugger-unsupported" class="debugger-fixture__debugger"></div>
+          </article>
+          <article>
+            <h3>Disconnected</h3>
+            <div id="debug-disconnected-home">
+              <motion-timeline id="debug-disconnected" class="debug-source">
+                <motion-tween id="debug-disconnected-a" class="debug-source__card">Reconnectable</motion-tween>
+              </motion-timeline>
+            </div>
+            <div id="debugger-disconnected" class="debugger-fixture__debugger"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="debugger-fixture__case" aria-labelledby="stress-title">
+        <div class="debugger-fixture__case-heading">
+          <div>
+            <p class="debugger-fixture__eyebrow">Stress / one attachment</p>
+            <h2 id="stress-title">Twenty authored descriptors</h2>
+          </div>
+        </div>
+        <motion-timeline id="debug-stress" class="debug-source debug-source--stress"></motion-timeline>
+        <div id="debugger-stress" class="debugger-fixture__debugger"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/playground/timeline-debugger-fixture.ts"></script>
+  </body>
+</html>

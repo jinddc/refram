@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify:visual:reveal": "node scripts/verify-reveal.mjs",
-    "verify:visual:timeline": "node scripts/verify-timeline.mjs"
+    "verify:visual:timeline": "node scripts/verify-timeline.mjs",
+    "verify:visual:timeline-debugger": "node scripts/verify-timeline-debugger.mjs"
   },
   "peerDependencies": {
     "gsap": "^3.13.0"
