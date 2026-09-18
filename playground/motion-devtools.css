@@ -176,7 +176,39 @@ button { color: inherit; }
   min-width: 0;
 }
 
-.motion-editor__divider-lead { min-width: 0; }
+.motion-editor__divider-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.motion-editor__timeline-select-label {
+  color: #717781;
+  font: 600 9px/1 ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.motion-editor__timeline-select {
+  width: min(260px, 28vw);
+  min-width: 120px;
+  min-height: 29px;
+  overflow: hidden;
+  border: 1px solid #30343b;
+  border-radius: 5px;
+  padding: 0 26px 0 8px;
+  color: #c8cdd4;
+  background: #202329;
+  font: 600 10px/1 ui-monospace, "Cascadia Code", monospace;
+  text-overflow: ellipsis;
+}
+
+.motion-editor__timeline-select:hover,
+.motion-editor__timeline-select:focus-visible {
+  border-color: var(--motion-editor-accent);
+  outline: none;
+}
 
 .motion-editor__divider-tools--right { justify-content: flex-end; }
 
@@ -557,6 +589,8 @@ button { color: inherit; }
   .motion-editor__preview-surface { width: calc(100% - 32px); min-width: 0; }
   .motion-editor__inspector-toggle { top: 8px; right: 8px; }
   .motion-editor__zoom { width: 72px; }
+  .motion-editor__timeline-select-label { display: none; }
+  .motion-editor__timeline-select { width: min(180px, 30vw); min-width: 92px; }
   .motion-editor__timeline-body { grid-template-columns: 118px minmax(0, 1fr); }
 }
 

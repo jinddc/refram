@@ -1,5 +1,7 @@
 import type { gsap } from "gsap";
 
+// Read-only sampling and transport for one live GSAP timeline instance.
+
 export type TimelineInspectionDriver = "manual" | "scroll";
 export type TimelineInspectionReadiness = "empty" | "ready";
 export type TimelinePlayState = "idle" | "running" | "paused" | "finished";

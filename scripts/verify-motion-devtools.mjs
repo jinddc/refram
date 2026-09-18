@@ -37,6 +37,45 @@ async function verifyMotionDevTools({ artifactDirectory, send }) {
     "the Motion DevTools workspace",
   );
 
+  const distributedRegistry = await evaluate(send, `(() => ({
+    ids: window.__motionDevToolsHarness.registrationIds,
+    active: window.__motionDevToolsHarness.activeTimelineId,
+    options: [...document.querySelector("[data-role='timeline-selector']").options].map(({ value, textContent }) => ({ value, textContent })),
+  }))()`);
+  assert(distributedRegistry.ids.length === 2, "Distributed timeline modules were not both registered.");
+  assert(distributedRegistry.active === "playground/editor/sequence", "The first registration was not initially active.");
+  assert(
+    distributedRegistry.options[1]?.textContent.includes("playground/detail/sequence"),
+    "The timeline selector did not expose the stable timeline ID.",
+  );
+  await evaluate(send, `document.querySelector("[data-role='timeline-selector']").focus()`);
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "ArrowDown",
+    code: "ArrowDown",
+    windowsVirtualKeyCode: 40,
+    nativeVirtualKeyCode: 40,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "ArrowDown",
+    code: "ArrowDown",
+    windowsVirtualKeyCode: 40,
+    nativeVirtualKeyCode: 40,
+  });
+  await waitFor(
+    () => evaluate(send, `window.__motionDevToolsHarness.activeTimelineId === "playground/detail/sequence" && document.querySelectorAll(".motion-editor__block").length === 2 && document.querySelector("#motion-source-home").contains(document.querySelector("#editor-stage"))`),
+    "the distributed detail timeline",
+  );
+  assert(
+    await evaluate(send, `window.__motionDevToolsHarness.removeTimeline("playground/detail/sequence")`),
+    "The active distributed timeline could not be removed.",
+  );
+  await waitFor(
+    () => evaluate(send, `window.__motionDevToolsHarness.activeTimelineId === "playground/editor/sequence" && window.__motionDevToolsHarness.registrationIds.length === 1 && document.querySelector("[data-role='timeline-selector']").options.length === 1 && document.querySelectorAll(".motion-editor__block").length === 3 && document.querySelector("#motion-source-home").contains(document.querySelector("#detail-stage"))`),
+    "the fallback after active timeline removal",
+  );
+
   const initial = await evaluate(send, `(() => {
     const root = document.querySelector("[data-motion-editor]");
     const preview = document.querySelector(".motion-editor__preview-pane");
@@ -233,6 +272,9 @@ async function verifyMotionDevTools({ artifactDirectory, send }) {
       narrowLayout: "pass",
       reducedMotion: "pass",
       destroyAndRemount: "pass",
+      distributedRegistry: "pass",
+      timelineSelectorKeyboard: "pass",
+      activeTimelineRemoval: "pass",
     },
     screenshots: [
       "artifacts/visual/motion-devtools-desktop.png",

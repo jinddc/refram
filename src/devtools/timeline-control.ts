@@ -1,5 +1,7 @@
 import type { gsap } from "gsap";
 
+// Framework-agnostic connection lifecycle shared by Motion DevTools consumers.
+
 export type MotionTimelineReplayStrategy = "restart" | "rebuild";
 
 interface MotionTimelineDeclarationBase {

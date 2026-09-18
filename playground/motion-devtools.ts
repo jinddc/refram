@@ -4,12 +4,13 @@ import {
   type TimelineInspectionItem,
   type TimelineInspectionSnapshot,
   type TimelineSessionAttachment,
-} from "./gsap-timeline-session";
+} from "../src/devtools/timeline-session";
 import {
-  createMotionTimelineControl,
-  type MotionTimelineControl,
-  type MotionTimelineDeclaration,
-} from "./motion-timeline-control";
+  defaultTimelineRegistry,
+  type MotionTimelineRegistration,
+  type MotionTimelineRegistry,
+  type MotionTimelineRegistrySnapshot,
+} from "../src/devtools/timeline-registry";
 
 const DEFAULT_TIMELINE_RATIO = 0.38;
 const MIN_PREVIEW_HEIGHT = 280;
@@ -18,12 +19,23 @@ const DIVIDER_HEIGHT = 46;
 const BASE_TIMELINE_WIDTH = 760;
 const SPLIT_STORAGE_KEY = "motion-lab-devtools-timeline-ratio";
 
+export interface MotionDevToolsOptions {
+  readonly registry?: MotionTimelineRegistry;
+  readonly initialTimelineId?: string;
+}
+
 export interface MotionDevToolsHandle {
-  addTimeline(declaration: MotionTimelineDeclaration): MotionTimelineControl;
+  readonly activeTimelineId: string | undefined;
+  setActiveTimeline(id: string): boolean;
   destroy(): void;
 }
 
 interface MountedTimelineEditor {
+  activate(registration: MotionTimelineRegistration | undefined): void;
+  setTimelineOptions(
+    registrations: readonly MotionTimelineRegistration[],
+    activeTimelineId: string | undefined,
+  ): void;
   destroy(): void;
 }
 
@@ -32,6 +44,7 @@ interface EditorElements {
   previewPane: HTMLElement;
   previewSurface: HTMLElement;
   divider: HTMLElement;
+  timelineSelect: HTMLSelectElement;
   playButton: HTMLButtonElement;
   time: HTMLOutputElement;
   duration: HTMLOutputElement;
@@ -53,10 +66,10 @@ interface EditorElements {
 interface EditorState {
   destroyed: boolean;
   replaying: boolean;
-  control: MotionTimelineControl;
-  timeline: gsap.core.Timeline;
+  control?: MotionTimelineRegistration;
+  timeline?: gsap.core.Timeline;
   controlSubscription?: () => void;
-  previewRoot: HTMLElement;
+  previewRoot?: HTMLElement;
   attachment?: TimelineSessionAttachment;
   snapshot?: TimelineInspectionSnapshot;
   pendingSnapshot?: TimelineInspectionSnapshot;
@@ -75,6 +88,16 @@ interface EditorState {
   originalNextSibling?: Node | null;
   elements: EditorElements;
 }
+
+const EMPTY_TIMELINE_SNAPSHOT: TimelineInspectionSnapshot = Object.freeze({
+  driver: "manual",
+  readiness: "empty",
+  playState: "idle",
+  progress: 0,
+  timeScale: 1,
+  totalDuration: 0,
+  items: Object.freeze([]),
+});
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
   name: K,
@@ -125,7 +148,12 @@ function createEditorElements(): EditorElements {
   divider.setAttribute("aria-valuemin", "20");
   divider.setAttribute("aria-valuemax", "70");
 
-  const dividerLead = createElement("div", "motion-editor__divider-lead");
+  const dividerLead = createElement("label", "motion-editor__divider-lead");
+  const timelineLabel = createElement("span", "motion-editor__timeline-select-label", "Timeline");
+  const timelineSelect = createElement("select", "motion-editor__timeline-select");
+  timelineSelect.dataset.role = "timeline-selector";
+  timelineSelect.setAttribute("aria-label", "Active timeline");
+  dividerLead.append(timelineLabel, timelineSelect);
 
   const transport = createElement("div", "motion-editor__transport");
   const playButton = createButton("Play", "toggle-play", "motion-editor__play");
@@ -211,6 +239,7 @@ function createEditorElements(): EditorElements {
     previewPane,
     previewSurface,
     divider,
+    timelineSelect,
     playButton,
     time,
     duration,
@@ -519,6 +548,7 @@ function scheduleSnapshot(state: EditorState, snapshot: TimelineInspectionSnapsh
 }
 
 function attachTimeline(state: EditorState): void {
+  if (!state.timeline) return;
   state.attachment = attachGsapTimelineSession(
     state.timeline,
     (snapshot) => scheduleSnapshot(state, snapshot),
@@ -535,7 +565,7 @@ function reportConnectionError(state: EditorState, error: unknown): void {
 }
 
 function replayTimeline(state: EditorState): gsap.core.Timeline | undefined {
-  if (state.destroyed || state.replaying) return undefined;
+  if (state.destroyed || state.replaying || !state.control) return undefined;
   state.replaying = true;
 
   try {
@@ -557,64 +587,118 @@ function seekByPointer(state: EditorState, event: PointerEvent): void {
 
 function mountTimelineEditor(
   container: HTMLElement,
-  control: MotionTimelineControl,
+  requestTimelineActivation: (id: string) => void,
 ): MountedTimelineEditor {
-  const timeline = control.timeline;
-  const previewRoot = control.root;
   const elements = createEditorElements();
   const height = globalThis.innerHeight || 800;
   const state: EditorState = {
     destroyed: false,
     replaying: false,
-    control,
-    timeline,
-    previewRoot,
     timelineHeight: height * readStoredRatio(),
     zoom: Number(elements.zoom.value),
     looping: false,
     collapsed: false,
     blocks: new Map(),
-    originalParent: previewRoot.parentNode ?? undefined,
-    originalNextSibling: previewRoot.nextSibling,
     elements,
   };
-  elements.previewSurface.append(previewRoot);
   container.append(elements.root);
   applyTimelineHeight(state, state.timelineHeight);
+  renderSnapshot(state, EMPTY_TIMELINE_SNAPSHOT);
 
-  state.controlSubscription = control.subscribe((event) => {
-    if (state.destroyed) return;
-    if (event.type === "replay-start") {
-      state.attachment?.detach();
-      state.attachment = undefined;
-      state.pendingSnapshot = undefined;
-      return;
+  const restorePreviewRoot = (): void => {
+    const previewRoot = state.previewRoot;
+    if (!previewRoot) return;
+    if (state.originalParent) {
+      const anchor = state.originalNextSibling?.parentNode === state.originalParent
+        ? state.originalNextSibling
+        : null;
+      state.originalParent.insertBefore(previewRoot, anchor);
+    } else {
+      previewRoot.remove();
     }
-    if (event.type === "timeline") {
-      state.timeline = event.timeline;
-      state.renderedItems = undefined;
-      delete state.elements.root.dataset.connectionState;
-      attachTimeline(state);
-      return;
-    }
-    if (event.type === "error") {
-      reportConnectionError(state, event.error);
-      return;
-    }
+    state.previewRoot = undefined;
+    state.originalParent = undefined;
+    state.originalNextSibling = undefined;
+  };
 
+  const releaseActiveTimeline = (): void => {
+    state.controlSubscription?.();
+    state.controlSubscription = undefined;
     state.attachment?.detach();
     state.attachment = undefined;
-    state.elements.root.dataset.connectionState = "disconnected";
-    state.elements.readiness.textContent = "disconnected";
-    state.elements.playButton.disabled = true;
-  });
+    state.selected?.removeAttribute("data-motion-editor-selected");
+    state.selected = undefined;
+    state.control = undefined;
+    state.timeline = undefined;
+    state.snapshot = undefined;
+    state.pendingSnapshot = undefined;
+    state.renderedItems = undefined;
+    state.blocks.clear();
+    restorePreviewRoot();
+  };
+
+  const activate = (registration: MotionTimelineRegistration | undefined): void => {
+    if (state.destroyed || state.control === registration) return;
+    releaseActiveTimeline();
+    delete elements.root.dataset.connectionState;
+
+    if (!registration) {
+      elements.timelineSelect.value = "";
+      renderSnapshot(state, EMPTY_TIMELINE_SNAPSHOT);
+      return;
+    }
+
+    const previewRoot = registration.root;
+    state.control = registration;
+    elements.timelineSelect.value = registration.id;
+    state.timeline = registration.timeline;
+    state.previewRoot = previewRoot;
+    state.originalParent = previewRoot.parentNode ?? undefined;
+    state.originalNextSibling = previewRoot.nextSibling;
+    elements.previewSurface.append(previewRoot);
+
+    state.controlSubscription = registration.subscribe((event) => {
+      if (state.destroyed || state.control !== registration) return;
+      if (event.type === "replay-start") {
+        state.attachment?.detach();
+        state.attachment = undefined;
+        state.pendingSnapshot = undefined;
+        return;
+      }
+      if (event.type === "timeline") {
+        state.timeline = event.timeline;
+        state.renderedItems = undefined;
+        delete state.elements.root.dataset.connectionState;
+        attachTimeline(state);
+        return;
+      }
+      if (event.type === "error") {
+        reportConnectionError(state, event.error);
+        return;
+      }
+
+      state.attachment?.detach();
+      state.attachment = undefined;
+      elements.root.dataset.connectionState = "disconnected";
+      elements.readiness.textContent = "disconnected";
+      elements.playButton.disabled = true;
+    });
+
+    try {
+      attachTimeline(state);
+    } catch (error) {
+      releaseActiveTimeline();
+      renderSnapshot(state, EMPTY_TIMELINE_SNAPSHOT);
+      reportConnectionError(state, error);
+    }
+  };
 
   const handleAction = (action: string): void => {
     const snapshot = state.snapshot;
     if (!snapshot) return;
     switch (action) {
       case "toggle-play":
-        if (snapshot.driver !== "manual") return;
+        if (snapshot.driver !== "manual" || !state.timeline) return;
         if (snapshot.playState === "running") {
           state.timeline.pause();
         } else {
@@ -672,6 +756,10 @@ function mountTimelineEditor(
 
   const handleScale = (): void => {
     state.attachment?.setTimeScale(Number(elements.scale.value));
+  };
+  const handleTimelineSelection = (): void => {
+    const id = elements.timelineSelect.value;
+    if (id) requestTimelineActivation(id);
   };
   const handleZoom = (): void => {
     state.zoom = Number(elements.zoom.value);
@@ -749,6 +837,7 @@ function mountTimelineEditor(
   elements.root.addEventListener("click", handleClick);
   elements.root.addEventListener("keydown", handleEditorKey);
   elements.scale.addEventListener("change", handleScale);
+  elements.timelineSelect.addEventListener("change", handleTimelineSelection);
   elements.zoom.addEventListener("input", handleZoom);
   elements.trackContent.addEventListener("pointerdown", handleTrackPointer);
   elements.trackContent.addEventListener("pointermove", handleTrackMove);
@@ -761,19 +850,27 @@ function mountTimelineEditor(
   elements.divider.addEventListener("keydown", handleDividerKey);
   elements.divider.addEventListener("dblclick", () => resetSplit(state));
 
-  try {
-    attachTimeline(state);
-  } catch (error) {
-    state.controlSubscription?.();
-    state.controlSubscription = undefined;
-    if (state.originalParent) {
-      state.originalParent.insertBefore(previewRoot, state.originalNextSibling ?? null);
-    }
-    elements.root.remove();
-    throw error;
-  }
-
   return {
+    activate,
+    setTimelineOptions(registrations, activeTimelineId): void {
+      const options = registrations.map((registration) => {
+        const option = document.createElement("option");
+        option.value = registration.id;
+        option.textContent = `${registration.label} — ${registration.id}`;
+        option.title = registration.id;
+        return option;
+      });
+      if (options.length === 0) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "No timelines registered";
+        option.disabled = true;
+        options.push(option);
+      }
+      elements.timelineSelect.replaceChildren(...options);
+      elements.timelineSelect.disabled = registrations.length === 0;
+      elements.timelineSelect.value = activeTimelineId ?? "";
+    },
     destroy(): void {
       if (state.destroyed) return;
       state.destroyed = true;
@@ -785,59 +882,78 @@ function mountTimelineEditor(
       ) {
         elements.divider.releasePointerCapture?.(state.resizePointer);
       }
-      state.controlSubscription?.();
-      state.controlSubscription = undefined;
-      state.attachment?.detach();
-      state.attachment = undefined;
-      state.selected?.removeAttribute("data-motion-editor-selected");
-      if (state.originalParent) {
-        state.originalParent.insertBefore(previewRoot, state.originalNextSibling ?? null);
-      }
+      releaseActiveTimeline();
       elements.root.remove();
-      state.blocks.clear();
-      state.snapshot = undefined;
-      state.pendingSnapshot = undefined;
-      state.selected = undefined;
     },
   };
 }
 
 export function mountMotionDevTools(
   container: HTMLElement,
+  options: MotionDevToolsOptions = {},
 ): MotionDevToolsHandle {
+  const registry = options.registry ?? defaultTimelineRegistry;
   let destroyed = false;
-  let control: MotionTimelineControl | undefined;
-  let editor: MountedTimelineEditor | undefined;
+  let activeTimelineId: string | undefined;
+  let activeIndex = 0;
+  let registrySnapshot: MotionTimelineRegistrySnapshot = registry.getSnapshot();
+  const setActiveTimeline = (id: string): boolean => {
+    if (destroyed) return false;
+    const registration = registrySnapshot.registrations.find(
+      (candidate) => candidate.id === id,
+    );
+    if (!registration) return false;
+    activate(registration);
+    editor.setTimelineOptions(registrySnapshot.registrations, activeTimelineId);
+    return true;
+  };
+  const editor = mountTimelineEditor(container, (id) => {
+    setActiveTimeline(id);
+  });
+
+  const activate = (registration: MotionTimelineRegistration | undefined): void => {
+    activeTimelineId = registration?.id;
+    if (registration) {
+      activeIndex = registrySnapshot.registrations.indexOf(registration);
+    }
+    editor.activate(registration);
+  };
+
+  const handleRegistrySnapshot = (snapshot: MotionTimelineRegistrySnapshot): void => {
+    if (destroyed) return;
+    registrySnapshot = snapshot;
+    const registrations = snapshot.registrations;
+    if (activeTimelineId) {
+      const active = registrations.find(({ id }) => id === activeTimelineId);
+      if (active) {
+        activeIndex = registrations.indexOf(active);
+        editor.activate(active);
+        editor.setTimelineOptions(registrations, activeTimelineId);
+        return;
+      }
+    }
+
+    const initial = !activeTimelineId && options.initialTimelineId
+      ? registrations.find(({ id }) => id === options.initialTimelineId)
+      : undefined;
+    const fallback = initial ?? registrations[Math.min(activeIndex, registrations.length - 1)];
+    activate(fallback);
+    editor.setTimelineOptions(registrations, activeTimelineId);
+  };
+
+  const unsubscribeRegistry = registry.subscribe(handleRegistrySnapshot);
 
   return {
-    addTimeline(declaration) {
-      if (destroyed) {
-        throw new DOMException("Motion DevTools is destroyed.", "InvalidStateError");
-      }
-      if (control) {
-        throw new DOMException(
-          "This Motion DevTools instance already has a timeline.",
-          "InvalidStateError",
-        );
-      }
-
-      const nextControl = createMotionTimelineControl(declaration);
-      try {
-        editor = mountTimelineEditor(container, nextControl);
-        control = nextControl;
-        return nextControl;
-      } catch (error) {
-        nextControl.destroy();
-        throw error;
-      }
+    get activeTimelineId() {
+      return activeTimelineId;
     },
+    setActiveTimeline,
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      editor?.destroy();
-      control?.destroy();
-      editor = undefined;
-      control = undefined;
+      unsubscribeRegistry();
+      editor.destroy();
+      activeTimelineId = undefined;
     },
   };
 }

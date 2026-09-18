@@ -1,9 +1,13 @@
-import { gsap } from "gsap";
 import {
   mountMotionDevTools,
   type MotionDevToolsHandle,
 } from "./motion-devtools";
-import type { MotionTimelineControl } from "./motion-timeline-control";
+import {
+  defaultTimelineRegistry,
+  type MotionTimelineRegistration,
+} from "../src/devtools/timeline-registry";
+import { registerDetailSequence } from "./timelines/detail-sequence";
+import { registerEditorSequence } from "./timelines/editor-sequence";
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -11,77 +15,43 @@ function requireElement<T extends Element>(selector: string): T {
   return element;
 }
 
-const stage = requireElement<HTMLElement>("#editor-stage");
-const opening = requireElement<HTMLElement>("#opening");
-const focus = requireElement<HTMLElement>("#focus");
-const resolve = requireElement<HTMLElement>("#resolve");
-
-function createFixtureTimeline() {
-  let timeline!: gsap.core.Timeline;
-  const context = gsap.context(() => {
-    timeline = gsap.timeline({
-      paused: true,
-      defaults: { duration: 1.6, ease: "power3.out" },
-    });
-    timeline
-      .fromTo(
-        opening,
-        { opacity: 0.25, x: -70 },
-        { opacity: 1, x: 0, immediateRender: false },
-        0,
-      )
-      .fromTo(
-        focus,
-        { opacity: 0.25, y: 64, scale: 0.94 },
-        {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          duration: 1.2,
-          ease: "power2.out",
-          immediateRender: false,
-        },
-        "<35%",
-      )
-      .fromTo(
-        resolve,
-        { opacity: 0.25, x: 70 },
-        { opacity: 1, x: 0, duration: 0.9, immediateRender: false },
-        ">-0.18",
-      );
-  }, stage);
-
-  return {
-    timeline,
-    dispose: () => context.revert(),
-  };
-}
-
 const root = requireElement<HTMLElement>("#motion-devtools-root");
 let handle: MotionDevToolsHandle | undefined;
-let control: MotionTimelineControl | undefined;
+const registrations: MotionTimelineRegistration[] = [
+  registerEditorSequence(),
+  registerDetailSequence(),
+];
 
 function mount(): void {
   handle = mountMotionDevTools(root);
-  control = handle.addTimeline({
-    id: "editor-sequence",
-    label: "Editor sequence",
-    root: stage,
-    create: createFixtureTimeline,
-  });
 }
 
 mount();
 
 const harness = {
   get timeline() {
-    if (!control) throw new Error("Motion DevTools fixture is not mounted.");
-    return control.timeline;
+    const active = registrations.find(({ id }) => id === handle?.activeTimelineId);
+    if (!active) throw new Error("Motion DevTools fixture has no active timeline.");
+    return active.timeline;
+  },
+  get activeTimelineId() {
+    return handle?.activeTimelineId;
+  },
+  get registrationIds() {
+    return defaultTimelineRegistry.getSnapshot().registrations.map(({ id }) => id);
+  },
+  selectTimeline(id: string): boolean {
+    return handle?.setActiveTimeline(id) ?? false;
+  },
+  removeTimeline(id: string): boolean {
+    const registration = registrations.find((candidate) => candidate.id === id);
+    if (!registration) return false;
+    registration.destroy();
+    return true;
   },
   destroy(): void {
     handle?.destroy();
     handle = undefined;
-    control = undefined;
   },
   remount(): void {
     if (handle) return;
@@ -93,4 +63,12 @@ Object.assign(window, { __motionDevToolsHarness: harness });
 
 window.addEventListener("beforeunload", () => {
   harness.destroy();
+  for (const registration of registrations) registration.destroy();
 }, { once: true });
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    harness.destroy();
+    for (const registration of registrations) registration.destroy();
+  });
+}

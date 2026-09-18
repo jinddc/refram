@@ -4,6 +4,7 @@ import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mountMotionDevTools } from "../playground/motion-devtools";
+import { createTimelineRegistry } from "../src/devtools/timeline-registry";
 
 let nextFrame = 0;
 let frames = new Map<number, FrameRequestCallback>();
@@ -79,21 +80,22 @@ function createFixture(): {
 }
 
 function mountFixture(fixture: ReturnType<typeof createFixture>) {
-  const handle = mountMotionDevTools(fixture.container);
-  const control = handle.addTimeline({
+  const registry = createTimelineRegistry();
+  const registration = registry.register({
     id: "fixture-timeline",
     label: "Fixture timeline",
     root: fixture.stage,
     timeline: fixture.timeline,
   });
-  return { handle, control };
+  const handle = mountMotionDevTools(fixture.container, { registry });
+  return { handle, registration, registry };
 }
 
 describe("video-editor Motion DevTools", () => {
   it("renders authored tracks, selection details, and live transport state", async () => {
     const fixture = createFixture();
     const { container, timeline, targets } = fixture;
-    const { handle } = mountFixture(fixture);
+    const { handle, registry } = mountFixture(fixture);
     await flush();
 
     expect(container.querySelectorAll(".motion-editor__block")).toHaveLength(3);
@@ -121,12 +123,13 @@ describe("video-editor Motion DevTools", () => {
     expect(container.querySelector("[data-action='toggle-play']")?.textContent).toBe("Pause");
 
     handle.destroy();
+    registry.destroy();
   });
 
   it("resizes with the accessible splitter and restores the source on destroy", async () => {
     const fixture = createFixture();
     const { container, home, stage, timeline } = fixture;
-    const { handle } = mountFixture(fixture);
+    const { handle, registry } = mountFixture(fixture);
     await flush();
     const root = container.querySelector<HTMLElement>("[data-motion-editor]")!;
     const splitter = container.querySelector<HTMLElement>("[data-role='splitter']")!;
@@ -159,20 +162,17 @@ describe("video-editor Motion DevTools", () => {
     expect(home.contains(stage)).toBe(true);
     expect(container.childElementCount).toBe(0);
 
-    const remounted = mountMotionDevTools(container);
-    remounted.addTimeline({
-      id: "fixture-timeline",
-      root: stage,
-      timeline,
-    });
+    const remounted = mountMotionDevTools(container, { registry });
     await flush();
     expect(container.querySelectorAll("[data-motion-editor]")).toHaveLength(1);
     remounted.destroy();
+    expect(timeline.totalDuration()).toBeGreaterThan(0);
+    registry.destroy();
   });
 
   it("zooms, loops, collapses, and capability-gates native GSAP controls", async () => {
     const manual = createFixture();
-    const { handle: manualHandle } = mountFixture(manual);
+    const { handle: manualHandle, registry: manualRegistry } = mountFixture(manual);
     await flush();
 
     const root = manual.container.querySelector<HTMLElement>("[data-motion-editor]")!;
@@ -200,6 +200,7 @@ describe("video-editor Motion DevTools", () => {
     collapse.click();
     expect(root.dataset.timelineCollapsed).toBe("false");
     manualHandle.destroy();
+    manualRegistry.destroy();
 
     const scroll = createFixture();
     const { container, timeline } = scroll;
@@ -207,7 +208,7 @@ describe("video-editor Motion DevTools", () => {
       configurable: true,
       value: {},
     });
-    const { handle } = mountFixture(scroll);
+    const { handle, registry } = mountFixture(scroll);
     await flush();
 
     container.querySelector<HTMLButtonElement>("[data-action='toggle-play']")?.click();
@@ -215,6 +216,86 @@ describe("video-editor Motion DevTools", () => {
     expect(container.querySelector("[data-role='driver']")?.textContent).toBe("scroll");
 
     handle.destroy();
+    registry.destroy();
+  });
+
+  it("binds late registrations, switches roots, and falls back after removal", async () => {
+    const container = document.createElement("div");
+    const firstHome = document.createElement("div");
+    const secondHome = document.createElement("div");
+    const firstRoot = document.createElement("section");
+    const secondRoot = document.createElement("section");
+    const firstTarget = document.createElement("div");
+    const secondTarget = document.createElement("div");
+    firstTarget.id = "first-target";
+    secondTarget.id = "second-target";
+    firstRoot.append(firstTarget);
+    secondRoot.append(secondTarget);
+    firstHome.append(firstRoot);
+    secondHome.append(secondRoot);
+    document.body.append(container, firstHome, secondHome);
+
+    const registry = createTimelineRegistry();
+    const handle = mountMotionDevTools(container, { registry });
+    await flush();
+    expect(handle.activeTimelineId).toBeUndefined();
+    expect(container.querySelector("[data-role='readiness']")?.textContent).toBe("empty");
+    const selector = container.querySelector<HTMLSelectElement>("[data-role='timeline-selector']")!;
+    expect(selector.disabled).toBe(true);
+
+    const first = registry.register({
+      id: "page/first",
+      root: firstRoot,
+      timeline: gsap.timeline({ paused: true }).to(firstTarget, { x: 20, duration: 0.5 }),
+    });
+    await flush();
+    expect(handle.activeTimelineId).toBe("page/first");
+    expect(selector.disabled).toBe(false);
+    expect(selector.value).toBe("page/first");
+    expect(container.querySelector("[data-role='preview-surface']")?.contains(firstRoot)).toBe(true);
+
+    const second = registry.register({
+      id: "page/second",
+      root: secondRoot,
+      timeline: gsap.timeline({ paused: true }).to(secondTarget, { y: 20, duration: 0.5 }),
+    });
+    expect(handle.activeTimelineId).toBe("page/first");
+    expect([...selector.options].map(({ textContent }) => textContent)).toEqual([
+      "page/first — page/first",
+      "page/second — page/second",
+    ]);
+    expect(handle.setActiveTimeline("missing/id")).toBe(false);
+    const editorRoot = container.querySelector<HTMLElement>("[data-motion-editor]")!;
+    const zoom = container.querySelector<HTMLInputElement>(".motion-editor__zoom")!;
+    const collapse = container.querySelector<HTMLButtonElement>("[data-action='toggle-timeline']")!;
+    const timelineHeight = editorRoot.style.getPropertyValue("--motion-editor-timeline-height");
+    zoom.value = "300";
+    zoom.dispatchEvent(new Event("input", { bubbles: true }));
+    collapse.click();
+    selector.value = "page/second";
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    expect(handle.activeTimelineId).toBe("page/second");
+    expect(selector.value).toBe("page/second");
+    expect(zoom.value).toBe("300");
+    expect(editorRoot.dataset.timelineCollapsed).toBe("true");
+    expect(editorRoot.style.getPropertyValue("--motion-editor-timeline-height")).toBe(timelineHeight);
+    expect(firstHome.contains(firstRoot)).toBe(true);
+    expect(container.querySelector("[data-role='preview-surface']")?.contains(secondRoot)).toBe(true);
+    collapse.click();
+
+    second.destroy();
+    await flush();
+    expect(handle.activeTimelineId).toBe("page/first");
+    expect(selector.value).toBe("page/first");
+    expect(secondHome.contains(secondRoot)).toBe(true);
+    expect(container.querySelector("[data-role='preview-surface']")?.contains(firstRoot)).toBe(true);
+
+    handle.destroy();
+    expect(firstHome.contains(firstRoot)).toBe(true);
+    expect(first.timeline.totalDuration()).toBeGreaterThan(0);
+    first.destroy();
+    registry.destroy();
   });
 
   it("rebuilds a declared timeline before replaying a completed run", async () => {
@@ -223,8 +304,8 @@ describe("video-editor Motion DevTools", () => {
     let disposeCount = 0;
     let resetCount = 0;
 
-    const handle = mountMotionDevTools(fixture.container);
-    const control = handle.addTimeline({
+    const registry = createTimelineRegistry();
+    const control = registry.register({
       id: "rebuildable-timeline",
       root: fixture.stage,
       reset: () => {
@@ -244,6 +325,7 @@ describe("video-editor Motion DevTools", () => {
         };
       },
     });
+    const handle = mountMotionDevTools(fixture.container, { registry });
     const firstTimeline = control.timeline;
     await flush();
 
@@ -274,15 +356,18 @@ describe("video-editor Motion DevTools", () => {
     expect(resetCount).toBe(2);
 
     handle.destroy();
+    expect(disposeCount).toBe(2);
+    control.destroy();
     expect(disposeCount).toBe(3);
+    registry.destroy();
   });
 
   it("reports a failed rebuild without disposing the previous runtime twice", async () => {
     const fixture = createFixture();
     let createCount = 0;
     let disposeCount = 0;
-    const handle = mountMotionDevTools(fixture.container);
-    const control = handle.addTimeline({
+    const registry = createTimelineRegistry();
+    const control = registry.register({
       id: "failing-timeline",
       root: fixture.stage,
       create: () => {
@@ -299,6 +384,7 @@ describe("video-editor Motion DevTools", () => {
         };
       },
     });
+    const handle = mountMotionDevTools(fixture.container, { registry });
     await flush();
 
     control.timeline.totalProgress(1, true);
@@ -315,5 +401,7 @@ describe("video-editor Motion DevTools", () => {
 
     handle.destroy();
     expect(disposeCount).toBe(1);
+    control.destroy();
+    registry.destroy();
   });
 });
