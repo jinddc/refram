@@ -1,0 +1,843 @@
+import type { gsap } from "gsap";
+import {
+  attachGsapTimelineSession,
+  type TimelineInspectionItem,
+  type TimelineInspectionSnapshot,
+  type TimelineSessionAttachment,
+} from "./gsap-timeline-session";
+import {
+  createMotionTimelineControl,
+  type MotionTimelineControl,
+  type MotionTimelineDeclaration,
+} from "./motion-timeline-control";
+
+const DEFAULT_TIMELINE_RATIO = 0.38;
+const MIN_PREVIEW_HEIGHT = 280;
+const MIN_TIMELINE_HEIGHT = 240;
+const DIVIDER_HEIGHT = 46;
+const BASE_TIMELINE_WIDTH = 760;
+const SPLIT_STORAGE_KEY = "motion-lab-devtools-timeline-ratio";
+
+export interface MotionDevToolsHandle {
+  addTimeline(declaration: MotionTimelineDeclaration): MotionTimelineControl;
+  destroy(): void;
+}
+
+interface MountedTimelineEditor {
+  destroy(): void;
+}
+
+interface EditorElements {
+  root: HTMLElement;
+  previewPane: HTMLElement;
+  previewSurface: HTMLElement;
+  divider: HTMLElement;
+  playButton: HTMLButtonElement;
+  time: HTMLOutputElement;
+  duration: HTMLOutputElement;
+  driver: HTMLElement;
+  readiness: HTMLElement;
+  scale: HTMLSelectElement;
+  zoom: HTMLInputElement;
+  labels: HTMLElement;
+  ruler: HTMLElement;
+  lanes: HTMLElement;
+  trackContent: HTMLElement;
+  playhead: HTMLElement;
+  inspector: HTMLElement;
+  inspectorContent: HTMLElement;
+  loopButton: HTMLButtonElement;
+  collapseButton: HTMLButtonElement;
+}
+
+interface EditorState {
+  destroyed: boolean;
+  replaying: boolean;
+  control: MotionTimelineControl;
+  timeline: gsap.core.Timeline;
+  controlSubscription?: () => void;
+  previewRoot: HTMLElement;
+  attachment?: TimelineSessionAttachment;
+  snapshot?: TimelineInspectionSnapshot;
+  pendingSnapshot?: TimelineInspectionSnapshot;
+  renderFrame?: number;
+  resizeFrame?: number;
+  resizePointer?: number;
+  pendingTimelineHeight?: number;
+  timelineHeight: number;
+  zoom: number;
+  looping: boolean;
+  collapsed: boolean;
+  selected?: HTMLElement;
+  renderedItems?: readonly TimelineInspectionItem[];
+  blocks: Map<HTMLElement, HTMLElement>;
+  originalParent?: Node;
+  originalNextSibling?: Node | null;
+  elements: EditorElements;
+}
+
+function createElement<K extends keyof HTMLElementTagNameMap>(
+  name: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const element = document.createElement(name);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+
+function createButton(
+  text: string,
+  action: string,
+  className = "motion-editor__button",
+): HTMLButtonElement {
+  const button = createElement("button", className, text);
+  button.type = "button";
+  button.dataset.action = action;
+  return button;
+}
+
+function createEditorElements(): EditorElements {
+  const root = createElement("section", "motion-editor");
+  root.dataset.motionEditor = "";
+  root.tabIndex = -1;
+
+  const previewPane = createElement("section", "motion-editor__preview-pane");
+  previewPane.setAttribute("aria-label", "Motion preview");
+  const previewSurface = createElement("div", "motion-editor__preview-surface");
+  previewSurface.dataset.role = "preview-surface";
+
+  const inspectorToggle = createButton(
+    "Inspector",
+    "show-details",
+    "motion-editor__inspector-toggle",
+  );
+  previewPane.append(previewSurface, inspectorToggle);
+
+  const dividerRow = createElement("div", "motion-editor__divider");
+  const divider = createElement("div", "motion-editor__splitter");
+  divider.dataset.role = "splitter";
+  divider.tabIndex = 0;
+  divider.setAttribute("role", "separator");
+  divider.setAttribute("aria-label", "Resize preview and timeline");
+  divider.setAttribute("aria-orientation", "horizontal");
+  divider.setAttribute("aria-valuemin", "20");
+  divider.setAttribute("aria-valuemax", "70");
+
+  const dividerLead = createElement("div", "motion-editor__divider-lead");
+
+  const transport = createElement("div", "motion-editor__transport");
+  const playButton = createButton("Play", "toggle-play", "motion-editor__play");
+  const time = createElement("output", "motion-editor__time", "00:00.000");
+  time.dataset.role = "time";
+  const separator = createElement("span", "motion-editor__time-separator", "/");
+  const duration = createElement("output", "motion-editor__duration", "00:00.000");
+  duration.dataset.role = "duration";
+  transport.append(playButton, time, separator, duration);
+
+  const rightTools = createElement("div", "motion-editor__divider-tools motion-editor__divider-tools--right");
+  const loopButton = createButton("Loop", "toggle-loop");
+  loopButton.setAttribute("aria-pressed", "false");
+  loopButton.setAttribute("aria-label", "Enable loop");
+  const scale = createElement("select", "motion-editor__select");
+  scale.setAttribute("aria-label", "Playback speed");
+  for (const value of [0.1, 0.25, 0.5, 1, 2]) {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = `${value}x`;
+    if (value === 1) option.selected = true;
+    scale.append(option);
+  }
+  const zoom = createElement("input", "motion-editor__zoom");
+  zoom.type = "range";
+  zoom.min = "100";
+  zoom.max = "500";
+  zoom.step = "25";
+  zoom.value = "100";
+  zoom.setAttribute("aria-label", "Timeline zoom");
+  const collapseButton = createButton("Hide", "toggle-timeline");
+  collapseButton.setAttribute("aria-expanded", "true");
+  collapseButton.setAttribute("aria-label", "Hide timeline");
+  rightTools.append(loopButton, scale, zoom, collapseButton);
+  dividerRow.append(divider, dividerLead, transport, rightTools);
+
+  const timelinePane = createElement("section", "motion-editor__timeline-pane");
+  timelinePane.setAttribute("aria-label", "Timeline editor");
+  const status = createElement("div", "motion-editor__timeline-status");
+  const driver = createElement("span", "motion-editor__status-value", "manual");
+  driver.dataset.role = "driver";
+  const readiness = createElement("span", "motion-editor__status-value", "empty");
+  readiness.dataset.role = "readiness";
+  status.append(
+    createElement("span", "motion-editor__status-label", "Driver"),
+    driver,
+    createElement("span", "motion-editor__status-label", "State"),
+    readiness,
+  );
+
+  const editorBody = createElement("div", "motion-editor__timeline-body");
+  const labels = createElement("div", "motion-editor__track-labels");
+  labels.append(createElement("div", "motion-editor__track-heading", "Tracks"));
+  const trackViewport = createElement("div", "motion-editor__track-viewport");
+  trackViewport.dataset.role = "track-viewport";
+  const trackContent = createElement("div", "motion-editor__track-content");
+  const ruler = createElement("div", "motion-editor__ruler");
+  ruler.dataset.role = "ruler";
+  const lanes = createElement("div", "motion-editor__lanes");
+  lanes.dataset.role = "lanes";
+  const playhead = createElement("div", "motion-editor__playhead");
+  playhead.dataset.role = "playhead";
+  playhead.setAttribute("aria-hidden", "true");
+  trackContent.append(ruler, lanes, playhead);
+  trackViewport.append(trackContent);
+  editorBody.append(labels, trackViewport);
+  timelinePane.append(status, editorBody);
+
+  const inspector = createElement("aside", "motion-editor__inspector");
+  inspector.dataset.role = "inspector";
+  inspector.hidden = true;
+  const inspectorHeading = createElement("div", "motion-editor__inspector-heading");
+  inspectorHeading.append(
+    createElement("h2", "motion-editor__inspector-title", "Inspector"),
+    createButton("Close", "close-inspector", "motion-editor__button"),
+  );
+  const inspectorContent = createElement("div", "motion-editor__inspector-content", "Select a motion block.");
+  inspector.append(inspectorHeading, inspectorContent);
+
+  root.append(previewPane, dividerRow, timelinePane, inspector);
+  return {
+    root,
+    previewPane,
+    previewSurface,
+    divider,
+    playButton,
+    time,
+    duration,
+    driver,
+    readiness,
+    scale,
+    zoom,
+    labels,
+    ruler,
+    lanes,
+    trackContent,
+    playhead,
+    inspector,
+    inspectorContent,
+    loopButton,
+    collapseButton,
+  };
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function formatTime(seconds: number): string {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const minutes = Math.floor(safe / 60);
+  const wholeSeconds = Math.floor(safe % 60);
+  const milliseconds = Math.floor((safe % 1) * 1000);
+  return `${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+}
+
+function formatRulerTime(seconds: number): string {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  if (safe < 10) return `${safe.toFixed(1)}s`;
+  if (safe < 60) return `${Math.round(safe)}s`;
+  return `${Math.floor(safe / 60)}m ${Math.round(safe % 60)}s`;
+}
+
+function sourceLabel(source: HTMLElement): string {
+  return source.id ? `#${source.id}` : source.localName;
+}
+
+function readStoredRatio(): number {
+  try {
+    const value = Number(sessionStorage.getItem(SPLIT_STORAGE_KEY));
+    return Number.isFinite(value) ? clamp(value, 0.2, 0.7) : DEFAULT_TIMELINE_RATIO;
+  } catch {
+    return DEFAULT_TIMELINE_RATIO;
+  }
+}
+
+function writeStoredRatio(value: number): void {
+  try {
+    sessionStorage.setItem(SPLIT_STORAGE_KEY, String(value));
+  } catch {
+    // Storage can be unavailable in privacy-restricted contexts.
+  }
+}
+
+function workspaceHeight(root: HTMLElement): number {
+  return root.getBoundingClientRect().height || globalThis.innerHeight || 800;
+}
+
+function applyTimelineHeight(state: EditorState, value: number, persist = false): void {
+  const height = workspaceHeight(state.elements.root);
+  const maximum = Math.max(
+    MIN_TIMELINE_HEIGHT,
+    height - MIN_PREVIEW_HEIGHT - DIVIDER_HEIGHT,
+  );
+  state.timelineHeight = clamp(value, MIN_TIMELINE_HEIGHT, maximum);
+  state.elements.root.style.setProperty(
+    "--motion-editor-timeline-height",
+    `${state.timelineHeight}px`,
+  );
+  const ratio = clamp(state.timelineHeight / height, 0.2, 0.7);
+  state.elements.divider.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+  state.elements.divider.setAttribute("aria-valuetext", `${Math.round(ratio * 100)}% timeline`);
+  if (persist) writeStoredRatio(ratio);
+}
+
+function resetSplit(state: EditorState): void {
+  applyTimelineHeight(
+    state,
+    workspaceHeight(state.elements.root) * DEFAULT_TIMELINE_RATIO,
+    true,
+  );
+}
+
+function formatValue(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "function") return "[Function]";
+  if (Array.isArray(value)) return "[Array]";
+  if (value && typeof value === "object") return "[Object]";
+  return String(value);
+}
+
+function safeEntries(value: unknown): readonly [string, unknown][] {
+  if (!value || typeof value !== "object") return [];
+  try {
+    return Object.entries(Object.getOwnPropertyDescriptors(value)).map(
+      ([name, descriptor]) => [
+        name,
+        "value" in descriptor ? descriptor.value : "[Accessor]",
+      ],
+    );
+  } catch {
+    return [["Value", "[Unavailable]"]];
+  }
+}
+
+function appendFacts(
+  container: HTMLElement,
+  title: string,
+  values: readonly [string, unknown][],
+): void {
+  const section = createElement("section", "motion-editor__inspector-section");
+  section.append(createElement("h3", "motion-editor__inspector-section-title", title));
+  const list = createElement("dl", "motion-editor__facts");
+  for (const [name, value] of values) {
+    list.append(
+      createElement("dt", "motion-editor__fact-name", name),
+      createElement("dd", "motion-editor__fact-value", formatValue(value)),
+    );
+  }
+  section.append(list);
+  container.append(section);
+}
+
+function renderInspector(state: EditorState): void {
+  const item = state.snapshot?.items.find(({ source }) => source === state.selected);
+  state.elements.inspectorContent.replaceChildren();
+  if (!item) {
+    state.elements.inspectorContent.textContent = "Select a motion block.";
+    return;
+  }
+
+  appendFacts(state.elements.inspectorContent, "Identity", [
+    ["Source", sourceLabel(item.source)],
+    ["Index", item.index],
+    ["Runnable", item.runnable ? "Yes" : "No"],
+  ]);
+  appendFacts(state.elements.inspectorContent, "Timing", [
+    ["Authored", item.authoredPosition ?? "append"],
+    ["Start", item.resolvedStart === null ? "Unavailable" : `${item.resolvedStart}s`],
+    ["Duration", item.resolvedDuration === null ? "Unavailable" : `${item.resolvedDuration}s`],
+    ["Ease", item.authoredEase ?? "Inherited"],
+  ]);
+  appendFacts(state.elements.inspectorContent, "From", safeEntries(item.from));
+  appendFacts(state.elements.inspectorContent, "To", safeEntries(item.to));
+}
+
+function selectSource(state: EditorState, source: HTMLElement | undefined): void {
+  state.selected?.removeAttribute("data-motion-editor-selected");
+  state.selected = source;
+  state.selected?.setAttribute("data-motion-editor-selected", "true");
+  for (const [candidate, block] of state.blocks) {
+    const selected = candidate === source;
+    block.dataset.selected = String(selected);
+    block.setAttribute("aria-pressed", String(selected));
+  }
+  renderInspector(state);
+}
+
+function renderRuler(state: EditorState): void {
+  const duration = state.snapshot?.totalDuration ?? 0;
+  state.elements.ruler.replaceChildren();
+  const divisions = 6;
+  for (let index = 0; index <= divisions; index += 1) {
+    const tick = createElement("span", "motion-editor__tick");
+    tick.style.left = `${(index / divisions) * 100}%`;
+    tick.textContent = formatRulerTime((duration * index) / divisions);
+    state.elements.ruler.append(tick);
+  }
+}
+
+function renderTracks(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
+  state.blocks.clear();
+  state.elements.labels.replaceChildren(
+    createElement("div", "motion-editor__track-heading", "Tracks"),
+  );
+  state.elements.lanes.replaceChildren();
+  const totalDuration = snapshot.totalDuration;
+  const viewportWidth = state.elements.trackContent.parentElement?.clientWidth ?? 0;
+  const timelineWidth = Math.max(BASE_TIMELINE_WIDTH, viewportWidth) * (state.zoom / 100);
+  state.elements.trackContent.style.width = `${timelineWidth}px`;
+
+  if (snapshot.items.length === 0) {
+    const emptyLabel = createElement("div", "motion-editor__track-label motion-editor__track-label--empty", "No tracks");
+    const emptyLane = createElement("div", "motion-editor__lane motion-editor__lane--empty", "No animation tracks are available.");
+    state.elements.labels.append(emptyLabel);
+    state.elements.lanes.append(emptyLane);
+  }
+
+  for (const item of snapshot.items) {
+    const label = createElement("button", "motion-editor__track-label", sourceLabel(item.source));
+    label.type = "button";
+    label.dataset.sourceIndex = String(item.index);
+    const lane = createElement("div", "motion-editor__lane");
+    lane.dataset.sourceIndex = String(item.index);
+    const block = createElement("button", "motion-editor__block", sourceLabel(item.source));
+    block.type = "button";
+    block.dataset.sourceIndex = String(item.index);
+    block.dataset.selected = String(item.source === state.selected);
+    block.setAttribute("aria-pressed", String(item.source === state.selected));
+
+    if (
+      item.resolvedStart === null ||
+      item.resolvedDuration === null ||
+      totalDuration <= 0
+    ) {
+      block.dataset.available = "false";
+      block.style.left = "8px";
+      block.style.width = "148px";
+    } else {
+      block.dataset.available = "true";
+      block.style.left = `${(item.resolvedStart / totalDuration) * 100}%`;
+      block.style.width = `${Math.max(2, (item.resolvedDuration / totalDuration) * 100)}%`;
+    }
+    lane.append(block);
+    state.elements.labels.append(label);
+    state.elements.lanes.append(lane);
+    state.blocks.set(item.source, block);
+  }
+
+  state.renderedItems = snapshot.items;
+  if (!state.selected || !snapshot.items.some(({ source }) => source === state.selected)) {
+    state.selected = snapshot.items[0]?.source;
+  }
+  selectSource(state, state.selected);
+  renderRuler(state);
+}
+
+function updateProgress(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
+  const progress = clamp(snapshot.progress, 0, 1);
+  state.elements.root.style.setProperty("--motion-editor-progress", String(progress));
+  state.elements.time.value = formatTime(progress * snapshot.totalDuration);
+  state.elements.time.textContent = state.elements.time.value;
+  state.elements.duration.value = formatTime(snapshot.totalDuration);
+  state.elements.duration.textContent = state.elements.duration.value;
+  state.elements.driver.textContent = snapshot.driver;
+  state.elements.readiness.textContent = snapshot.readiness;
+  state.elements.playButton.textContent = snapshot.playState === "running" ? "Pause" : "Play";
+  state.elements.scale.value = String(snapshot.timeScale);
+  const transportAvailable = snapshot.driver === "manual" && snapshot.readiness === "ready";
+  const unavailableReason = snapshot.driver === "scroll"
+    ? "ScrollTrigger owns timeline progress."
+    : "Timeline transport is not ready.";
+  const transportActions = new Set([
+    "toggle-play",
+    "toggle-loop",
+  ]);
+  for (const button of state.elements.root.querySelectorAll<HTMLButtonElement>("button[data-action]")) {
+    if (!transportActions.has(button.dataset.action ?? "")) continue;
+    button.disabled = !transportAvailable;
+    button.title = transportAvailable ? "" : unavailableReason;
+  }
+  state.elements.scale.disabled = !transportAvailable;
+  state.elements.scale.title = transportAvailable ? "" : unavailableReason;
+
+  for (const [source, block] of state.blocks) {
+    const item = snapshot.items.find((candidate) => candidate.source === source);
+    const active = Boolean(
+      item &&
+      item.resolvedStart !== null &&
+      item.resolvedEnd !== null &&
+      progress * snapshot.totalDuration >= item.resolvedStart &&
+      progress * snapshot.totalDuration <= item.resolvedEnd,
+    );
+    block.dataset.active = String(active);
+  }
+
+  if (
+    state.looping &&
+    !state.replaying &&
+    progress >= 1 &&
+    (snapshot.playState === "running" || snapshot.playState === "finished")
+  ) {
+    const replayed = replayTimeline(state);
+    if (replayed) void replayed.play();
+  }
+}
+
+function renderSnapshot(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
+  if (state.destroyed) return;
+  state.snapshot = snapshot;
+  if (snapshot.items !== state.renderedItems) renderTracks(state, snapshot);
+  updateProgress(state, snapshot);
+}
+
+function scheduleSnapshot(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
+  if (state.destroyed) return;
+  if (!state.snapshot || typeof requestAnimationFrame !== "function") {
+    renderSnapshot(state, snapshot);
+    return;
+  }
+  state.pendingSnapshot = snapshot;
+  if (state.renderFrame !== undefined) return;
+  state.renderFrame = requestAnimationFrame(() => {
+    state.renderFrame = undefined;
+    const pending = state.pendingSnapshot;
+    state.pendingSnapshot = undefined;
+    if (pending) renderSnapshot(state, pending);
+  });
+}
+
+function attachTimeline(state: EditorState): void {
+  state.attachment = attachGsapTimelineSession(
+    state.timeline,
+    (snapshot) => scheduleSnapshot(state, snapshot),
+  );
+}
+
+function reportConnectionError(state: EditorState, error: unknown): void {
+  state.elements.root.dataset.connectionState = "error";
+  state.elements.readiness.textContent = "error";
+  state.elements.playButton.disabled = true;
+  state.elements.playButton.title = error instanceof Error
+    ? error.message
+    : "Timeline replay failed.";
+}
+
+function replayTimeline(state: EditorState): gsap.core.Timeline | undefined {
+  if (state.destroyed || state.replaying) return undefined;
+  state.replaying = true;
+
+  try {
+    return state.control.replay();
+  } catch (error) {
+    reportConnectionError(state, error);
+    return undefined;
+  } finally {
+    state.replaying = false;
+  }
+}
+
+function seekByPointer(state: EditorState, event: PointerEvent): void {
+  if (state.snapshot?.driver !== "manual" || state.snapshot.readiness !== "ready") return;
+  const rect = state.elements.trackContent.getBoundingClientRect();
+  if (rect.width <= 0) return;
+  state.attachment?.seek(clamp((event.clientX - rect.left) / rect.width, 0, 1));
+}
+
+function mountTimelineEditor(
+  container: HTMLElement,
+  control: MotionTimelineControl,
+): MountedTimelineEditor {
+  const timeline = control.timeline;
+  const previewRoot = control.root;
+  const elements = createEditorElements();
+  const height = globalThis.innerHeight || 800;
+  const state: EditorState = {
+    destroyed: false,
+    replaying: false,
+    control,
+    timeline,
+    previewRoot,
+    timelineHeight: height * readStoredRatio(),
+    zoom: Number(elements.zoom.value),
+    looping: false,
+    collapsed: false,
+    blocks: new Map(),
+    originalParent: previewRoot.parentNode ?? undefined,
+    originalNextSibling: previewRoot.nextSibling,
+    elements,
+  };
+  elements.previewSurface.append(previewRoot);
+  container.append(elements.root);
+  applyTimelineHeight(state, state.timelineHeight);
+
+  state.controlSubscription = control.subscribe((event) => {
+    if (state.destroyed) return;
+    if (event.type === "replay-start") {
+      state.attachment?.detach();
+      state.attachment = undefined;
+      state.pendingSnapshot = undefined;
+      return;
+    }
+    if (event.type === "timeline") {
+      state.timeline = event.timeline;
+      state.renderedItems = undefined;
+      delete state.elements.root.dataset.connectionState;
+      attachTimeline(state);
+      return;
+    }
+    if (event.type === "error") {
+      reportConnectionError(state, event.error);
+      return;
+    }
+
+    state.attachment?.detach();
+    state.attachment = undefined;
+    state.elements.root.dataset.connectionState = "disconnected";
+    state.elements.readiness.textContent = "disconnected";
+    state.elements.playButton.disabled = true;
+  });
+
+  const handleAction = (action: string): void => {
+    const snapshot = state.snapshot;
+    if (!snapshot) return;
+    switch (action) {
+      case "toggle-play":
+        if (snapshot.driver !== "manual") return;
+        if (snapshot.playState === "running") {
+          state.timeline.pause();
+        } else {
+          const activeTimeline = snapshot.progress >= 1
+            ? replayTimeline(state)
+            : state.timeline;
+          if (!activeTimeline) return;
+          void activeTimeline.play();
+        }
+        if (state.attachment) scheduleSnapshot(state, state.attachment.read());
+        break;
+      case "toggle-loop":
+        state.looping = !state.looping;
+        elements.loopButton.setAttribute("aria-pressed", String(state.looping));
+        elements.loopButton.setAttribute(
+          "aria-label",
+          state.looping ? "Disable loop" : "Enable loop",
+        );
+        break;
+      case "show-details":
+        elements.inspector.hidden = false;
+        renderInspector(state);
+        break;
+      case "close-inspector":
+        elements.inspector.hidden = true;
+        break;
+      case "toggle-timeline":
+        state.collapsed = !state.collapsed;
+        elements.root.dataset.timelineCollapsed = String(state.collapsed);
+        elements.collapseButton.textContent = state.collapsed ? "Show" : "Hide";
+        elements.collapseButton.setAttribute("aria-expanded", String(!state.collapsed));
+        elements.collapseButton.setAttribute(
+          "aria-label",
+          state.collapsed ? "Show timeline" : "Hide timeline",
+        );
+        elements.divider.tabIndex = state.collapsed ? -1 : 0;
+        if (state.collapsed) elements.inspector.hidden = true;
+        break;
+    }
+  };
+
+  const handleClick = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+    if (action) {
+      handleAction(action);
+      return;
+    }
+    const indexText = target.closest<HTMLElement>("[data-source-index]")?.dataset.sourceIndex;
+    if (indexText === undefined) return;
+    const item = state.snapshot?.items[Number(indexText)];
+    if (item) selectSource(state, item.source);
+  };
+
+  const handleScale = (): void => {
+    state.attachment?.setTimeScale(Number(elements.scale.value));
+  };
+  const handleZoom = (): void => {
+    state.zoom = Number(elements.zoom.value);
+    if (state.snapshot) renderTracks(state, state.snapshot);
+  };
+  const handleTrackPointer = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest(".motion-editor__block")) return;
+    elements.trackContent.setPointerCapture?.(event.pointerId);
+    seekByPointer(state, event);
+  };
+  const handleTrackMove = (event: PointerEvent): void => {
+    if (elements.trackContent.hasPointerCapture?.(event.pointerId)) seekByPointer(state, event);
+  };
+  const handleTrackUp = (event: PointerEvent): void => {
+    if (elements.trackContent.hasPointerCapture?.(event.pointerId)) {
+      elements.trackContent.releasePointerCapture?.(event.pointerId);
+    }
+  };
+
+  const scheduleResize = (value: number): void => {
+    state.pendingTimelineHeight = value;
+    if (state.resizeFrame !== undefined) return;
+    const apply = () => {
+      state.resizeFrame = undefined;
+      if (state.pendingTimelineHeight === undefined) return;
+      applyTimelineHeight(state, state.pendingTimelineHeight);
+      state.pendingTimelineHeight = undefined;
+    };
+    state.resizeFrame = typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame(apply)
+      : (apply(), undefined);
+  };
+  const handleDividerDown = (event: PointerEvent): void => {
+    if (event.button !== 0 || state.collapsed) return;
+    state.resizePointer = event.pointerId;
+    elements.divider.setPointerCapture?.(event.pointerId);
+    elements.root.dataset.resizing = "true";
+  };
+  const handleDividerMove = (event: PointerEvent): void => {
+    if (state.resizePointer !== event.pointerId) return;
+    const rect = elements.root.getBoundingClientRect();
+    scheduleResize(rect.bottom - event.clientY);
+  };
+  const finishDividerResize = (event: PointerEvent): void => {
+    if (state.resizePointer !== event.pointerId) return;
+    if (elements.divider.hasPointerCapture?.(event.pointerId)) {
+      elements.divider.releasePointerCapture?.(event.pointerId);
+    }
+    state.resizePointer = undefined;
+    delete elements.root.dataset.resizing;
+    applyTimelineHeight(state, state.pendingTimelineHeight ?? state.timelineHeight, true);
+    state.pendingTimelineHeight = undefined;
+  };
+  const handleDividerKey = (event: KeyboardEvent): void => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowUp" ? 1 : -1;
+    applyTimelineHeight(state, state.timelineHeight + direction * (event.shiftKey ? 64 : 16), true);
+  };
+  const handleEditorKey = (event: KeyboardEvent): void => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLButtonElement) {
+      return;
+    }
+    if (event.code === "Space") {
+      event.preventDefault();
+      handleAction("toggle-play");
+    } else if (event.key.toLowerCase() === "l") {
+      handleAction("toggle-loop");
+    }
+  };
+
+  elements.root.addEventListener("click", handleClick);
+  elements.root.addEventListener("keydown", handleEditorKey);
+  elements.scale.addEventListener("change", handleScale);
+  elements.zoom.addEventListener("input", handleZoom);
+  elements.trackContent.addEventListener("pointerdown", handleTrackPointer);
+  elements.trackContent.addEventListener("pointermove", handleTrackMove);
+  elements.trackContent.addEventListener("pointerup", handleTrackUp);
+  elements.trackContent.addEventListener("pointercancel", handleTrackUp);
+  elements.divider.addEventListener("pointerdown", handleDividerDown);
+  elements.divider.addEventListener("pointermove", handleDividerMove);
+  elements.divider.addEventListener("pointerup", finishDividerResize);
+  elements.divider.addEventListener("pointercancel", finishDividerResize);
+  elements.divider.addEventListener("keydown", handleDividerKey);
+  elements.divider.addEventListener("dblclick", () => resetSplit(state));
+
+  try {
+    attachTimeline(state);
+  } catch (error) {
+    state.controlSubscription?.();
+    state.controlSubscription = undefined;
+    if (state.originalParent) {
+      state.originalParent.insertBefore(previewRoot, state.originalNextSibling ?? null);
+    }
+    elements.root.remove();
+    throw error;
+  }
+
+  return {
+    destroy(): void {
+      if (state.destroyed) return;
+      state.destroyed = true;
+      if (state.renderFrame !== undefined) cancelAnimationFrame?.(state.renderFrame);
+      if (state.resizeFrame !== undefined) cancelAnimationFrame?.(state.resizeFrame);
+      if (
+        state.resizePointer !== undefined &&
+        elements.divider.hasPointerCapture?.(state.resizePointer)
+      ) {
+        elements.divider.releasePointerCapture?.(state.resizePointer);
+      }
+      state.controlSubscription?.();
+      state.controlSubscription = undefined;
+      state.attachment?.detach();
+      state.attachment = undefined;
+      state.selected?.removeAttribute("data-motion-editor-selected");
+      if (state.originalParent) {
+        state.originalParent.insertBefore(previewRoot, state.originalNextSibling ?? null);
+      }
+      elements.root.remove();
+      state.blocks.clear();
+      state.snapshot = undefined;
+      state.pendingSnapshot = undefined;
+      state.selected = undefined;
+    },
+  };
+}
+
+export function mountMotionDevTools(
+  container: HTMLElement,
+): MotionDevToolsHandle {
+  let destroyed = false;
+  let control: MotionTimelineControl | undefined;
+  let editor: MountedTimelineEditor | undefined;
+
+  return {
+    addTimeline(declaration) {
+      if (destroyed) {
+        throw new DOMException("Motion DevTools is destroyed.", "InvalidStateError");
+      }
+      if (control) {
+        throw new DOMException(
+          "This Motion DevTools instance already has a timeline.",
+          "InvalidStateError",
+        );
+      }
+
+      const nextControl = createMotionTimelineControl(declaration);
+      try {
+        editor = mountTimelineEditor(container, nextControl);
+        control = nextControl;
+        return nextControl;
+      } catch (error) {
+        nextControl.destroy();
+        throw error;
+      }
+    },
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      editor?.destroy();
+      control?.destroy();
+      editor = undefined;
+      control = undefined;
+    },
+  };
+}

@@ -9,9 +9,7 @@
     "build": "npm run typecheck && vite build && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify:visual:reveal": "node scripts/verify-reveal.mjs",
-    "verify:visual:timeline": "node scripts/verify-timeline.mjs",
-    "verify:visual:timeline-debugger": "node scripts/verify-timeline-debugger.mjs"
+    "verify:visual:motion-devtools": "node scripts/verify-motion-devtools.mjs"
   },
   "peerDependencies": {
     "gsap": "^3.13.0"
