@@ -81,9 +81,11 @@ interface EditorState {
   zoom: number;
   looping: boolean;
   collapsed: boolean;
-  selected?: HTMLElement;
+  selected?: gsap.core.Animation;
+  selectedTrackId?: string;
+  selectedSources: readonly Element[];
   renderedItems?: readonly TimelineInspectionItem[];
-  blocks: Map<HTMLElement, HTMLElement>;
+  blocks: Map<gsap.core.Animation, HTMLElement>;
   originalParent?: Node;
   originalNextSibling?: Node | null;
   elements: EditorElements;
@@ -278,8 +280,34 @@ function formatRulerTime(seconds: number): string {
   return `${Math.floor(safe / 60)}m ${Math.round(safe % 60)}s`;
 }
 
-function sourceLabel(source: HTMLElement): string {
+function displayDuration(state: EditorState, snapshot: TimelineInspectionSnapshot): number {
+  const timeline = state.timeline;
+  if (timeline?.repeat() === -1) {
+    const cycleDuration = timeline.duration();
+    if (Number.isFinite(cycleDuration) && cycleDuration > 0) return cycleDuration;
+  }
+  return snapshot.totalDuration;
+}
+
+function displayProgress(state: EditorState, snapshot: TimelineInspectionSnapshot): number {
+  const timeline = state.timeline;
+  if (timeline?.repeat() === -1) {
+    const cycleDuration = timeline.duration();
+    if (Number.isFinite(cycleDuration) && cycleDuration > 0) {
+      return clamp(timeline.time() / cycleDuration, 0, 1);
+    }
+  }
+  return clamp(snapshot.progress, 0, 1);
+}
+
+function sourceLabel(source: Element): string {
   return source.id ? `#${source.id}` : source.localName;
+}
+
+function itemLabel(item: TimelineInspectionItem): string {
+  if (item.label) return item.label;
+  const label = sourceLabel(item.source);
+  return item.sources.length > 1 ? `${label} × ${item.sources.length}` : label;
 }
 
 function readStoredRatio(): number {
@@ -371,7 +399,7 @@ function appendFacts(
 }
 
 function renderInspector(state: EditorState): void {
-  const item = state.snapshot?.items.find(({ source }) => source === state.selected);
+  const item = state.snapshot?.items.find(({ animation }) => animation === state.selected);
   state.elements.inspectorContent.replaceChildren();
   if (!item) {
     state.elements.inspectorContent.textContent = "Select a motion block.";
@@ -381,6 +409,8 @@ function renderInspector(state: EditorState): void {
   appendFacts(state.elements.inspectorContent, "Identity", [
     ["Source", sourceLabel(item.source)],
     ["Index", item.index],
+    ["Tweens", item.animations.length],
+    ["Animated targets", item.animatedTargetCount],
     ["Runnable", item.runnable ? "Yes" : "No"],
   ]);
   appendFacts(state.elements.inspectorContent, "Timing", [
@@ -393,12 +423,18 @@ function renderInspector(state: EditorState): void {
   appendFacts(state.elements.inspectorContent, "To", safeEntries(item.to));
 }
 
-function selectSource(state: EditorState, source: HTMLElement | undefined): void {
-  state.selected?.removeAttribute("data-motion-editor-selected");
-  state.selected = source;
-  state.selected?.setAttribute("data-motion-editor-selected", "true");
+function selectItem(state: EditorState, item: TimelineInspectionItem | undefined): void {
+  for (const source of state.selectedSources) {
+    source.removeAttribute("data-motion-editor-selected");
+  }
+  state.selected = item?.animation;
+  state.selectedTrackId = item?.trackId;
+  state.selectedSources = item?.sources ?? [];
+  for (const source of state.selectedSources) {
+    source.setAttribute("data-motion-editor-selected", "true");
+  }
   for (const [candidate, block] of state.blocks) {
-    const selected = candidate === source;
+    const selected = candidate === state.selected;
     block.dataset.selected = String(selected);
     block.setAttribute("aria-pressed", String(selected));
   }
@@ -406,7 +442,7 @@ function selectSource(state: EditorState, source: HTMLElement | undefined): void
 }
 
 function renderRuler(state: EditorState): void {
-  const duration = state.snapshot?.totalDuration ?? 0;
+  const duration = state.snapshot ? displayDuration(state, state.snapshot) : 0;
   state.elements.ruler.replaceChildren();
   const divisions = 6;
   for (let index = 0; index <= divisions; index += 1) {
@@ -419,14 +455,12 @@ function renderRuler(state: EditorState): void {
 
 function renderTracks(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
   state.blocks.clear();
-  state.elements.labels.replaceChildren(
-    createElement("div", "motion-editor__track-heading", "Tracks"),
-  );
   state.elements.lanes.replaceChildren();
-  const totalDuration = snapshot.totalDuration;
+  const totalDuration = displayDuration(state, snapshot);
   const viewportWidth = state.elements.trackContent.parentElement?.clientWidth ?? 0;
   const timelineWidth = Math.max(BASE_TIMELINE_WIDTH, viewportWidth) * (state.zoom / 100);
   state.elements.trackContent.style.width = `${timelineWidth}px`;
+  state.elements.labels.replaceChildren(createElement("div", "motion-editor__track-heading", "Tracks"));
 
   if (snapshot.items.length === 0) {
     const emptyLabel = createElement("div", "motion-editor__track-label motion-editor__track-label--empty", "No tracks");
@@ -436,16 +470,16 @@ function renderTracks(state: EditorState, snapshot: TimelineInspectionSnapshot):
   }
 
   for (const item of snapshot.items) {
-    const label = createElement("button", "motion-editor__track-label", sourceLabel(item.source));
+    const label = createElement("button", "motion-editor__track-label", itemLabel(item));
     label.type = "button";
     label.dataset.sourceIndex = String(item.index);
     const lane = createElement("div", "motion-editor__lane");
     lane.dataset.sourceIndex = String(item.index);
-    const block = createElement("button", "motion-editor__block", sourceLabel(item.source));
+    const block = createElement("button", "motion-editor__block", itemLabel(item));
     block.type = "button";
     block.dataset.sourceIndex = String(item.index);
-    block.dataset.selected = String(item.source === state.selected);
-    block.setAttribute("aria-pressed", String(item.source === state.selected));
+    block.dataset.selected = String(item.animation === state.selected);
+    block.setAttribute("aria-pressed", String(item.animation === state.selected));
 
     if (
       item.resolvedStart === null ||
@@ -463,23 +497,26 @@ function renderTracks(state: EditorState, snapshot: TimelineInspectionSnapshot):
     lane.append(block);
     state.elements.labels.append(label);
     state.elements.lanes.append(lane);
-    state.blocks.set(item.source, block);
+    state.blocks.set(item.animation, block);
   }
 
   state.renderedItems = snapshot.items;
-  if (!state.selected || !snapshot.items.some(({ source }) => source === state.selected)) {
-    state.selected = snapshot.items[0]?.source;
-  }
-  selectSource(state, state.selected);
+  const selectedItem = snapshot.items.find((item) => (
+    item.trackId !== undefined && item.trackId === state.selectedTrackId
+  ))
+    ?? snapshot.items.find(({ animation }) => animation === state.selected)
+    ?? snapshot.items[0];
+  selectItem(state, selectedItem);
   renderRuler(state);
 }
 
 function updateProgress(state: EditorState, snapshot: TimelineInspectionSnapshot): void {
-  const progress = clamp(snapshot.progress, 0, 1);
+  const progress = displayProgress(state, snapshot);
+  const duration = displayDuration(state, snapshot);
   state.elements.root.style.setProperty("--motion-editor-progress", String(progress));
-  state.elements.time.value = formatTime(progress * snapshot.totalDuration);
+  state.elements.time.value = formatTime(progress * duration);
   state.elements.time.textContent = state.elements.time.value;
-  state.elements.duration.value = formatTime(snapshot.totalDuration);
+  state.elements.duration.value = formatTime(duration);
   state.elements.duration.textContent = state.elements.duration.value;
   state.elements.driver.textContent = snapshot.driver;
   state.elements.readiness.textContent = snapshot.readiness;
@@ -501,14 +538,14 @@ function updateProgress(state: EditorState, snapshot: TimelineInspectionSnapshot
   state.elements.scale.disabled = !transportAvailable;
   state.elements.scale.title = transportAvailable ? "" : unavailableReason;
 
-  for (const [source, block] of state.blocks) {
-    const item = snapshot.items.find((candidate) => candidate.source === source);
+  for (const [animation, block] of state.blocks) {
+    const item = snapshot.items.find((candidate) => candidate.animation === animation);
     const active = Boolean(
       item &&
       item.resolvedStart !== null &&
       item.resolvedEnd !== null &&
-      progress * snapshot.totalDuration >= item.resolvedStart &&
-      progress * snapshot.totalDuration <= item.resolvedEnd,
+      progress * duration >= item.resolvedStart &&
+      progress * duration <= item.resolvedEnd,
     );
     block.dataset.active = String(active);
   }
@@ -552,6 +589,7 @@ function attachTimeline(state: EditorState): void {
   state.attachment = attachGsapTimelineSession(
     state.timeline,
     (snapshot) => scheduleSnapshot(state, snapshot),
+    state.control?.tracks,
   );
 }
 
@@ -582,7 +620,16 @@ function seekByPointer(state: EditorState, event: PointerEvent): void {
   if (state.snapshot?.driver !== "manual" || state.snapshot.readiness !== "ready") return;
   const rect = state.elements.trackContent.getBoundingClientRect();
   if (rect.width <= 0) return;
-  state.attachment?.seek(clamp((event.clientX - rect.left) / rect.width, 0, 1));
+  const progress = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+  if (state.timeline?.repeat() === -1) {
+    const cycleDuration = state.timeline.duration();
+    if (Number.isFinite(cycleDuration) && cycleDuration > 0) {
+      state.timeline.pause().totalTime(progress * cycleDuration, true);
+      if (state.attachment) scheduleSnapshot(state, state.attachment.read());
+      return;
+    }
+  }
+  state.attachment?.seek(progress);
 }
 
 function mountTimelineEditor(
@@ -598,6 +645,7 @@ function mountTimelineEditor(
     zoom: Number(elements.zoom.value),
     looping: false,
     collapsed: false,
+    selectedSources: [],
     blocks: new Map(),
     elements,
   };
@@ -626,8 +674,12 @@ function mountTimelineEditor(
     state.controlSubscription = undefined;
     state.attachment?.detach();
     state.attachment = undefined;
-    state.selected?.removeAttribute("data-motion-editor-selected");
+    for (const source of state.selectedSources) {
+      source.removeAttribute("data-motion-editor-selected");
+    }
     state.selected = undefined;
+    state.selectedTrackId = undefined;
+    state.selectedSources = [];
     state.control = undefined;
     state.timeline = undefined;
     state.snapshot = undefined;
@@ -663,6 +715,10 @@ function mountTimelineEditor(
         state.attachment?.detach();
         state.attachment = undefined;
         state.pendingSnapshot = undefined;
+        for (const source of state.selectedSources) {
+          source.removeAttribute("data-motion-editor-selected");
+        }
+        state.selectedSources = [];
         return;
       }
       if (event.type === "timeline") {
@@ -743,15 +799,16 @@ function mountTimelineEditor(
   const handleClick = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+    const actionElement = target.closest<HTMLElement>("[data-action]");
+    const action = actionElement?.dataset.action;
     if (action) {
       handleAction(action);
       return;
     }
     const indexText = target.closest<HTMLElement>("[data-source-index]")?.dataset.sourceIndex;
     if (indexText === undefined) return;
-    const item = state.snapshot?.items[Number(indexText)];
-    if (item) selectSource(state, item.source);
+    const item = state.snapshot?.items.find((candidate) => candidate.index === Number(indexText));
+    if (item) selectItem(state, item);
   };
 
   const handleScale = (): void => {

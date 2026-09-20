@@ -9,7 +9,9 @@
     "build": "npm run typecheck && vite build && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify:visual:motion-devtools": "node scripts/verify-motion-devtools.mjs"
+    "verify:visual:motion-devtools": "node scripts/verify-motion-devtools.mjs",
+    "verify:visual:scroll-shader": "node scripts/verify-scroll-shader.mjs",
+    "verify:visual:image-sequence": "node scripts/verify-image-sequence.mjs"
   },
   "peerDependencies": {
     "gsap": "^3.13.0"

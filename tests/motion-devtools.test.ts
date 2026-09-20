@@ -126,6 +126,89 @@ describe("video-editor Motion DevTools", () => {
     registry.destroy();
   });
 
+  it("selects every DOM target of a staggered tween track", async () => {
+    const container = document.createElement("div");
+    const stage = document.createElement("section");
+    const firstLine = Array.from({ length: 3 }, (_, index) => {
+      const char = document.createElement("span");
+      char.textContent = String(index);
+      stage.append(char);
+      return char;
+    });
+    const secondLine = Array.from({ length: 3 }, (_, index) => {
+      const char = document.createElement("span");
+      char.textContent = String(index + 3);
+      stage.append(char);
+      return char;
+    });
+    document.body.append(container, stage);
+
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(firstLine, { x: 20, duration: 0.5, stagger: 0.1 });
+    timeline.to(secondLine, { x: 20, duration: 0.5, stagger: 0.1 });
+    const registry = createTimelineRegistry();
+    registry.register({ id: "staggered-text", root: stage, timeline });
+    const handle = mountMotionDevTools(container, { registry });
+    await flush();
+
+    const blocks = container.querySelectorAll<HTMLButtonElement>(".motion-editor__block");
+    expect(blocks).toHaveLength(2);
+    expect(firstLine.every((char) => char.getAttribute("data-motion-editor-selected") === "true")).toBe(true);
+    expect(secondLine.every((char) => char.hasAttribute("data-motion-editor-selected"))).toBe(false);
+
+    blocks[1]!.click();
+    expect(firstLine.every((char) => char.hasAttribute("data-motion-editor-selected"))).toBe(false);
+    expect(secondLine.every((char) => char.getAttribute("data-motion-editor-selected") === "true")).toBe(true);
+
+    handle.destroy();
+    expect(secondLine.every((char) => char.hasAttribute("data-motion-editor-selected"))).toBe(false);
+    registry.destroy();
+  });
+
+  it("groups authored object tweens into one highlighted SVG track and retains unmapped DOM rows", async () => {
+    const container = document.createElement("div");
+    const stage = document.createElement("section");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const text = document.createElement("span");
+    stage.append(path, text);
+    document.body.append(container, stage);
+    const points = [{ y: 0 }, { y: 0 }];
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(text, { opacity: 0.5, duration: 0.5 }, 0);
+    timeline.to(points[0]!, { y: 20, duration: 0.5 }, 0.1);
+    timeline.to(points[1]!, { y: 40, duration: 0.5 }, 0.2);
+    const [, first, second] = timeline.getChildren(false, true, false) as gsap.core.Tween[];
+    const registry = createTimelineRegistry();
+    registry.register({
+      id: "mapped-svg",
+      root: stage,
+      timeline,
+      tracks: [{
+        id: "shape",
+        label: "SVG path",
+        animations: [first!, second!],
+        visualTarget: path,
+      }],
+    });
+    const handle = mountMotionDevTools(container, { registry });
+    await flush();
+
+    const blocks = container.querySelectorAll<HTMLButtonElement>(".motion-editor__block");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]?.textContent).toBe("SVG path");
+    expect(Number.parseFloat(blocks[0]!.style.left)).toBeCloseTo(100 / 7);
+    expect(Number.parseFloat(blocks[0]!.style.width)).toBeCloseTo(600 / 7);
+    expect(path.getAttribute("data-motion-editor-selected")).toBe("true");
+    expect(container.querySelector(".motion-editor__inspector-content")?.textContent)
+      .toContain("Animated targets2");
+    blocks[1]!.click();
+    expect(path.hasAttribute("data-motion-editor-selected")).toBe(false);
+    expect(text.getAttribute("data-motion-editor-selected")).toBe("true");
+
+    handle.destroy();
+    registry.destroy();
+  });
+
   it("resizes with the accessible splitter and restores the source on destroy", async () => {
     const fixture = createFixture();
     const { container, home, stage, timeline } = fixture;
@@ -214,6 +297,44 @@ describe("video-editor Motion DevTools", () => {
     container.querySelector<HTMLButtonElement>("[data-action='toggle-play']")?.click();
     expect(timeline.paused()).toBe(true);
     expect(container.querySelector("[data-role='driver']")?.textContent).toBe("scroll");
+
+    handle.destroy();
+    registry.destroy();
+  });
+
+  it("shows and scrubs one cycle of an infinitely repeating parent timeline", async () => {
+    const fixture = createFixture();
+    const { container, timeline } = fixture;
+    timeline.repeat(-1);
+    const { handle, registry } = mountFixture(fixture);
+    await flush();
+
+    const cycleDuration = timeline.duration();
+    const root = container.querySelector<HTMLElement>("[data-motion-editor]")!;
+    const blocks = container.querySelectorAll<HTMLElement>(".motion-editor__block");
+    expect(timeline.totalDuration()).toBeGreaterThan(1_000_000_000);
+    expect(container.querySelector("[data-role='duration']")?.textContent).toBe("00:01.300");
+    expect(Number.parseFloat(blocks[0]!.style.width)).toBeGreaterThan(20);
+
+    timeline.play().totalTime(cycleDuration * 1.5).pause();
+    await flush();
+    expect(container.querySelector("[data-role='time']")?.textContent).toBe("00:00.650");
+    expect(Number.parseFloat(root.style.getPropertyValue("--motion-editor-progress"))).toBeCloseTo(0.5, 1);
+
+    const content = container.querySelector<HTMLElement>(".motion-editor__track-content")!;
+    vi.spyOn(content, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 100,
+    } as DOMRect);
+    content.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 25,
+      pointerId: 1,
+    }));
+    await flush();
+    expect(timeline.totalTime()).toBeLessThan(cycleDuration);
+    expect(timeline.time()).toBeCloseTo(cycleDuration * 0.25, 2);
 
     handle.destroy();
     registry.destroy();
@@ -318,6 +439,12 @@ describe("video-editor Motion DevTools", () => {
         timeline.to(fixture.targets[0]!, { opacity: 1, duration: 0.5 });
         return {
           timeline,
+          tracks: [{
+            id: "intro",
+            label: "Intro",
+            animation: timeline.getChildren(false, true, false)[0] as gsap.core.Tween,
+            visualTarget: fixture.targets[0]!,
+          }],
           dispose: () => {
             disposeCount += 1;
             timeline.kill();
@@ -327,7 +454,9 @@ describe("video-editor Motion DevTools", () => {
     });
     const handle = mountMotionDevTools(fixture.container, { registry });
     const firstTimeline = control.timeline;
+    const firstTrackAnimation = control.tracks[0]?.animations[0];
     await flush();
+    expect(fixture.container.querySelector(".motion-editor__block")?.textContent).toBe("Intro");
 
     fixture.stage.dataset.runState = "finished";
     firstTimeline.totalProgress(1, true);
@@ -340,11 +469,13 @@ describe("video-editor Motion DevTools", () => {
 
     expect(control.replayStrategy).toBe("rebuild");
     expect(control.timeline).not.toBe(firstTimeline);
+    expect(control.tracks[0]?.animations[0]).not.toBe(firstTrackAnimation);
     expect(createCount).toBe(2);
     expect(disposeCount).toBe(1);
     expect(resetCount).toBe(1);
     expect(fixture.stage.dataset.runState).toBe("idle");
     expect(control.timeline.paused()).toBe(false);
+    expect(fixture.targets[0]?.getAttribute("data-motion-editor-selected")).toBe("true");
 
     const secondTimeline = control.timeline;
     control.replay();

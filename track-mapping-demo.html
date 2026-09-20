@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motion Lab — Track Mapping Demo</title>
+    <link rel="stylesheet" href="/playground/track-mapping-demo.css" />
+  </head>
+  <body>
+    <main class="mapping-demo">
+      <header class="mapping-demo__header">
+        <span class="mapping-demo__eyebrow">Motion Lab / Concept demo</span>
+        <h1>One track. Many targets.</h1>
+        <p>Select a track to see who supplies its meaning, who reads its timing, and who draws the highlight.</p>
+      </header>
+
+      <section class="mapping-demo__preview" aria-label="Live animation preview">
+        <div class="mapping-demo__text-panel">
+          <span class="mapping-demo__surface-label">DOM / SplitText</span>
+          <h2 id="mapping-heading">Motion Lab</h2>
+          <p>One tween → every character</p>
+        </div>
+        <div class="mapping-demo__canvas-panel">
+          <span class="mapping-demo__surface-label">Canvas / plain objects</span>
+          <canvas id="mapping-particles" width="440" height="220" aria-label="99 animated particles"></canvas>
+          <p>One tween → 99 particles</p>
+        </div>
+        <div class="mapping-demo__path-panel">
+          <span class="mapping-demo__surface-label">SVG / numeric points</span>
+          <svg viewBox="0 0 440 220" role="img" aria-label="Path drawn from 20 animated points">
+            <path id="mapping-path" d="" />
+          </svg>
+          <p>20 tweens → one visible path</p>
+        </div>
+      </section>
+
+      <section class="mapping-demo__workspace" aria-label="Track mapping debugger demonstration">
+        <div class="mapping-demo__toolbar">
+          <div>
+            <span class="mapping-demo__eyebrow">Timeline / grouped tracks</span>
+            <p>Click a row to inspect its relationship to the preview.</p>
+          </div>
+          <div class="mapping-demo__actions">
+            <button id="mapping-play" type="button">Play</button>
+            <button id="mapping-replay" type="button">Replay</button>
+          </div>
+        </div>
+        <div id="mapping-tracks" class="mapping-demo__tracks" role="group" aria-label="Animation tracks"></div>
+        <div class="mapping-demo__ruler">
+          <span>00:00</span>
+          <div class="mapping-demo__ruler-line"><span id="mapping-playhead"></span></div>
+          <output id="mapping-time">00:00.00</output>
+        </div>
+        <div class="mapping-demo__ownership">
+          <div><span>01 / Animation author</span><p id="mapping-author">Select a track.</p></div>
+          <div><span>02 / Debugger</span><p id="mapping-debugger">Reads the live tween timing.</p></div>
+          <div><span>03 / DevTools UI</span><p id="mapping-devtools">Draws and clears the highlight.</p></div>
+        </div>
+      </section>
+      <p class="mapping-demo__note">Isolated playground demo. This does not change the current registry or editor contract.</p>
+    </main>
+    <script type="module" src="/playground/track-mapping-demo.ts"></script>
+  </body>
+</html>

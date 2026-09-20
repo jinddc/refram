@@ -12,6 +12,7 @@ export interface MotionTimelineRegistration {
   readonly root: HTMLElement;
   readonly replayStrategy: MotionTimelineReplayStrategy;
   readonly timeline: MotionTimelineControl["timeline"];
+  readonly tracks: MotionTimelineControl["tracks"];
   subscribe(listener: (event: MotionTimelineControlEvent) => void): () => void;
   replay(): MotionTimelineControl["timeline"];
   destroy(): void;
@@ -99,6 +100,9 @@ export function createTimelineRegistry(): MotionTimelineRegistry {
         replayStrategy: control.replayStrategy,
         get timeline() {
           return control.timeline;
+        },
+        get tracks() {
+          return control.tracks;
         },
         subscribe(listener) {
           return control.subscribe(listener);

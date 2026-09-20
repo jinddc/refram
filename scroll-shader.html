@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Motion Lab scroll-driven shader playground study" />
+    <title>Scroll Shader — Motion Lab</title>
+    <link rel="stylesheet" href="/playground/scroll-shader.css" />
+  </head>
+  <body>
+    <header class="shader-header">
+      <a class="shader-back" href="/motion-devtools.html">← Motion DevTools</a>
+      <span>Motion Lab / Study 05</span>
+    </header>
+    <main>
+      <div class="shader-intro">
+        <p class="shader-eyebrow">Scroll / WebGL / velocity</p>
+        <h1>Adjust a shader<br />on scroll.</h1>
+        <p>Each image is rendered on its own canvas. Scroll velocity briefly bends the image and shifts its color channels.</p>
+        <span class="shader-scroll-cue">Scroll to explore ↓</span>
+      </div>
+      <section id="shader-gallery" class="shader-gallery" aria-label="Scroll shader image gallery"></section>
+      <footer class="shader-footer">
+        <p>Study adapted from <a href="https://codepen.io/GreenSock/pen/EaVbXeM" target="_blank" rel="noreferrer">GreenSock’s Scroll Shader Pen</a>. Images: CodePen assets.</p>
+      </footer>
+    </main>
+    <script type="module" src="/playground/scroll-shader.ts"></script>
+  </body>
+</html>

@@ -42,6 +42,79 @@
           <p>The editor discovers it without being imported by the animation.</p>
         </article>
       </div>
+      <section
+        id="container-animation-stage"
+        class="motion-container-fixture"
+        aria-label="Container animation SplitText demo"
+      >
+        <p class="motion-container-fixture__eyebrow">Manual timeline study</p>
+        <h2 class="motion-container-fixture__text">
+          The containerAnimation property allows us to create ScrollTriggered animations within a container that's animated horizontally.
+        </h2>
+      </section>
+      <section
+        id="svg-shape-overlays-stage"
+        class="motion-shape-fixture"
+        aria-label="SVG shape overlays demo"
+      >
+        <div class="motion-shape-fixture__intro">
+          <span class="motion-shape-fixture__eyebrow">GSAP SVG study / 02</span>
+          <h2>Shape the transition.</h2>
+          <p>Two paths. Twenty points. One morphing canvas.</p>
+          <button
+            class="motion-shape-fixture__trigger"
+            type="button"
+            aria-pressed="false"
+          >Open overlay</button>
+        </div>
+        <svg
+          class="motion-shape-fixture__svg"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="motion-shape-gradient-back" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ffd9b0" />
+              <stop offset="100%" stop-color="#ff8709" />
+            </linearGradient>
+            <linearGradient id="motion-shape-gradient-front" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ff8709" />
+              <stop offset="100%" stop-color="#f7bdf8" />
+            </linearGradient>
+          </defs>
+          <path class="motion-shape-fixture__path" fill="url(#motion-shape-gradient-back)" />
+          <path class="motion-shape-fixture__path" fill="url(#motion-shape-gradient-front)" />
+        </svg>
+      </section>
+      <section
+        id="canvas-particles-stage"
+        class="motion-particles-fixture"
+        aria-label="Canvas particles demo"
+      >
+        <canvas class="motion-particles-fixture__canvas" aria-hidden="true"></canvas>
+        <div class="motion-particles-fixture__controls">
+          <span class="motion-particles-fixture__eyebrow">GSAP canvas study / 03</span>
+          <button
+            class="motion-particles-fixture__trigger"
+            type="button"
+            aria-pressed="false"
+          >Start particles</button>
+          <p>Tap the canvas to slow or resume the field.</p>
+        </div>
+      </section>
+      <section
+        id="rolling-text-stage"
+        class="motion-rolling-fixture"
+        aria-label="Rolling text SplitText demo"
+      >
+        <div class="motion-rolling-fixture__tube" aria-label="SplitText">
+          <h2 class="motion-rolling-fixture__line" aria-hidden="true">SplitText</h2>
+          <h2 class="motion-rolling-fixture__line" aria-hidden="true">SplitText</h2>
+          <h2 class="motion-rolling-fixture__line" aria-hidden="true">SplitText</h2>
+          <h2 class="motion-rolling-fixture__line" aria-hidden="true">SplitText</h2>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="/playground/motion-devtools-fixture.ts"></script>

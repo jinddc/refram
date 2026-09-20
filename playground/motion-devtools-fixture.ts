@@ -6,8 +6,12 @@ import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
 } from "../src/devtools/timeline-registry";
+import { registerContainerAnimationSequence } from "./timelines/container-animation-sequence";
+import { registerCanvasParticlesSequence } from "./timelines/canvas-particles-sequence";
 import { registerDetailSequence } from "./timelines/detail-sequence";
 import { registerEditorSequence } from "./timelines/editor-sequence";
+import { registerSvgShapeOverlaysSequence } from "./timelines/svg-shape-overlays-sequence";
+import { registerRollingTextSequence } from "./timelines/rolling-text-sequence";
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -20,10 +24,30 @@ let handle: MotionDevToolsHandle | undefined;
 const registrations: MotionTimelineRegistration[] = [
   registerEditorSequence(),
   registerDetailSequence(),
+  registerContainerAnimationSequence(),
+  registerSvgShapeOverlaysSequence(),
+  registerCanvasParticlesSequence(),
+  registerRollingTextSequence(),
 ];
 
 function mount(): void {
   handle = mountMotionDevTools(root);
+  const status = root.querySelector(".motion-editor__timeline-status");
+  const demoLinks = document.createElement("nav");
+  demoLinks.className = "motion-editor__demo-links";
+  demoLinks.setAttribute("aria-label", "Standalone playground demos");
+  const shaderLink = document.createElement("a");
+  shaderLink.className = "motion-editor__demo-link";
+  shaderLink.href = "/scroll-shader.html";
+  shaderLink.textContent = "Shader ↗";
+  shaderLink.setAttribute("aria-label", "Open Scroll Shader playground demo");
+  const sequenceLink = document.createElement("a");
+  sequenceLink.className = "motion-editor__demo-link";
+  sequenceLink.href = "/image-sequence.html";
+  sequenceLink.textContent = "Sequence ↗";
+  sequenceLink.setAttribute("aria-label", "Open Image Sequence playground demo");
+  demoLinks.append(shaderLink, sequenceLink);
+  status?.append(demoLinks);
 }
 
 mount();
@@ -42,6 +66,12 @@ const harness = {
   },
   selectTimeline(id: string): boolean {
     return handle?.setActiveTimeline(id) ?? false;
+  },
+  replayActiveTimeline(): boolean {
+    const registration = registrations.find(({ id }) => id === handle?.activeTimelineId);
+    if (!registration) return false;
+    registration.replay();
+    return true;
   },
   removeTimeline(id: string): boolean {
     const registration = registrations.find((candidate) => candidate.id === id);
