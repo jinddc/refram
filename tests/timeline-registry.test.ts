@@ -142,8 +142,8 @@ describe("timeline registry", () => {
       root,
       timeline,
       tracks: [
-        { id: "first", animation: first!, visualTarget: canvas },
-        { id: "path", label: "SVG path", animations: [second!], visualTargets: [path] },
+        { id: "first", animation: first!, targets: canvas },
+        { id: "path", label: "SVG path", animations: [second!], targets: [canvas, path] },
       ],
     });
 
@@ -152,7 +152,8 @@ describe("timeline registry", () => {
       ["path", "SVG path"],
     ]);
     expect(registration.tracks[0]?.animations).toEqual([first]);
-    expect(registration.tracks[0]?.visualTargets).toEqual([canvas]);
+    expect(registration.tracks[0]?.targets).toEqual([canvas]);
+    expect(registration.tracks[1]?.targets).toEqual([canvas, path]);
     expect(Object.isFrozen(registration.tracks)).toBe(true);
     expect(registration.timeline).toBe(timeline);
     registry.destroy();
@@ -177,7 +178,7 @@ describe("timeline registry", () => {
           tracks: [{
             id: "particles",
             animation: timeline.getChildren(false, true, false)[0] as gsap.core.Tween,
-            visualTarget: canvas,
+            targets: canvas,
           }],
           dispose: () => timeline.kill(),
         };
@@ -211,8 +212,8 @@ describe("timeline registry", () => {
         return {
           timeline,
           tracks: [
-            { id: "same", animation, visualTarget: target },
-            { id: "same", animation, visualTarget: target },
+            { id: "same", animation, targets: target },
+            { id: "same", animation, targets: target },
           ],
           dispose: () => {
             dispose();

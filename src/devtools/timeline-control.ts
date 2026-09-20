@@ -10,16 +10,13 @@ export type MotionTimelineTrackDeclaration = {
 } & (
   | { readonly animation: gsap.core.Tween; readonly animations?: never }
   | { readonly animations: readonly gsap.core.Tween[]; readonly animation?: never }
-) & (
-  | { readonly visualTarget: Element; readonly visualTargets?: never }
-  | { readonly visualTargets: readonly Element[]; readonly visualTarget?: never }
-);
+) & { readonly targets: Element | readonly Element[] };
 
 export interface MotionTimelineTrack {
   readonly id: string;
   readonly label: string;
   readonly animations: readonly gsap.core.Tween[];
-  readonly visualTargets: readonly Element[];
+  readonly targets: readonly Element[];
 }
 
 interface MotionTimelineDeclarationBase {
@@ -93,11 +90,14 @@ function normalizeTracks(
     const animations = declaration.animation !== undefined
       ? [declaration.animation]
       : [...declaration.animations!];
-    const visualTargets = declaration.visualTarget !== undefined
-      ? [declaration.visualTarget]
-      : [...declaration.visualTargets!];
-    if (animations.length === 0 || visualTargets.length === 0) {
-      throw new TypeError(`Timeline track "${id}" needs animations and visual targets.`);
+    const targets = Array.isArray(declaration.targets)
+      ? [...declaration.targets]
+      : [declaration.targets as Element];
+    if (animations.length === 0 || targets.length === 0) {
+      throw new TypeError(`Timeline track "${id}" needs animations and targets.`);
+    }
+    if (!targets.every((target) => target instanceof Element)) {
+      throw new TypeError(`Timeline track "${id}" needs Element targets.`);
     }
     for (const animation of animations) {
       if (!children.has(animation)) {
@@ -112,7 +112,7 @@ function normalizeTracks(
       id,
       label: declaration.label ?? id,
       animations: Object.freeze(animations),
-      visualTargets: Object.freeze(visualTargets),
+      targets: Object.freeze(targets),
     });
   }));
 }

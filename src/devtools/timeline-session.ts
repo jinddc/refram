@@ -80,8 +80,8 @@ function readItems(
       (animation) => animation.startTime() + animation.totalDuration(),
     ));
     return {
-      source: track.visualTargets[0]!,
-      sources: track.visualTargets,
+      source: track.targets[0]!,
+      sources: track.targets,
       animation: track.animations[0]!,
       animations: track.animations,
       trackId: track.id,

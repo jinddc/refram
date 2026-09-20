@@ -67,7 +67,7 @@ export function registerContainerAnimationSequence(): MotionTimelineRegistration
           id: "characters",
           label: "Characters",
           animation: timeline.getChildren(false, true, false)[1] as gsap.core.Tween,
-          visualTargets: split.chars,
+          targets: split.chars,
         }],
         dispose: () => {
           context.revert();

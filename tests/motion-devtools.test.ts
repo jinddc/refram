@@ -187,7 +187,7 @@ describe("video-editor Motion DevTools", () => {
         id: "shape",
         label: "SVG path",
         animations: [first!, second!],
-        visualTarget: path,
+        targets: path,
       }],
     });
     const handle = mountMotionDevTools(container, { registry });
@@ -443,7 +443,7 @@ describe("video-editor Motion DevTools", () => {
             id: "intro",
             label: "Intro",
             animation: timeline.getChildren(false, true, false)[0] as gsap.core.Tween,
-            visualTarget: fixture.targets[0]!,
+            targets: fixture.targets[0]!,
           }],
           dispose: () => {
             disposeCount += 1;

@@ -127,19 +127,19 @@ function createRuntime(): RebuildableMotionTimelineRuntime {
         id: "text",
         label: "SplitText",
         animation: textTween,
-        visualTargets: split.chars,
+        targets: split.chars,
       },
       {
         id: "particles",
         label: "Particles",
         animation: particleTween,
-        visualTarget: canvas,
+        targets: canvas,
       },
       {
         id: "path",
         label: "SVG path",
         animations: pathTweens,
-        visualTarget: path,
+        targets: path,
       },
     ],
     dispose(): void {
@@ -177,7 +177,7 @@ function selectTrack(id: string): void {
   for (const target of selectedTargets) target.classList.remove("is-inspected");
   const track = registration.tracks.find((candidate) => candidate.id === id);
   selectedId = track?.id;
-  selectedTargets = track?.visualTargets ?? [];
+  selectedTargets = track?.targets ?? [];
   for (const target of selectedTargets) target.classList.add("is-inspected");
   for (const button of tracksElement.querySelectorAll<HTMLButtonElement>("button[data-track-id]")) {
     button.setAttribute("aria-pressed", String(button.dataset.trackId === selectedId));
