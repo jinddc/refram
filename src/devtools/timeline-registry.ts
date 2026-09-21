@@ -11,6 +11,7 @@ export interface MotionTimelineRegistration {
   readonly label: string;
   readonly root: HTMLElement;
   readonly replayStrategy: MotionTimelineReplayStrategy;
+  readonly replayState: MotionTimelineControl["replayState"];
   readonly timeline: MotionTimelineControl["timeline"];
   readonly tracks: MotionTimelineControl["tracks"];
   subscribe(listener: (event: MotionTimelineControlEvent) => void): () => void;
@@ -98,6 +99,9 @@ export function createTimelineRegistry(): MotionTimelineRegistry {
         label: control.label,
         root: control.root,
         replayStrategy: control.replayStrategy,
+        get replayState() {
+          return control.replayState;
+        },
         get timeline() {
           return control.timeline;
         },

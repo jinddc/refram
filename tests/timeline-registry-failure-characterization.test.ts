@@ -10,8 +10,8 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("current timeline-registry failure behavior", () => {
-  it("retains a disposed runtime reference after a replacement factory throws", () => {
+describe("timeline registry failure paths", () => {
+  it("allows a factory retry without exposing or disposing the old runtime twice", () => {
     const registry = createTimelineRegistry();
     const dispose = vi.fn();
     let creations = 0;
@@ -29,17 +29,19 @@ describe("current timeline-registry failure behavior", () => {
 
     expect(() => registration.replay()).toThrow("create failed");
     expect(dispose).toHaveBeenCalledTimes(1);
-    expect(registration.timeline).toBe(original);
-    expect(registry.getSnapshot().registrations).toContain(registration);
+    expect(registration.replayState).toBe("retryable");
+    expect(() => registration.timeline).toThrow(/no live runtime/i);
+    expect(registry.getSnapshot().registrations[0]).toBe(registration);
 
     expect(registration.replay()).not.toBe(original);
+    expect(registration.replayState).toBe("ready");
     expect(dispose).toHaveBeenCalledTimes(1);
     registration.destroy();
     registry.destroy();
     expect(dispose).toHaveBeenCalledTimes(2);
   });
 
-  it("retains a disposed runtime reference after reset throws", () => {
+  it("blocks retry after reset throws", () => {
     const registry = createTimelineRegistry();
     const dispose = vi.fn();
     let resets = 0;
@@ -55,18 +57,18 @@ describe("current timeline-registry failure behavior", () => {
         return { timeline, dispose: () => { dispose(); timeline.kill(); } };
       },
     });
-    const original = registration.timeline;
-
     expect(() => registration.replay()).toThrow("reset failed");
     expect(dispose).toHaveBeenCalledTimes(1);
-    expect(registration.timeline).toBe(original);
-    expect(registration.replay()).not.toBe(original);
+    expect(registration.replayState).toBe("blocked");
+    expect(() => registration.timeline).toThrow(/no live runtime/i);
+    expect(() => registration.replay()).toThrow(/blocked/i);
+    expect(resets).toBe(1);
     registration.destroy();
     registry.destroy();
-    expect(dispose).toHaveBeenCalledTimes(2);
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("can retry after disposal throws, but publishes no replacement on the failed attempt", () => {
+  it("blocks retry after disposal throws", () => {
     const registry = createTimelineRegistry();
     let creations = 0;
     let disposals = 0;
@@ -86,17 +88,16 @@ describe("current timeline-registry failure behavior", () => {
         };
       },
     });
-    const original = registration.timeline;
-
     expect(() => registration.replay()).toThrow("dispose failed");
     expect(creations).toBe(1);
-    expect(registration.timeline).toBe(original);
-    expect(registration.replay()).not.toBe(original);
-    expect(creations).toBe(2);
+    expect(registration.replayState).toBe("blocked");
+    expect(() => registration.timeline).toThrow(/no live runtime/i);
+    expect(() => registration.replay()).toThrow(/blocked/i);
+    expect(creations).toBe(1);
     expect(disposals).toBe(1);
     registration.destroy();
     registry.destroy();
-    expect(disposals).toBe(2);
+    expect(disposals).toBe(1);
   });
 
   it("commits registration before a throwing subscriber aborts publication", () => {

@@ -3,6 +3,7 @@ import type { gsap } from "gsap";
 // Framework-agnostic connection lifecycle shared by Motion DevTools consumers.
 
 export type MotionTimelineReplayStrategy = "restart" | "rebuild";
+export type MotionTimelineReplayState = "ready" | "retryable" | "blocked";
 
 export type MotionTimelineTrackDeclaration = {
   readonly id: string;
@@ -63,6 +64,7 @@ export interface MotionTimelineControl {
   readonly label: string;
   readonly root: HTMLElement;
   readonly replayStrategy: MotionTimelineReplayStrategy;
+  readonly replayState: MotionTimelineReplayState;
   readonly timeline: gsap.core.Timeline;
   readonly tracks: readonly MotionTimelineTrack[];
   subscribe(listener: (event: MotionTimelineControlEvent) => void): () => void;
@@ -72,6 +74,16 @@ export interface MotionTimelineControl {
 
 function invalidState(message: string): DOMException {
   return new DOMException(message, "InvalidStateError");
+}
+
+class RuntimeCleanupError extends Error {
+  constructor(operationError: unknown, cleanupError: unknown) {
+    super("Timeline runtime operation and cleanup both failed.", { cause: cleanupError });
+    this.name = "RuntimeCleanupError";
+    this.operationError = operationError;
+  }
+
+  readonly operationError: unknown;
 }
 
 function normalizeTracks(
@@ -140,7 +152,11 @@ function createTrackedRuntime(
   try {
     return { runtime, tracks: normalizeTracks(runtime.timeline, runtime.tracks) };
   } catch (error) {
-    runtime.dispose();
+    try {
+      runtime.dispose();
+    } catch (cleanupError) {
+      throw new RuntimeCleanupError(error, cleanupError);
+    }
     throw error;
   }
 }
@@ -171,42 +187,80 @@ export function createMotionTimelineControl(
   };
 
   if (typeof declaration.create === "function") {
-    let { runtime, tracks } = createTrackedRuntime(declaration.create);
+    let current: ReturnType<typeof createTrackedRuntime> | undefined =
+      createTrackedRuntime(declaration.create);
+    let replayState: MotionTimelineReplayState = "ready";
+
+    const fail = (error: unknown, state: MotionTimelineReplayState): never => {
+      replayState = state;
+      notify({ type: "error", error });
+      throw error;
+    };
 
     return {
       id: declaration.id,
       label: declaration.label ?? declaration.id,
       root: declaration.root,
       replayStrategy: "rebuild",
+      get replayState() {
+        return replayState;
+      },
       get timeline() {
         requireActive();
-        return runtime.timeline;
+        if (!current) throw invalidState("Rebuildable timeline has no live runtime.");
+        return current.runtime.timeline;
       },
       get tracks() {
         requireActive();
-        return tracks;
+        if (!current) throw invalidState("Rebuildable timeline has no live runtime.");
+        return current.tracks;
       },
       subscribe,
       replay() {
         requireActive();
-        notify({ type: "replay-start" });
-        try {
-          runtime.timeline.pause();
-          runtime.dispose();
-          declaration.reset?.();
-          ({ runtime, tracks } = createTrackedRuntime(declaration.create));
-          runtime.timeline.pause();
-          notify({ type: "timeline", timeline: runtime.timeline, tracks });
-          return runtime.timeline;
-        } catch (error) {
-          notify({ type: "error", error });
-          throw error;
+        if (replayState === "blocked") {
+          throw invalidState("Timeline replay is blocked after an unsafe rebuild failure.");
         }
+        notify({ type: "replay-start" });
+        let stage: "dispose" | "reset" | "create" | "activate" = "dispose";
+        let replacement!: ReturnType<typeof createTrackedRuntime>;
+        try {
+          if (current) {
+            current.runtime.timeline.pause();
+            const previous = current;
+            current = undefined;
+            previous.runtime.dispose();
+          }
+          stage = "reset";
+          declaration.reset?.();
+          stage = "create";
+          replacement = createTrackedRuntime(declaration.create);
+          stage = "activate";
+          replacement.runtime.timeline.pause();
+        } catch (error) {
+          let failure = error;
+          if (stage === "activate") {
+            try {
+              replacement.runtime.dispose();
+            } catch (cleanupError) {
+              failure = new RuntimeCleanupError(error, cleanupError);
+            }
+          }
+          const recovery = stage === "create" && !(failure instanceof RuntimeCleanupError)
+            ? "retryable"
+            : "blocked";
+          return fail(failure, recovery);
+        }
+        current = replacement;
+        replayState = "ready";
+        notify({ type: "timeline", timeline: replacement.runtime.timeline, tracks: replacement.tracks });
+        return replacement.runtime.timeline;
       },
       destroy() {
         if (destroyed) return;
         destroyed = true;
-        runtime.dispose();
+        current?.runtime.dispose();
+        current = undefined;
         notify({ type: "destroy" });
         listeners.clear();
       },
@@ -220,6 +274,7 @@ export function createMotionTimelineControl(
     label: declaration.label ?? declaration.id,
     root: declaration.root,
     replayStrategy: "restart",
+    replayState: "ready",
     get timeline() {
       requireActive();
       return timeline;
