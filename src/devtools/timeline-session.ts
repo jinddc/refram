@@ -215,7 +215,7 @@ export function attachGsapTimelineSession(
     seek(progress) {
       requireActive();
       if (isScrollOwned(timeline)) return false;
-      timeline.pause().totalProgress(clamp(progress), true);
+      timeline.totalProgress(clamp(progress), true);
       deliver();
       return true;
     },

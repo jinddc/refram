@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Motion Lab headless-controller editor prototype" />
+    <title>Motion DevTools Editor v2</title>
+    <link rel="stylesheet" href="/src/devtools/editor-ui/editor.css" />
+    <link rel="stylesheet" href="/playground/devtools-editor-v2-fixture.css" />
+  </head>
+  <body>
+    <main id="devtools-editor-v2-root"></main>
+    <div id="devtools-v2-sources" hidden>
+      <section id="devtools-v2-finite" class="devtools-v2-stage" aria-label="Editorial sequence preview">
+        <article class="devtools-v2-panel"><h2>Map the opening.</h2></article>
+        <article class="devtools-v2-panel"><h2>Inspect the overlap.</h2></article>
+        <article class="devtools-v2-panel"><h2>Resolve the motion.</h2></article>
+      </section>
+      <section id="devtools-v2-particles" class="devtools-v2-particles" aria-label="Particle cycle preview">
+        <canvas id="devtools-v2-canvas" aria-hidden="true"></canvas>
+        <p class="devtools-v2-particles__label">99 particle cycle</p>
+      </section>
+    </div>
+    <script type="module" src="/playground/devtools-editor-v2-fixture.ts"></script>
+  </body>
+</html>

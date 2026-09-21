@@ -67,6 +67,8 @@ describe("headless editor controller", () => {
       spans: [{ start: 0, end: 1 }],
     });
     expect(editor.getSnapshot().view.transport.canSeek).toBe(true);
+    expect(editor.selectTrack("animation:0")).toBe(true);
+    expect(editor.selectTrack("animation:missing")).toBe(false);
     expect(editor.seek(0.5)).toBe(true);
     expect(timeline.totalProgress()).toBeCloseTo(0.5);
     expect(editor.seek(Number.NaN)).toBe(false);
@@ -75,6 +77,9 @@ describe("headless editor controller", () => {
     expect(editor.play()).toBe(true);
     expect(timeline.paused()).toBe(false);
     expect(editor.getSnapshot().view.transport.canPause).toBe(true);
+    expect(editor.seek(0.75)).toBe(true);
+    expect(timeline.totalProgress()).toBeCloseTo(0.75);
+    expect(timeline.paused()).toBe(false);
     expect(editor.pause()).toBe(true);
     expect(timeline.paused()).toBe(true);
     expect(editor.replay()).toBe(true);

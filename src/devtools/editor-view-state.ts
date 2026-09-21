@@ -68,7 +68,7 @@ export interface EditorViewState {
   readonly error: unknown;
 }
 
-function trackKey(item: TimelineInspectionItem): string {
+export function editorTrackKey(item: TimelineInspectionItem): string {
   return item.trackId === undefined
     ? `animation:${item.index}`
     : `track:${item.trackId}`;
@@ -103,7 +103,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
   }
   const tracks = Object.freeze((inspection?.items ?? []).map((item): EditorViewTrack =>
     Object.freeze({
-      key: trackKey(item),
+      key: editorTrackKey(item),
       index: item.index,
       label: trackLabel(item),
       trackId: item.trackId,
@@ -119,7 +119,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     status: status(input),
     time: input.timeWindow,
     tracks,
-    selectedTrackKey: input.selectedItem ? trackKey(input.selectedItem) : undefined,
+    selectedTrackKey: input.selectedItem ? editorTrackKey(input.selectedItem) : undefined,
     transport: Object.freeze({
       playState,
       timeScale: inspection?.timeScale,

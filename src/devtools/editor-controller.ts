@@ -2,6 +2,7 @@ import type { gsap } from "gsap";
 import { readEditorTimeWindow } from "./editor-time";
 import {
   buildEditorViewState,
+  editorTrackKey,
   type EditorViewInput,
   type EditorViewState,
 } from "./editor-view-state";
@@ -27,6 +28,7 @@ export interface EditorController {
   getSnapshot(): EditorSnapshot;
   subscribe(listener: (snapshot: EditorSnapshot) => void): () => void;
   selectTimeline(id: string): boolean;
+  selectTrack(key: string): boolean;
   selectItem(index: number): boolean;
   play(): boolean;
   pause(): boolean;
@@ -204,6 +206,15 @@ export function createEditorController(
       activate(registration);
       return true;
     },
+    selectTrack(key) {
+      if (destroyed) return false;
+      const item = inspection?.items.find((candidate) => editorTrackKey(candidate) === key);
+      if (!item) return false;
+      trackId = item.trackId;
+      animation = item.animation;
+      publish();
+      return true;
+    },
     selectItem(index) {
       if (destroyed) return false;
       const item = inspection?.items.find((candidate) => candidate.index === index);
@@ -253,7 +264,7 @@ export function createEditorController(
       const time = progress === 1
         ? window.end - Math.min(0.000001, window.duration / 2)
         : window.start + progress * window.duration;
-      active.timeline.pause().totalTime(time, true);
+      active.timeline.totalTime(time, true);
       inspection = attachment!.read();
       publish();
       return true;
