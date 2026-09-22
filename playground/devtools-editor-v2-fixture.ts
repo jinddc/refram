@@ -1,6 +1,9 @@
 import { gsap } from "gsap";
 
-import { mountEditorUi, type EditorUiHandle } from "../src/devtools/editor-ui/mount";
+import {
+  defineMotionDevtoolsEditor,
+  type MotionDevtoolsEditorElement,
+} from "../src/devtools/editor-ui/element";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
@@ -114,25 +117,40 @@ function registerParticleTimeline(): MotionTimelineRegistration {
 }
 
 const registrations = [registerFiniteTimeline(), registerParticleTimeline()];
-const container = requireElement<HTMLElement>("#devtools-editor-v2-root");
-let handle: EditorUiHandle | undefined = mountEditorUi(container);
+defineMotionDevtoolsEditor();
+const editor = requireElement<MotionDevtoolsEditorElement>("#devtools-editor-v2-root");
+const editorParent = editor.parentNode;
+const editorNextSibling = editor.nextSibling;
 
 const harness = {
+  get editorRoot() {
+    return editor.shadowRoot;
+  },
+  query(selector: string) {
+    return editor.shadowRoot?.querySelector(selector);
+  },
+  queryAll(selector: string) {
+    return editor.shadowRoot?.querySelectorAll(selector) ?? [];
+  },
   get activeTimelineId() {
-    return handle?.controller.getSnapshot().activeTimelineId;
+    return editor.controller?.getSnapshot().activeTimelineId;
   },
   get view() {
-    return handle?.controller.getSnapshot().view;
+    return editor.controller?.getSnapshot().view;
   },
   selectTimeline(id: string) {
-    return handle?.controller.selectTimeline(id) ?? false;
+    return editor.controller?.selectTimeline(id) ?? false;
   },
   destroy() {
-    handle?.destroy();
-    handle = undefined;
+    editor.remove();
   },
   remount() {
-    if (!handle) handle = mountEditorUi(container);
+    if (!editor.isConnected && editorParent) {
+      const anchor = editorNextSibling?.parentNode === editorParent
+        ? editorNextSibling
+        : null;
+      editorParent.insertBefore(editor, anchor);
+    }
   },
 };
 
@@ -145,7 +163,6 @@ window.addEventListener("beforeunload", () => {
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    harness.destroy();
     for (const registration of registrations) registration.destroy();
   });
 }

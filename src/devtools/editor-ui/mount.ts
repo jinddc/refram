@@ -14,6 +14,17 @@ export interface EditorUiHandle {
 
 export interface EditorUiOptions extends EditorControllerOptions {
   readonly controller?: EditorController;
+  readonly previewHost?: HTMLElement;
+  readonly previewSlotName?: string;
+}
+
+interface HighlightedSource {
+  readonly source: Element;
+  readonly style: CSSStyleDeclaration | undefined;
+  readonly outline: string;
+  readonly outlinePriority: string;
+  readonly outlineOffset: string;
+  readonly outlineOffsetPriority: string;
 }
 
 export function mountEditorUi(
@@ -27,7 +38,8 @@ export function mountEditorUi(
   let mountedPreview: HTMLElement | undefined;
   let previewParent: Node | undefined;
   let previewNextSibling: Node | null | undefined;
-  let selectedSources: readonly Element[] = [];
+  let previewSlot: string | null | undefined;
+  let highlightedSources: HighlightedSource[] = [];
   let dragPointerId: number | undefined;
 
   const restorePreview = (): void => {
@@ -40,9 +52,12 @@ export function mountEditorUi(
     } else {
       mountedPreview.remove();
     }
+    if (previewSlot === null) mountedPreview.removeAttribute("slot");
+    else if (previewSlot !== undefined) mountedPreview.setAttribute("slot", previewSlot);
     mountedPreview = undefined;
     previewParent = undefined;
     previewNextSibling = undefined;
+    previewSlot = undefined;
   };
 
   const mountPreview = (root: HTMLElement | undefined): void => {
@@ -54,15 +69,60 @@ export function mountEditorUi(
     }
     previewParent = root.parentNode ?? undefined;
     previewNextSibling = root.nextSibling;
+    previewSlot = root.getAttribute("slot");
     mountedPreview = root;
     elements.emptyPreview.hidden = true;
-    elements.previewSurface.append(root);
+    if (options.previewHost && options.previewSlotName) {
+      root.slot = options.previewSlotName;
+      options.previewHost.append(root);
+    } else {
+      elements.previewSurface.append(root);
+    }
+  };
+
+  const clearHighlight = (): void => {
+    for (const highlighted of highlightedSources) {
+      highlighted.source.removeAttribute("data-devtools-editor-selected");
+      highlighted.style?.setProperty(
+        "outline",
+        highlighted.outline,
+        highlighted.outlinePriority,
+      );
+      highlighted.style?.setProperty(
+        "outline-offset",
+        highlighted.outlineOffset,
+        highlighted.outlineOffsetPriority,
+      );
+    }
+    highlightedSources = [];
   };
 
   const highlightSelection = (snapshot: EditorSnapshot): void => {
-    for (const source of selectedSources) source.removeAttribute("data-devtools-editor-selected");
-    selectedSources = snapshot.selectedItem?.sources ?? [];
-    for (const source of selectedSources) source.setAttribute("data-devtools-editor-selected", "true");
+    const sources = snapshot.selectedItem?.sources ?? [];
+    if (sources.length === highlightedSources.length
+      && sources.every((source, index) => source === highlightedSources[index]?.source)) return;
+    clearHighlight();
+    highlightedSources = sources.map((source) => {
+      const style = source instanceof HTMLElement || source instanceof SVGElement
+        ? source.style
+        : undefined;
+      const highlighted = {
+        source,
+        style,
+        outline: style?.getPropertyValue("outline") ?? "",
+        outlinePriority: style?.getPropertyPriority("outline") ?? "",
+        outlineOffset: style?.getPropertyValue("outline-offset") ?? "",
+        outlineOffsetPriority: style?.getPropertyPriority("outline-offset") ?? "",
+      } satisfies HighlightedSource;
+      source.setAttribute("data-devtools-editor-selected", "true");
+      style?.setProperty(
+        "outline",
+        "2px solid var(--devtools-editor-accent, #47d7e8)",
+        "important",
+      );
+      style?.setProperty("outline-offset", "4px");
+      return highlighted;
+    });
   };
 
   const render = (snapshot: EditorSnapshot): void => {
@@ -185,6 +245,11 @@ export function mountEditorUi(
   };
 
   container.append(elements.root);
+  if (options.previewSlotName) {
+    const slot = document.createElement("slot");
+    slot.name = options.previewSlotName;
+    elements.previewSurface.append(slot);
+  }
   elements.root.addEventListener("click", onClick);
   elements.root.addEventListener("keydown", onKeyDown);
   elements.timelineSelect.addEventListener("change", onTimelineChange);
@@ -209,8 +274,7 @@ export function mountEditorUi(
       elements.playhead.removeEventListener("pointerup", onPlayheadPointerUp);
       elements.playhead.removeEventListener("pointercancel", onPlayheadPointerCancel);
       elements.playhead.removeEventListener("lostpointercapture", onPlayheadLostPointerCapture);
-      for (const source of selectedSources) source.removeAttribute("data-devtools-editor-selected");
-      selectedSources = [];
+      clearHighlight();
       restorePreview();
       elements.root.remove();
       if (ownsController) controller.destroy();

@@ -1,7 +1,18 @@
-:root {
+:host {
+  display: block;
+  width: 100%;
+  height: 100dvh;
+}
+
+:host,
+.devtools-editor {
   color-scheme: dark;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
+}
+
+:host([hidden]) {
+  display: none;
 }
 
 * {
@@ -180,11 +191,6 @@
   font-size: 13px;
   line-height: 1.6;
   text-align: center;
-}
-
-[data-devtools-editor-selected="true"] {
-  outline: 2px solid var(--devtools-editor-accent) !important;
-  outline-offset: 4px;
 }
 
 .devtools-editor__timeline {

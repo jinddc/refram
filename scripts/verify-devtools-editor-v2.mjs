@@ -15,19 +15,22 @@ async function verify({ artifactDirectory, send }) {
   const narrow = join(artifactDirectory, "devtools-editor-v2-narrow.png");
 
   await waitFor(
-    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && document.querySelector("[data-role='status']")?.textContent === "Ready" && document.querySelectorAll(".devtools-editor__track-block").length === 3`),
+    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='status']")?.textContent === "Ready" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
     "the new DevTools editor",
   );
   const desktopState = await evaluate(send, `(() => ({
-    timelines: document.querySelector("[data-role='timeline-select']").options.length,
-    preview: document.querySelector("[data-role='preview-surface']").contains(document.querySelector("#devtools-v2-finite")),
-    tracks: document.querySelectorAll(".devtools-editor__track-block").length,
-    rootHeight: document.querySelector("[data-devtools-editor]").getBoundingClientRect().height,
-    userSelect: getComputedStyle(document.querySelector("[data-devtools-editor]")).userSelect,
-    statusPointerEvents: getComputedStyle(document.querySelector("[data-role='status']")).pointerEvents,
-    trackPointerEvents: getComputedStyle(document.querySelector("[data-track-key='animation:0']")).pointerEvents,
-    viewportPointerEvents: getComputedStyle(document.querySelector("[data-role='timeline-viewport']")).pointerEvents,
-    playheadIcon: Boolean(document.querySelector("[data-role='playhead'] .devtools-editor__playhead-icon")),
+    timelines: window.__devtoolsEditorV2Harness.query("[data-role='timeline-select']").options.length,
+    preview: window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").querySelector("slot").assignedElements().includes(document.querySelector("#devtools-v2-finite")),
+    tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+    rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
+    userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
+    statusPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='status']")).pointerEvents,
+    trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-track-key='animation:0']")).pointerEvents,
+    viewportPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']")).pointerEvents,
+    playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon")),
+    shadowStyle: Boolean(window.__devtoolsEditorV2Harness.editorRoot.querySelector("style")),
+    lightEditorRoot: Boolean(document.querySelector("[data-devtools-editor]")),
+    previewDisplay: getComputedStyle(document.querySelector("#devtools-v2-finite .devtools-v2-panel")).display,
   }))()`);
   assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
   assert(desktopState.preview, "The finite preview was not mounted.");
@@ -35,25 +38,31 @@ async function verify({ artifactDirectory, send }) {
   assert(desktopState.rootHeight >= 900, "The editor did not fill the desktop viewport.");
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
+    desktopState.shadowStyle
+      && !desktopState.lightEditorRoot
+      && desktopState.previewDisplay === "flex",
+    `Editor CSS isolation or slotted preview styling failed: ${JSON.stringify(desktopState)}`,
+  );
+  assert(
     desktopState.userSelect === "none"
       && desktopState.statusPointerEvents === "none"
       && desktopState.trackPointerEvents === "auto"
       && desktopState.viewportPointerEvents === "auto",
     `Editor interaction styles are incorrect: ${JSON.stringify(desktopState)}`,
   );
-  await evaluate(send, `document.querySelector("[data-track-key='animation:1']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   assert(
-    await evaluate(send, `document.querySelectorAll("[data-devtools-editor-selected='true']").length === 1 && document.querySelector("[data-track-key='animation:1']").getAttribute("aria-pressed") === "true"`),
+    await evaluate(send, `document.querySelectorAll("[data-devtools-editor-selected='true']").length === 1 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "true"`),
     "Track selection did not synchronize with the preview.",
   );
-  await evaluate(send, `document.querySelector("[data-action='play']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
-    () => evaluate(send, `document.querySelector("[data-action='pause']")?.textContent === "Pause"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.textContent === "Pause"`),
     "finite timeline playback",
   );
   const seekPoint = await evaluate(send, `(() => {
-    const content = document.querySelector("[data-role='timeline-content']").getBoundingClientRect();
-    const lanes = document.querySelectorAll(".devtools-editor__track-lane");
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+    const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
     const lane = lanes[lanes.length - 1].getBoundingClientRect();
     return { x: content.left + content.width * 0.25, y: lane.top + lane.height / 2 };
   })()`);
@@ -69,10 +78,10 @@ async function verify({ artifactDirectory, send }) {
       && runningSeek.playState === "running",
     `Click seek did not preserve playback: ${JSON.stringify(runningSeek)}`,
   );
-  await evaluate(send, `document.querySelector("[data-action='pause']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']").click()`);
   const scrollbarProbe = await evaluate(send, `(() => {
-    const viewport = document.querySelector("[data-role='timeline-viewport']");
-    const content = document.querySelector("[data-role='timeline-content']");
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
     content.style.minWidth = "1800px";
     content.style.minHeight = "800px";
     const bounds = viewport.getBoundingClientRect();
@@ -93,7 +102,7 @@ async function verify({ artifactDirectory, send }) {
   await send("Input.dispatchMouseEvent", { type: "mousePressed", ...scrollbarProbe.vertical, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...scrollbarProbe.vertical, button: "left", clickCount: 1 });
   const scrollbarResult = await evaluate(send, `(() => {
-    const content = document.querySelector("[data-role='timeline-content']");
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
     content.style.removeProperty("min-width");
     content.style.removeProperty("min-height");
     return window.__devtoolsEditorV2Harness.view.time.progress;
@@ -102,29 +111,29 @@ async function verify({ artifactDirectory, send }) {
     Math.abs(scrollbarResult - scrollbarProbe.progress) < 0.01,
     `A timeline scrollbar triggered seek: ${JSON.stringify({ scrollbarProbe, scrollbarResult })}`,
   );
-  await evaluate(send, `document.querySelector("[data-action='play']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "running"`),
     "playback before playhead drag",
   );
   const playheadPoint = await evaluate(send, `(() => {
-    const bounds = document.querySelector("[data-role='playhead']").getBoundingClientRect();
+    const bounds = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
     return { x: bounds.left + bounds.width / 2, y: bounds.top + 12 };
   })()`);
   await send("Input.dispatchMouseEvent", { type: "mousePressed", ...playheadPoint, button: "left", clickCount: 1 });
   const activeDrag = await evaluate(send, `(() => ({
-    dragState: document.querySelector("[data-role='playhead']").dataset.dragState,
+    dragState: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").dataset.dragState,
     playState: window.__devtoolsEditorV2Harness.view.transport.playState,
   }))()`);
   const dragTarget = await evaluate(send, `(() => {
-    const content = document.querySelector("[data-role='timeline-content']").getBoundingClientRect();
-    return { x: content.left + content.width * 0.65, y: document.querySelector("[data-role='playhead']").getBoundingClientRect().top + 12 };
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+    return { x: content.left + content.width * 0.65, y: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect().top + 12 };
   })()`);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...dragTarget, button: "left" });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...dragTarget, button: "left", clickCount: 1 });
   const finishedDrag = await evaluate(send, `(() => ({
-    cursor: getComputedStyle(document.querySelector("[data-role='playhead']")).cursor,
-    dragState: document.querySelector("[data-role='playhead']").dataset.dragState,
+    cursor: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='playhead']")).cursor,
+    dragState: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").dataset.dragState,
     playState: window.__devtoolsEditorV2Harness.view.transport.playState,
     progress: window.__devtoolsEditorV2Harness.view.time.progress,
   }))()`);
@@ -138,20 +147,20 @@ async function verify({ artifactDirectory, send }) {
       && finishedDrag.cursor.includes("ew-resize"),
     `Playhead drag states are incorrect: ${JSON.stringify({ activeDrag, finishedDrag })}`,
   );
-  await evaluate(send, `document.querySelector("[data-action='replay']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='replay']").click()`);
   assert(
-    await evaluate(send, `document.querySelector("[data-role='current-time']").textContent === "00:00.000"`),
+    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent === "00:00.000"`),
     "Replay did not return the finite timeline to its authored start.",
   );
   await screenshot(send, desktop);
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/particles")`);
   await waitFor(
-    () => evaluate(send, `document.querySelectorAll(".devtools-editor__track-block").length === 1 && document.querySelector("[data-role='duration']").textContent === "00:05.000"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000"`),
     "the finite particle window",
   );
   assert(
-    await evaluate(send, `document.querySelector("[data-role='preview-surface']").contains(document.querySelector("#devtools-v2-particles")) && window.__devtoolsEditorV2Harness.view.time.start === 99`),
+    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").querySelector("slot").assignedElements().includes(document.querySelector("#devtools-v2-particles")) && window.__devtoolsEditorV2Harness.view.time.start === 99`),
     "The particle preview or authored phase window is incorrect.",
   );
   await waitFor(
@@ -163,9 +172,9 @@ async function verify({ artifactDirectory, send }) {
     const stage = document.querySelector("#devtools-v2-particles");
     const canvasBounds = canvas.getBoundingClientRect();
     const stageBounds = stage.getBoundingClientRect();
-    const surfaceBounds = document.querySelector("[data-role='preview-surface']").getBoundingClientRect();
-    const editorBounds = document.querySelector("[data-devtools-editor]").getBoundingClientRect();
-    const timelineBounds = document.querySelector(".devtools-editor__timeline").getBoundingClientRect();
+    const surfaceBounds = window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").getBoundingClientRect();
+    const editorBounds = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
+    const timelineBounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect();
     return {
       canvasHeight: canvasBounds.height,
       stageHeight: stageBounds.height,
@@ -184,7 +193,7 @@ async function verify({ artifactDirectory, send }) {
       && canvasSize.timelineBottom <= canvasSize.viewportHeight + 1,
     `The Canvas height does not match its preview: ${JSON.stringify(canvasSize)}`,
   );
-  await evaluate(send, `document.querySelector("[data-track-key='track:particles']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   assert(
     await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-devtools-editor-selected") === "true"`),
     "The mapped Canvas target was not highlighted.",
@@ -198,14 +207,14 @@ async function verify({ artifactDirectory, send }) {
     mobile: false,
   });
   assert(
-    await evaluate(send, `document.documentElement.scrollWidth <= 640 && document.querySelector(".devtools-editor__timeline").getBoundingClientRect().height >= 250`),
+    await evaluate(send, `document.documentElement.scrollWidth <= 640 && window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect().height >= 250`),
     "The new editor overflows or collapses its timeline at narrow width.",
   );
   await screenshot(send, narrow);
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy(); window.__devtoolsEditorV2Harness.remount()`);
   await waitFor(
-    () => evaluate(send, `document.querySelectorAll("[data-devtools-editor]").length === 1 && document.querySelector("[data-role='status']")?.textContent === "Ready"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='status']")?.textContent === "Ready"`),
     "editor destroy and remount",
   );
 
@@ -213,6 +222,7 @@ async function verify({ artifactDirectory, send }) {
     status: "pass",
     checks: [
       "timeline-selection",
+      "shadow-css-isolation",
       "noninteractive-hit-testing",
       "seek-preserves-playback",
       "scrollbar-does-not-seek",

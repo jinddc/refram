@@ -2,8 +2,16 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  defineMotionDevtoolsEditor,
+  MOTION_DEVTOOLS_EDITOR_TAG,
+  type MotionDevtoolsEditorElement,
+} from "../src/devtools/editor-ui/element";
 import { mountEditorUi } from "../src/devtools/editor-ui/mount";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+import {
+  createTimelineRegistry,
+  defaultTimelineRegistry,
+} from "../src/devtools/timeline-registry";
 
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
@@ -238,5 +246,50 @@ describe("DevTools editor UI v2", () => {
     handle.destroy();
     registration.destroy();
     registry.destroy();
+  });
+
+  it("isolates editor styles and reconnects through the custom element lifecycle", async () => {
+    defineMotionDevtoolsEditor();
+    const sourceHome = document.createElement("div");
+    const fixture = registration("element", "Element sequence");
+    sourceHome.append(fixture.root);
+    const timelineRegistration = defaultTimelineRegistry.register(fixture.declaration);
+    const editor = document.createElement(
+      MOTION_DEVTOOLS_EDITOR_TAG,
+    ) as MotionDevtoolsEditorElement;
+    document.body.append(sourceHome, editor);
+    await flush();
+
+    const shadow = editor.shadowRoot!;
+    const firstController = editor.controller;
+    expect(firstController).toBeDefined();
+    expect(shadow.querySelector("style")).not.toBeNull();
+    expect(shadow.querySelector("[data-devtools-editor]")).not.toBeNull();
+    expect(document.querySelector(".devtools-editor")).toBeNull();
+    expect(editor.contains(fixture.root)).toBe(true);
+    expect(fixture.root.slot).toBe("motion-preview");
+    expect(shadow.querySelector<HTMLSlotElement>("slot")?.assignedElements()).toContain(
+      fixture.root,
+    );
+
+    shadow.querySelector<HTMLButtonElement>(
+      ".devtools-editor__track-block[data-track-key='track:opening']",
+    )?.click();
+    expect(fixture.first.style.outline).toContain("--devtools-editor-accent");
+
+    editor.remove();
+    expect(editor.controller).toBeUndefined();
+    expect(sourceHome.contains(fixture.root)).toBe(true);
+    expect(fixture.root.hasAttribute("slot")).toBe(false);
+    expect(fixture.first.style.outline).toBe("");
+    expect(fixture.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
+
+    document.body.append(editor);
+    await flush();
+    expect(editor.controller).toBeDefined();
+    expect(editor.controller).not.toBe(firstController);
+
+    editor.remove();
+    timelineRegistration.destroy();
   });
 });
