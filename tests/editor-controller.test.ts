@@ -98,6 +98,26 @@ describe("headless editor controller", () => {
     registry.destroy();
   });
 
+  it("keeps playback paused when seeking from a finished timeline", () => {
+    const registry = createTimelineRegistry();
+    const { root, timeline } = directTimeline("finished-selection");
+    registry.register({ id: "finished-selection", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.play()).toBe(true);
+    expect(editor.seek(1)).toBe(true);
+    expect(editor.getSnapshot().inspection?.playState).toBe("finished");
+    expect(timeline.paused()).toBe(false);
+
+    expect(editor.seek(0.4)).toBe(true);
+    expect(timeline.paused()).toBe(true);
+    expect(timeline.totalProgress()).toBeCloseTo(0.4);
+    expect(editor.getSnapshot().inspection?.playState).toBe("paused");
+
+    editor.destroy();
+    registry.destroy();
+  });
+
   it("preserves an authored track selection when replay replaces tweens", () => {
     const registry = createTimelineRegistry();
     const root = document.createElement("section");

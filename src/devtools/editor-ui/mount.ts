@@ -14,8 +14,6 @@ export interface EditorUiHandle {
 
 export interface EditorUiOptions extends EditorControllerOptions {
   readonly controller?: EditorController;
-  readonly previewHost?: HTMLElement;
-  readonly previewSlotName?: string;
 }
 
 interface HighlightedSource {
@@ -34,51 +32,11 @@ export function mountEditorUi(
   const ownsController = options.controller === undefined;
   const controller = options.controller ?? createEditorController(options);
   const elements = createEditorUiElements();
+  const eventController = new AbortController();
+  const listenerOptions = { signal: eventController.signal };
   let destroyed = false;
-  let mountedPreview: HTMLElement | undefined;
-  let previewParent: Node | undefined;
-  let previewNextSibling: Node | null | undefined;
-  let previewSlot: string | null | undefined;
   let highlightedSources: HighlightedSource[] = [];
   let dragPointerId: number | undefined;
-
-  const restorePreview = (): void => {
-    if (!mountedPreview) return;
-    if (previewParent) {
-      const anchor = previewNextSibling?.parentNode === previewParent
-        ? previewNextSibling
-        : null;
-      previewParent.insertBefore(mountedPreview, anchor);
-    } else {
-      mountedPreview.remove();
-    }
-    if (previewSlot === null) mountedPreview.removeAttribute("slot");
-    else if (previewSlot !== undefined) mountedPreview.setAttribute("slot", previewSlot);
-    mountedPreview = undefined;
-    previewParent = undefined;
-    previewNextSibling = undefined;
-    previewSlot = undefined;
-  };
-
-  const mountPreview = (root: HTMLElement | undefined): void => {
-    if (mountedPreview === root) return;
-    restorePreview();
-    if (!root) {
-      elements.emptyPreview.hidden = false;
-      return;
-    }
-    previewParent = root.parentNode ?? undefined;
-    previewNextSibling = root.nextSibling;
-    previewSlot = root.getAttribute("slot");
-    mountedPreview = root;
-    elements.emptyPreview.hidden = true;
-    if (options.previewHost && options.previewSlotName) {
-      root.slot = options.previewSlotName;
-      options.previewHost.append(root);
-    } else {
-      elements.previewSurface.append(root);
-    }
-  };
 
   const clearHighlight = (): void => {
     for (const highlighted of highlightedSources) {
@@ -127,7 +85,6 @@ export function mountEditorUi(
 
   const render = (snapshot: EditorSnapshot): void => {
     if (destroyed) return;
-    mountPreview(snapshot.previewRoot);
     highlightSelection(snapshot);
     renderEditorUi(elements, snapshot.view);
   };
@@ -245,19 +202,22 @@ export function mountEditorUi(
   };
 
   container.append(elements.root);
-  if (options.previewSlotName) {
-    const slot = document.createElement("slot");
-    slot.name = options.previewSlotName;
-    elements.previewSurface.append(slot);
-  }
-  elements.root.addEventListener("click", onClick);
-  elements.root.addEventListener("keydown", onKeyDown);
-  elements.timelineSelect.addEventListener("change", onTimelineChange);
-  elements.timelineViewport.addEventListener("pointerdown", onTimelinePointerDown);
-  elements.playhead.addEventListener("pointermove", onPlayheadPointerMove);
-  elements.playhead.addEventListener("pointerup", onPlayheadPointerUp);
-  elements.playhead.addEventListener("pointercancel", onPlayheadPointerCancel);
-  elements.playhead.addEventListener("lostpointercapture", onPlayheadLostPointerCapture);
+  elements.root.addEventListener("click", onClick, listenerOptions);
+  elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
+  elements.timelineSelect.addEventListener("change", onTimelineChange, listenerOptions);
+  elements.timelineViewport.addEventListener(
+    "pointerdown",
+    onTimelinePointerDown,
+    listenerOptions,
+  );
+  elements.playhead.addEventListener("pointermove", onPlayheadPointerMove, listenerOptions);
+  elements.playhead.addEventListener("pointerup", onPlayheadPointerUp, listenerOptions);
+  elements.playhead.addEventListener("pointercancel", onPlayheadPointerCancel, listenerOptions);
+  elements.playhead.addEventListener(
+    "lostpointercapture",
+    onPlayheadLostPointerCapture,
+    listenerOptions,
+  );
   const unsubscribe = controller.subscribe(render);
 
   return {
@@ -265,17 +225,14 @@ export function mountEditorUi(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      if (dragPointerId !== undefined
+        && elements.playhead.hasPointerCapture?.(dragPointerId)) {
+        elements.playhead.releasePointerCapture(dragPointerId);
+      }
+      dragPointerId = undefined;
+      eventController.abort();
       unsubscribe();
-      elements.root.removeEventListener("click", onClick);
-      elements.root.removeEventListener("keydown", onKeyDown);
-      elements.timelineSelect.removeEventListener("change", onTimelineChange);
-      elements.timelineViewport.removeEventListener("pointerdown", onTimelinePointerDown);
-      elements.playhead.removeEventListener("pointermove", onPlayheadPointerMove);
-      elements.playhead.removeEventListener("pointerup", onPlayheadPointerUp);
-      elements.playhead.removeEventListener("pointercancel", onPlayheadPointerCancel);
-      elements.playhead.removeEventListener("lostpointercapture", onPlayheadLostPointerCapture);
       clearHighlight();
-      restorePreview();
       elements.root.remove();
       if (ownsController) controller.destroy();
     },

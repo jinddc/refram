@@ -4,8 +4,6 @@ import { mountEditorUi, type EditorUiHandle } from "./mount";
 
 export const MOTION_DEVTOOLS_EDITOR_TAG = "motion-devtools-editor";
 
-const PREVIEW_SLOT = "motion-preview";
-
 export class MotionDevtoolsEditorElement extends HTMLElement {
   readonly #mountPoint: HTMLElement;
   #handle: EditorUiHandle | undefined;
@@ -26,10 +24,7 @@ export class MotionDevtoolsEditorElement extends HTMLElement {
 
   connectedCallback(): void {
     if (this.#handle) return;
-    this.#handle = mountEditorUi(this.#mountPoint, {
-      previewHost: this,
-      previewSlotName: PREVIEW_SLOT,
-    });
+    this.#handle = mountEditorUi(this.#mountPoint);
   }
 
   disconnectedCallback(): void {

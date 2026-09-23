@@ -1,7 +1,13 @@
 :host {
+  --devtools-editor-height: clamp(300px, 45dvh, 420px);
   display: block;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2147483647;
   width: 100%;
-  height: 100dvh;
+  height: var(--devtools-editor-height);
 }
 
 :host,
@@ -26,15 +32,15 @@
   --devtools-editor-drag-cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMyIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgdmlld0JveD0iMCAwIDIzIDIwIj48ZyBmaWx0ZXI9InVybCgjYSkiPjxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik05LjUgMXY2LjAxSDguNDhWMy41NEwyLjUgOS4wMWw1Ljk4IDUuNDZ2LTMuNDhIOS41VjE3aDMuOTh2LTYuMDFoMS4wNnYzLjQ3bDUuOTYtNS40Ny01Ljk2LTUuNDZWN2gtMS4wNlYxeiIvPjxwYXRoIGZpbGw9IiMwMDAiIGQ9Im0xOC44NCA4Ljk5LTMuMzItMy4yMnYyLjI1SDEyLjVWMi4wNmgtLjAydi0uMDJoLTEuOTR2Nkg3LjQ4VjUuNzZMNC4xNiA5LjAxbDMuMzIgMy4yMlY5Ljk4aDMuMDZ2NmgxLjk2di02aDMuMDJ2Mi4yNnoiLz48L2c+PGRlZnM+PGZpbHRlciBpZD0iYSIgd2lkdGg9IjIxLjYiIGhlaWdodD0iMTkuNiIgeD0iLjciIHk9Ii4yIiBjb2xvci1pbnRlcnBvbGF0aW9uLWZpbHRlcnM9InNSR0IiIGZpbHRlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGZlRmxvb2QgZmxvb2Qtb3BhY2l0eT0iMCIgcmVzdWx0PSJCYWNrZ3JvdW5kSW1hZ2VGaXgiLz48ZmVDb2xvck1hdHJpeCBpbj0iU291cmNlQWxwaGEiIHJlc3VsdD0iaGFyZEFscGhhIiB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDEyNyAwIi8+PGZlT2Zmc2V0IGR5PSIxIi8+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iLjkiLz48ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAuNjUgMCIvPjxmZUJsZW5kIGluMj0iQmFja2dyb3VuZEltYWdlRml4IiByZXN1bHQ9ImVmZmVjdDFfZHJvcFNoYWRvd180ODAyXzk5NDgiLz48ZmVCbGVuZCBpbj0iU291cmNlR3JhcGhpYyIgaW4yPSJlZmZlY3QxX2Ryb3BTaGFkb3dfNDgwMl85OTQ4IiByZXN1bHQ9InNoYXBlIi8+PC9maWx0ZXI+PC9kZWZzPjwvc3ZnPg==") 11 10, ew-resize;
   --devtools-editor-progress: 0;
   display: grid;
-  grid-template-rows: 52px minmax(260px, 1fr) minmax(250px, 38dvh);
+  grid-template-rows: 52px minmax(0, 1fr);
   width: 100%;
   min-width: 320px;
-  height: 100dvh;
-  min-height: 100dvh;
-  max-height: 100dvh;
+  height: var(--devtools-editor-height);
   overflow: hidden;
+  border-top: 1px solid #454b54;
   color: #e9edf1;
   background: #101216;
+  box-shadow: 0 -16px 48px rgb(0 0 0 / 42%);
   user-select: none;
 }
 
@@ -69,7 +75,6 @@
 .devtools-editor__identity,
 .devtools-editor__field-label,
 .devtools-editor__status,
-.devtools-editor__preview-empty,
 .devtools-editor__clock,
 .devtools-editor__track-heading,
 .devtools-editor__track-empty,
@@ -146,51 +151,6 @@
 
 .devtools-editor__status[data-state="blocked"] {
   color: #ff7d86;
-}
-
-.devtools-editor__preview {
-  position: relative;
-  min-height: 0;
-  overflow: hidden;
-  background: #0d0f12;
-}
-
-.devtools-editor__preview::before {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-image:
-    linear-gradient(rgb(255 255 255 / 2.4%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 2.4%) 1px, transparent 1px);
-  background-size: 28px 28px;
-  content: "";
-  mask-image: linear-gradient(to bottom, black, transparent 88%);
-  pointer-events: none;
-}
-
-.devtools-editor__preview-surface {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: min(1120px, calc(100% - 64px));
-  height: calc(100% - 48px);
-  min-height: 220px;
-  margin: 24px auto;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid #24282e;
-  border-radius: 8px;
-  background: #16191e;
-  box-shadow: 0 20px 60px rgb(0 0 0 / 28%);
-}
-
-.devtools-editor__preview-empty {
-  max-width: 32ch;
-  margin: 0;
-  color: #737b85;
-  font-size: 13px;
-  line-height: 1.6;
-  text-align: center;
 }
 
 .devtools-editor__timeline {
@@ -474,8 +434,12 @@
 }
 
 @media (max-width: 720px) {
+  :host {
+    --devtools-editor-height: clamp(320px, 52dvh, 420px);
+  }
+
   .devtools-editor {
-    grid-template-rows: 84px minmax(220px, 1fr) minmax(260px, 42dvh);
+    grid-template-rows: 84px minmax(0, 1fr);
   }
 
   .devtools-editor__header {
@@ -496,12 +460,6 @@
   .devtools-editor__status {
     grid-column: 2;
     grid-row: 1;
-  }
-
-  .devtools-editor__preview-surface {
-    width: calc(100% - 24px);
-    height: calc(100% - 24px);
-    margin: 12px auto;
   }
 
   .devtools-editor__transport {

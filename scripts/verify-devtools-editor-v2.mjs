@@ -20,7 +20,7 @@ async function verify({ artifactDirectory, send }) {
   );
   const desktopState = await evaluate(send, `(() => ({
     timelines: window.__devtoolsEditorV2Harness.query("[data-role='timeline-select']").options.length,
-    preview: window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").querySelector("slot").assignedElements().includes(document.querySelector("#devtools-v2-finite")),
+    hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
     tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
     rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
     userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
@@ -30,18 +30,24 @@ async function verify({ artifactDirectory, send }) {
     playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon")),
     shadowStyle: Boolean(window.__devtoolsEditorV2Harness.editorRoot.querySelector("style")),
     lightEditorRoot: Boolean(document.querySelector("[data-devtools-editor]")),
-    previewDisplay: getComputedStyle(document.querySelector("#devtools-v2-finite .devtools-v2-panel")).display,
+    applicationDisplay: getComputedStyle(document.querySelector("#devtools-v2-finite .devtools-v2-panel")).display,
+    finiteParent: document.querySelector("#devtools-v2-finite").parentElement?.id,
+    finiteNextSibling: document.querySelector("#devtools-v2-finite").nextElementSibling?.id,
+    finiteSlot: document.querySelector("#devtools-v2-finite").getAttribute("slot"),
   }))()`);
   assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
-  assert(desktopState.preview, "The finite preview was not mounted.");
+  assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
-  assert(desktopState.rootHeight >= 900, "The editor did not fill the desktop viewport.");
+  assert(desktopState.rootHeight >= 300 && desktopState.rootHeight <= 421, "The editor is not docked at the expected size.");
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
     desktopState.shadowStyle
       && !desktopState.lightEditorRoot
-      && desktopState.previewDisplay === "flex",
-    `Editor CSS isolation or slotted preview styling failed: ${JSON.stringify(desktopState)}`,
+      && desktopState.applicationDisplay === "flex"
+      && desktopState.finiteParent === "devtools-v2-sources"
+      && desktopState.finiteNextSibling === "devtools-v2-particles"
+      && desktopState.finiteSlot === null,
+    `Editor CSS isolation or application-root ownership failed: ${JSON.stringify(desktopState)}`,
   );
   assert(
     desktopState.userSelect === "none"
@@ -152,6 +158,23 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent === "00:00.000"`),
     "Replay did not return the finite timeline to its authored start.",
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click(); window.__devtoolsEditorV2Harness.seek(1)`);
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "finished" && window.__devtoolsEditorV2Harness.activeTimelinePaused === false`),
+    "The fixture did not reach the running-finished seek boundary.",
+  );
+  const finishedSeekPoint = await evaluate(send, `(() => {
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+    const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
+    const lane = lanes[lanes.length - 1].getBoundingClientRect();
+    return { x: content.left + content.width * 0.4, y: lane.top + lane.height / 2 };
+  })()`);
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", ...finishedSeekPoint, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...finishedSeekPoint, button: "left", clickCount: 1 });
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.activeTimelinePaused === true && window.__devtoolsEditorV2Harness.view.transport.playState === "paused" && window.__devtoolsEditorV2Harness.view.time.progress >= 0.39 && window.__devtoolsEditorV2Harness.view.time.progress <= 0.41`),
+    "Click-seeking a finished timeline resumed playback.",
+  );
   await screenshot(send, desktop);
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/particles")`);
@@ -160,8 +183,8 @@ async function verify({ artifactDirectory, send }) {
     "the finite particle window",
   );
   assert(
-    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").querySelector("slot").assignedElements().includes(document.querySelector("#devtools-v2-particles")) && window.__devtoolsEditorV2Harness.view.time.start === 99`),
-    "The particle preview or authored phase window is incorrect.",
+    await evaluate(send, `document.querySelector("#devtools-v2-particles").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles" && window.__devtoolsEditorV2Harness.view.time.start === 99`),
+    "The application roots moved or the authored phase window is incorrect.",
   );
   await waitFor(
     () => evaluate(send, `document.querySelector("#devtools-v2-canvas").height > 1`),
@@ -172,26 +195,26 @@ async function verify({ artifactDirectory, send }) {
     const stage = document.querySelector("#devtools-v2-particles");
     const canvasBounds = canvas.getBoundingClientRect();
     const stageBounds = stage.getBoundingClientRect();
-    const surfaceBounds = window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']").getBoundingClientRect();
     const editorBounds = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
     const timelineBounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect();
     return {
       canvasHeight: canvasBounds.height,
       stageHeight: stageBounds.height,
-      surfaceHeight: surfaceBounds.height,
       bitmapHeight: canvas.height,
       pixelRatio: window.devicePixelRatio,
       editorHeight: editorBounds.height,
       viewportHeight: window.innerHeight,
+      editorBottom: editorBounds.bottom,
       timelineBottom: timelineBounds.bottom,
     };
   })()`);
   assert(
     Math.abs(canvasSize.canvasHeight - canvasSize.stageHeight) < 1
       && Math.abs(canvasSize.bitmapHeight - canvasSize.stageHeight * canvasSize.pixelRatio) < 2
-      && Math.abs(canvasSize.editorHeight - canvasSize.viewportHeight) < 1
+      && canvasSize.editorHeight >= 300
+      && Math.abs(canvasSize.editorBottom - canvasSize.viewportHeight) < 1
       && canvasSize.timelineBottom <= canvasSize.viewportHeight + 1,
-    `The Canvas height does not match its preview: ${JSON.stringify(canvasSize)}`,
+    `The Canvas or docked editor size is incorrect: ${JSON.stringify(canvasSize)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   assert(
@@ -212,7 +235,12 @@ async function verify({ artifactDirectory, send }) {
   );
   await screenshot(send, narrow);
 
-  await evaluate(send, `window.__devtoolsEditorV2Harness.destroy(); window.__devtoolsEditorV2Harness.remount()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
+  assert(
+    await evaluate(send, `document.querySelectorAll("motion-devtools-editor").length === 0 && document.querySelector("#devtools-v2-finite").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles"`),
+    "Destroying the editor removed or moved application roots.",
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.remount()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='status']")?.textContent === "Ready"`),
     "editor destroy and remount",
@@ -227,10 +255,11 @@ async function verify({ artifactDirectory, send }) {
       "seek-preserves-playback",
       "scrollbar-does-not-seek",
       "playhead-drag-states",
-      "preview-lifecycle",
+      "application-root-ownership",
       "stable-track-selection",
       "transport",
       "replay",
+      "finished-seek-pauses",
       "finite-particle-window",
       "mapped-highlight",
       "narrow-layout",

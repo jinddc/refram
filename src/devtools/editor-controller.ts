@@ -260,6 +260,7 @@ export function createEditorController(
         || !active || !inspection) return false;
       const window = readEditorTimeWindow(active.timeline, inspection, timeOrigin);
       if (!window) return false;
+      if (inspection.playState === "finished") active.timeline.pause();
       if (!window.repeating) return attachment!.seek(progress);
       const time = progress === 1
         ? window.end - Math.min(0.000001, window.duration / 2)

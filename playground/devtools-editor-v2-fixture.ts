@@ -1,9 +1,6 @@
 import { gsap } from "gsap";
 
-import {
-  defineMotionDevtoolsEditor,
-  type MotionDevtoolsEditorElement,
-} from "../src/devtools/editor-ui/element";
+import { MotionDevtoolsEditor } from "../src/devtools/editor-ui/editor";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
@@ -117,40 +114,39 @@ function registerParticleTimeline(): MotionTimelineRegistration {
 }
 
 const registrations = [registerFiniteTimeline(), registerParticleTimeline()];
-defineMotionDevtoolsEditor();
-const editor = requireElement<MotionDevtoolsEditorElement>("#devtools-editor-v2-root");
-const editorParent = editor.parentNode;
-const editorNextSibling = editor.nextSibling;
+let editor = new MotionDevtoolsEditor();
 
 const harness = {
   get editorRoot() {
-    return editor.shadowRoot;
+    return editor.domElement.shadowRoot;
   },
   query(selector: string) {
-    return editor.shadowRoot?.querySelector(selector);
+    return editor.domElement.shadowRoot?.querySelector(selector);
   },
   queryAll(selector: string) {
-    return editor.shadowRoot?.querySelectorAll(selector) ?? [];
+    return editor.domElement.shadowRoot?.querySelectorAll(selector) ?? [];
   },
   get activeTimelineId() {
-    return editor.controller?.getSnapshot().activeTimelineId;
+    return editor.controller.getSnapshot().activeTimelineId;
   },
   get view() {
-    return editor.controller?.getSnapshot().view;
+    return editor.controller.getSnapshot().view;
+  },
+  get activeTimelinePaused() {
+    const activeId = editor.controller.getSnapshot().activeTimelineId;
+    return registrations.find(({ id }) => id === activeId)?.timeline.paused();
   },
   selectTimeline(id: string) {
-    return editor.controller?.selectTimeline(id) ?? false;
+    return editor.controller.selectTimeline(id);
+  },
+  seek(progress: number) {
+    return editor.controller.seek(progress);
   },
   destroy() {
-    editor.remove();
+    editor.destroy();
   },
   remount() {
-    if (!editor.isConnected && editorParent) {
-      const anchor = editorNextSibling?.parentNode === editorParent
-        ? editorNextSibling
-        : null;
-      editorParent.insertBefore(editor, anchor);
-    }
+    if (!editor.domElement.isConnected) editor = new MotionDevtoolsEditor();
   },
 };
 
@@ -163,6 +159,7 @@ window.addEventListener("beforeunload", () => {
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    harness.destroy();
     for (const registration of registrations) registration.destroy();
   });
 }

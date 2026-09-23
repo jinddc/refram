@@ -2,8 +2,6 @@ export interface EditorUiElements {
   readonly root: HTMLElement;
   readonly timelineSelect: HTMLSelectElement;
   readonly status: HTMLOutputElement;
-  readonly previewSurface: HTMLElement;
-  readonly emptyPreview: HTMLElement;
   readonly playButton: HTMLButtonElement;
   readonly replayButton: HTMLButtonElement;
   readonly currentTime: HTMLOutputElement;
@@ -88,18 +86,6 @@ export function createEditorUiElements(): EditorUiElements {
   status.setAttribute("aria-live", "polite");
   header.append(identity, timelineField, status);
 
-  const preview = element("section", "devtools-editor__preview");
-  preview.setAttribute("aria-label", "Motion preview");
-  const previewSurface = element("div", "devtools-editor__preview-surface");
-  previewSurface.dataset.role = "preview-surface";
-  const emptyPreview = element(
-    "p",
-    "devtools-editor__preview-empty",
-    "Register a timeline to begin inspecting motion.",
-  );
-  previewSurface.append(emptyPreview);
-  preview.append(previewSurface);
-
   const timeline = element("section", "devtools-editor__timeline");
   timeline.setAttribute("aria-label", "Timeline inspector");
   const transport = element("div", "devtools-editor__transport");
@@ -141,14 +127,12 @@ export function createEditorUiElements(): EditorUiElements {
   timelineViewport.append(timelineContent);
   timelineBody.append(trackLabels, timelineViewport);
   timeline.append(transport, timelineBody);
-  root.append(header, preview, timeline);
+  root.append(header, timeline);
 
   return {
     root,
     timelineSelect,
     status,
-    previewSurface,
-    emptyPreview,
     playButton,
     replayButton,
     currentTime,
