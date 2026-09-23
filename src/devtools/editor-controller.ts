@@ -30,6 +30,7 @@ export interface EditorController {
   selectTimeline(id: string): boolean;
   selectTrack(key: string): boolean;
   selectItem(index: number): boolean;
+  clearTrackSelection(): boolean;
   play(): boolean;
   pause(): boolean;
   replay(): boolean;
@@ -45,10 +46,10 @@ export interface EditorControllerOptions {
 
 function selectedItem(
   inspection: TimelineInspectionSnapshot | undefined,
-  trackId: string | undefined,
+  trackKey: string | undefined,
   animation: gsap.core.Animation | undefined,
 ): TimelineInspectionItem | undefined {
-  return inspection?.items.find((item) => item.trackId !== undefined && item.trackId === trackId)
+  return inspection?.items.find((item) => editorTrackKey(item) === trackKey)
     ?? inspection?.items.find((item) => item.animation === animation);
 }
 
@@ -64,7 +65,7 @@ export function createEditorController(
   let attachment: TimelineSessionAttachment | undefined;
   let inspection: TimelineInspectionSnapshot | undefined;
   let timeOrigin = 0;
-  let trackId: string | undefined;
+  let trackKey: string | undefined;
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
   let destroyed = false;
@@ -82,7 +83,7 @@ export function createEditorController(
       timeWindow: active && inspection
         ? readEditorTimeWindow(active.timeline, inspection, timeOrigin)
         : undefined,
-      selectedItem: selectedItem(inspection, trackId, animation),
+      selectedItem: selectedItem(inspection, trackKey, animation),
       error,
     } satisfies EditorViewInput & Pick<EditorSnapshot, "previewRoot">;
     return Object.freeze({ ...base, view: buildEditorViewState(base) });
@@ -111,8 +112,11 @@ export function createEditorController(
       (snapshot) => {
         if (destroyed || active !== registration || token !== generation) return;
         inspection = snapshot;
-        const item = selectedItem(snapshot, trackId, animation);
-        if (item) animation = item.animation;
+        const item = selectedItem(snapshot, trackKey, animation);
+        if (item) {
+          trackKey = editorTrackKey(item);
+          animation = item.animation;
+        }
         publish();
       },
       registration.tracks,
@@ -128,7 +132,7 @@ export function createEditorController(
     if (active === registration) return;
     detach();
     active = registration;
-    trackId = undefined;
+    trackKey = undefined;
     animation = undefined;
     error = undefined;
     if (registration) {
@@ -210,7 +214,7 @@ export function createEditorController(
       if (destroyed) return false;
       const item = inspection?.items.find((candidate) => editorTrackKey(candidate) === key);
       if (!item) return false;
-      trackId = item.trackId;
+      trackKey = editorTrackKey(item);
       animation = item.animation;
       publish();
       return true;
@@ -219,8 +223,15 @@ export function createEditorController(
       if (destroyed) return false;
       const item = inspection?.items.find((candidate) => candidate.index === index);
       if (!item) return false;
-      trackId = item.trackId;
+      trackKey = editorTrackKey(item);
       animation = item.animation;
+      publish();
+      return true;
+    },
+    clearTrackSelection() {
+      if (destroyed || (trackKey === undefined && animation === undefined)) return false;
+      trackKey = undefined;
+      animation = undefined;
       publish();
       return true;
     },

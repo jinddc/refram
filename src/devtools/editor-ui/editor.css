@@ -15,6 +15,7 @@
   color-scheme: dark;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
+  outline: 0;
 }
 
 :host([hidden]) {
@@ -32,7 +33,7 @@
   --devtools-editor-drag-cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMyIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgdmlld0JveD0iMCAwIDIzIDIwIj48ZyBmaWx0ZXI9InVybCgjYSkiPjxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik05LjUgMXY2LjAxSDguNDhWMy41NEwyLjUgOS4wMWw1Ljk4IDUuNDZ2LTMuNDhIOS41VjE3aDMuOTh2LTYuMDFoMS4wNnYzLjQ3bDUuOTYtNS40Ny01Ljk2LTUuNDZWN2gtMS4wNlYxeiIvPjxwYXRoIGZpbGw9IiMwMDAiIGQ9Im0xOC44NCA4Ljk5LTMuMzItMy4yMnYyLjI1SDEyLjVWMi4wNmgtLjAydi0uMDJoLTEuOTR2Nkg3LjQ4VjUuNzZMNC4xNiA5LjAxbDMuMzIgMy4yMlY5Ljk4aDMuMDZ2NmgxLjk2di02aDMuMDJ2Mi4yNnoiLz48L2c+PGRlZnM+PGZpbHRlciBpZD0iYSIgd2lkdGg9IjIxLjYiIGhlaWdodD0iMTkuNiIgeD0iLjciIHk9Ii4yIiBjb2xvci1pbnRlcnBvbGF0aW9uLWZpbHRlcnM9InNSR0IiIGZpbHRlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGZlRmxvb2QgZmxvb2Qtb3BhY2l0eT0iMCIgcmVzdWx0PSJCYWNrZ3JvdW5kSW1hZ2VGaXgiLz48ZmVDb2xvck1hdHJpeCBpbj0iU291cmNlQWxwaGEiIHJlc3VsdD0iaGFyZEFscGhhIiB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDEyNyAwIi8+PGZlT2Zmc2V0IGR5PSIxIi8+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iLjkiLz48ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAuNjUgMCIvPjxmZUJsZW5kIGluMj0iQmFja2dyb3VuZEltYWdlRml4IiByZXN1bHQ9ImVmZmVjdDFfZHJvcFNoYWRvd180ODAyXzk5NDgiLz48ZmVCbGVuZCBpbj0iU291cmNlR3JhcGhpYyIgaW4yPSJlZmZlY3QxX2Ryb3BTaGFkb3dfNDgwMl85OTQ4IiByZXN1bHQ9InNoYXBlIi8+PC9maWx0ZXI+PC9kZWZzPjwvc3ZnPg==") 11 10, ew-resize;
   --devtools-editor-progress: 0;
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   width: 100%;
   min-width: 320px;
   height: var(--devtools-editor-height);
@@ -44,36 +45,16 @@
   user-select: none;
 }
 
-.devtools-editor button,
-.devtools-editor select {
+.devtools-editor button {
   font: inherit;
 }
 
-.devtools-editor__header {
-  display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(230px, 440px) minmax(190px, 1fr);
-  align-items: center;
-  gap: 18px;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--devtools-editor-border);
-  background: #15181d;
-}
-
-.devtools-editor__identity,
-.devtools-editor__timeline-field,
 .devtools-editor__transport,
 .devtools-editor__clock {
   display: flex;
   align-items: center;
 }
 
-.devtools-editor__identity {
-  gap: 10px;
-  min-width: 0;
-}
-
-.devtools-editor__identity,
-.devtools-editor__field-label,
 .devtools-editor__status,
 .devtools-editor__clock,
 .devtools-editor__track-heading,
@@ -83,48 +64,8 @@
   pointer-events: none;
 }
 
-.devtools-editor__mark {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid #394048;
-  border-radius: 6px;
-  color: var(--devtools-editor-accent);
-  font: 700 10px/1 ui-monospace, "Cascadia Code", monospace;
-  letter-spacing: .08em;
-}
-
-.devtools-editor__title {
-  overflow: hidden;
-  color: #f3f5f7;
-  font-size: 13px;
-  font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.devtools-editor__timeline-field {
-  gap: 10px;
-}
-
-.devtools-editor__field-label {
-  color: #858d97;
-  font-size: 11px;
-}
-
-.devtools-editor__timeline-select {
-  min-width: 0;
-  width: 100%;
-  height: 30px;
-  padding: 0 30px 0 10px;
-  border: 1px solid #343941;
-  border-radius: 6px;
-  color: #dde2e7;
-  background: #1c2026;
-}
-
-.devtools-editor__timeline-select:focus-visible,
+.devtools-editor__pane-tab:focus-visible,
+.devtools-editor__timeline-item:focus-visible,
 .devtools-editor__action:focus-visible,
 .devtools-editor__track-label:focus-visible,
 .devtools-editor__track-block:focus-visible {
@@ -133,7 +74,6 @@
 }
 
 .devtools-editor__status {
-  justify-self: end;
   color: #9da5ae;
   font: 600 10px/1 ui-monospace, "Cascadia Code", monospace;
   letter-spacing: .06em;
@@ -153,11 +93,108 @@
   color: #ff7d86;
 }
 
-.devtools-editor__timeline {
+.devtools-editor__pane-switcher {
+  display: none;
+}
+
+.devtools-editor__workspace {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(420px, 1fr);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-top: 1px solid #353a42;
+}
+
+.devtools-editor__pane {
+  min-width: 0;
+  min-height: 0;
+}
+
+.devtools-editor__pane-heading {
+  display: flex;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--devtools-editor-border);
+  color: #737b85;
+  font: 650 9px/1 ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.devtools-editor__timeline-list-pane {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border-right: 1px solid var(--devtools-editor-border);
+  background: #15181d;
+}
+
+.devtools-editor__timeline-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+}
+
+.devtools-editor__timeline-item {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #b8c0c8;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.devtools-editor__timeline-item:hover {
+  background: #1e2228;
+}
+
+.devtools-editor__timeline-item[aria-current="true"] {
+  border-color: #31535a;
+  color: #f0f7f8;
+  background: var(--devtools-editor-accent-soft);
+}
+
+.devtools-editor__timeline-item-label,
+.devtools-editor__timeline-item-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devtools-editor__timeline-item-label {
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.devtools-editor__timeline-item-id,
+.devtools-editor__timeline-empty {
+  color: #707984;
+  font: 9px/1.35 ui-monospace, "Cascadia Code", monospace;
+}
+
+.devtools-editor__timeline-empty {
+  margin: 0;
+  padding: 12px 8px;
+}
+
+.devtools-editor__timeline {
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
   background: #14171b;
+}
+
+.devtools-editor__timeline-list-toggle {
+  position: absolute;
+  left: 12px;
 }
 
 .devtools-editor__transport {
@@ -216,7 +253,7 @@
 .devtools-editor__timeline-body {
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
-  height: calc(100% - 48px);
+  height: 100%;
   min-height: 0;
 }
 
@@ -433,33 +470,203 @@
   box-shadow: 0 0 5px rgb(71 215 232 / 38%);
 }
 
-@media (max-width: 720px) {
+.devtools-editor__inspector {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border-left: 1px solid var(--devtools-editor-border);
+  background: #15181d;
+}
+
+.devtools-editor__inspector[hidden] {
+  display: none;
+}
+
+.devtools-editor__inspector-close {
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+
+.devtools-editor__inspector-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: #68717b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.devtools-editor__inspector-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.devtools-editor__inspector-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--devtools-editor-border);
+}
+
+.devtools-editor__inspector-label {
+  overflow: hidden;
+  color: #f0f3f5;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devtools-editor__inspector-key {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: #818b95;
+  font: 10px/1.4 ui-monospace, "Cascadia Code", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.devtools-editor__inspector-mapping {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  padding: 3px 6px;
+  border: 1px solid #365d64;
+  border-radius: 999px;
+  color: #9de8f0;
+  background: var(--devtools-editor-accent-soft);
+  font: 650 8px/1 ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.devtools-editor__inspector-details {
+  display: grid;
+  gap: 0;
+  margin: 10px 0 0;
+}
+
+.devtools-editor__inspector-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #23272d;
+}
+
+.devtools-editor__inspector-term,
+.devtools-editor__inspector-value {
+  margin: 0;
+  font-size: 10px;
+}
+
+.devtools-editor__inspector-term {
+  color: #77808a;
+}
+
+.devtools-editor__inspector-value {
+  color: #d8dde2;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (min-width: 961px) {
+  .devtools-editor[data-inspector-open="true"][data-timelines-visible="true"]
+  .devtools-editor__workspace {
+    grid-template-columns:
+      minmax(180px, 220px)
+      minmax(420px, 1fr)
+      minmax(240px, 300px);
+  }
+
+  .devtools-editor[data-inspector-open="true"][data-timelines-visible="false"]
+  .devtools-editor__workspace {
+    grid-template-columns: minmax(420px, 1fr) minmax(240px, 300px);
+  }
+
+  .devtools-editor[data-inspector-open="false"][data-timelines-visible="false"]
+  .devtools-editor__workspace {
+    grid-template-columns: minmax(420px, 1fr);
+  }
+
+  .devtools-editor[data-timelines-visible="false"]
+  .devtools-editor__timeline-list-pane {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
   :host {
     --devtools-editor-height: clamp(320px, 52dvh, 420px);
   }
 
   .devtools-editor {
-    grid-template-rows: 84px minmax(0, 1fr);
+    grid-template-rows: 44px minmax(0, 1fr);
   }
 
-  .devtools-editor__header {
-    grid-template-columns: 1fr auto;
-    gap: 8px 12px;
-    padding: 8px 12px;
+  .devtools-editor__pane-switcher {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 6px 12px;
+    padding: 3px;
+    border: 1px solid #30353d;
+    border-radius: 7px;
+    background: #101216;
   }
 
-  .devtools-editor__identity {
-    grid-column: 1;
+  .devtools-editor__pane-tab {
+    height: 30px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 4px;
+    color: #818a94;
+    background: transparent;
+    font-size: 10px;
+    cursor: pointer;
   }
 
-  .devtools-editor__timeline-field {
-    grid-column: 1 / -1;
-    grid-row: 2;
+  .devtools-editor__pane-tab[aria-selected="true"] {
+    color: #eaf8fa;
+    background: #25383d;
   }
 
-  .devtools-editor__status {
-    grid-column: 2;
-    grid-row: 1;
+  .devtools-editor__workspace {
+    display: block;
+    min-height: 0;
+  }
+
+  .devtools-editor__timeline-list-toggle {
+    display: none;
+  }
+
+  .devtools-editor__pane {
+    height: 100%;
+  }
+
+  .devtools-editor__pane[data-active="false"] {
+    display: none;
+  }
+
+  .devtools-editor__timeline-list-pane[data-active="true"] {
+    display: flex;
+  }
+
+  .devtools-editor__timeline[data-active="true"] {
+    display: grid;
+  }
+
+  .devtools-editor[data-inspector-open="true"] .devtools-editor__pane {
+    display: none;
+  }
+
+  .devtools-editor__inspector {
+    height: 100%;
   }
 
   .devtools-editor__transport {
@@ -469,6 +676,10 @@
 
   .devtools-editor__clock {
     right: 10px;
+  }
+
+  .devtools-editor__status {
+    display: none;
   }
 
   .devtools-editor__timeline-body {

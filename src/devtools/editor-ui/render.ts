@@ -28,26 +28,27 @@ function formatRulerTime(seconds: number): string {
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
 }
 
-function renderOptions(elements: EditorUiElements, view: EditorViewState): void {
-  const options = view.timelines.map(({ id, label }) => {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = label;
-    return option;
+function renderTimelines(elements: EditorUiElements, view: EditorViewState): void {
+  const signature = view.timelines
+    .map(({ id, label }) => `${id}:${label}:${id === view.activeTimelineId}`)
+    .join("|");
+  if (elements.timelineList.dataset.signature === signature) return;
+  elements.timelineList.dataset.signature = signature;
+  const entries: HTMLElement[] = view.timelines.map(({ id, label }) => {
+    const button = node("button", "devtools-editor__timeline-item");
+    button.type = "button";
+    button.dataset.timelineId = id;
+    button.setAttribute("aria-current", String(id === view.activeTimelineId));
+    button.append(
+      node("span", "devtools-editor__timeline-item-label", label),
+      node("span", "devtools-editor__timeline-item-id", id),
+    );
+    return button;
   });
-  if (options.length === 0) {
-    const option = document.createElement("option");
-    option.textContent = "No timelines";
-    option.value = "";
-    options.push(option);
+  if (entries.length === 0) {
+    entries.push(node("p", "devtools-editor__timeline-empty", "No timelines registered."));
   }
-  const signature = options.map(({ value, textContent }) => `${value}:${textContent}`).join("|");
-  if (elements.timelineSelect.dataset.signature !== signature) {
-    elements.timelineSelect.replaceChildren(...options);
-    elements.timelineSelect.dataset.signature = signature;
-  }
-  elements.timelineSelect.value = view.activeTimelineId ?? "";
-  elements.timelineSelect.disabled = view.timelines.length === 0;
+  elements.timelineList.replaceChildren(...entries);
 }
 
 function renderStatus(elements: EditorUiElements, view: EditorViewState): void {
@@ -149,11 +150,72 @@ function renderTracks(elements: EditorUiElements, view: EditorViewState): void {
   elements.trackLanes.replaceChildren(...lanes);
 }
 
+function inspectorField(label: string, value: string): HTMLDivElement {
+  const field = node("div", "devtools-editor__inspector-field");
+  field.append(
+    node("dt", "devtools-editor__inspector-term", label),
+    node("dd", "devtools-editor__inspector-value", value),
+  );
+  return field;
+}
+
+function formatInspectorTime(value: number): string {
+  if (value >= 1_000_000_000) return "∞";
+  return `${Math.max(0, value).toFixed(2)}s`;
+}
+
+function renderInspector(elements: EditorUiElements, view: EditorViewState): void {
+  const inspector = view.inspector;
+  elements.inspectorEmpty.hidden = inspector !== undefined;
+  elements.inspectorContent.hidden = inspector === undefined;
+  if (!inspector) {
+    elements.inspectorContent.replaceChildren();
+    elements.inspectorContent.dataset.signature = "";
+    return;
+  }
+  const ease = inspector.mixedEase ? "Mixed" : inspector.ease ?? "Unavailable";
+  const signature = [
+    inspector.trackKey,
+    inspector.label,
+    inspector.mapping,
+    inspector.start,
+    inspector.duration,
+    inspector.end,
+    ease,
+    inspector.animatedTargetCount,
+    inspector.visualTargetCount,
+  ].join("|");
+  if (elements.inspectorContent.dataset.signature === signature) return;
+  elements.inspectorContent.dataset.signature = signature;
+
+  const identity = node("div", "devtools-editor__inspector-identity");
+  const heading = node("div", "devtools-editor__inspector-label", inspector.label);
+  const key = node("code", "devtools-editor__inspector-key", inspector.trackKey);
+  const mapping = node(
+    "span",
+    "devtools-editor__inspector-mapping",
+    inspector.mapping === "authored" ? "Authored" : "Automatic",
+  );
+  identity.append(heading, key, mapping);
+
+  const details = node("dl", "devtools-editor__inspector-details");
+  details.append(
+    inspectorField("Start", formatInspectorTime(inspector.start)),
+    inspectorField("Duration", formatInspectorTime(inspector.duration)),
+    inspectorField("End", formatInspectorTime(inspector.end)),
+    inspectorField("Ease", ease),
+    inspectorField("Animated", String(inspector.animatedTargetCount)),
+    inspectorField("Visual", String(inspector.visualTargetCount)),
+  );
+  elements.inspectorContent.replaceChildren(identity, details);
+}
+
 export function renderEditorUi(elements: EditorUiElements, view: EditorViewState): void {
-  renderOptions(elements, view);
+  renderTimelines(elements, view);
   renderStatus(elements, view);
   renderTransport(elements, view);
   renderRuler(elements, view);
   renderTracks(elements, view);
+  renderInspector(elements, view);
   elements.timelineViewport.dataset.seekable = String(view.transport.canSeek);
 }

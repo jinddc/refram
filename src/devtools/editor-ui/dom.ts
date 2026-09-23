@@ -1,7 +1,15 @@
 export interface EditorUiElements {
   readonly root: HTMLElement;
-  readonly timelineSelect: HTMLSelectElement;
   readonly status: HTMLOutputElement;
+  readonly paneTabs: readonly HTMLButtonElement[];
+  readonly timelineList: HTMLElement;
+  readonly timelineListPane: HTMLElement;
+  readonly timelinePane: HTMLElement;
+  readonly inspectorPane: HTMLElement;
+  readonly inspectorCloseButton: HTMLButtonElement;
+  readonly timelineListToggle: HTMLButtonElement;
+  readonly inspectorContent: HTMLElement;
+  readonly inspectorEmpty: HTMLElement;
   readonly playButton: HTMLButtonElement;
   readonly replayButton: HTMLButtonElement;
   readonly currentTime: HTMLOutputElement;
@@ -30,6 +38,26 @@ function action(label: string, name: string): HTMLButtonElement {
   button.type = "button";
   button.dataset.action = name;
   return button;
+}
+
+function paneTab(label: string, pane: string, selected = false): HTMLButtonElement {
+  const button = element("button", "devtools-editor__pane-tab", label);
+  button.type = "button";
+  button.id = `devtools-editor-tab-${pane}`;
+  button.dataset.paneTarget = pane;
+  button.setAttribute("role", "tab");
+  button.setAttribute("aria-controls", `devtools-editor-pane-${pane}`);
+  button.setAttribute("aria-selected", String(selected));
+  button.tabIndex = selected ? 0 : -1;
+  return button;
+}
+
+function configurePane(node: HTMLElement, pane: string, active = false): void {
+  node.id = `devtools-editor-pane-${pane}`;
+  node.dataset.pane = pane;
+  node.dataset.active = String(active);
+  node.setAttribute("role", "tabpanel");
+  node.setAttribute("aria-labelledby", `devtools-editor-tab-${pane}`);
 }
 
 function createPlayheadIcon(): SVGSVGElement {
@@ -70,25 +98,43 @@ export function createEditorUiElements(): EditorUiElements {
   root.dataset.devtoolsEditor = "";
   root.tabIndex = -1;
 
-  const header = element("header", "devtools-editor__header");
-  const identity = element("div", "devtools-editor__identity");
-  identity.append(
-    element("span", "devtools-editor__mark", "ML"),
-    element("span", "devtools-editor__title", "Motion DevTools"),
-  );
-  const timelineField = element("label", "devtools-editor__timeline-field");
-  timelineField.append(element("span", "devtools-editor__field-label", "Timeline"));
-  const timelineSelect = element("select", "devtools-editor__timeline-select");
-  timelineSelect.dataset.role = "timeline-select";
-  timelineField.append(timelineSelect);
+  const paneSwitcher = element("div", "devtools-editor__pane-switcher");
+  paneSwitcher.dataset.role = "pane-switcher";
+  paneSwitcher.setAttribute("role", "tablist");
+  paneSwitcher.setAttribute("aria-label", "DevTools panels");
+  const paneTabs = [
+    paneTab("Timelines", "timelines"),
+    paneTab("Timeline", "timeline", true),
+  ];
+  paneSwitcher.append(...paneTabs);
   const status = element("output", "devtools-editor__status", "Empty");
   status.dataset.role = "status";
   status.setAttribute("aria-live", "polite");
-  header.append(identity, timelineField, status);
 
-  const timeline = element("section", "devtools-editor__timeline");
+  const workspace = element("div", "devtools-editor__workspace");
+  workspace.dataset.role = "workspace";
+
+  const timelineListPane = element(
+    "section",
+    "devtools-editor__pane devtools-editor__timeline-list-pane",
+  );
+  configurePane(timelineListPane, "timelines");
+  const timelineListHeading = element("header", "devtools-editor__pane-heading", "Timelines");
+  const timelineList = element("div", "devtools-editor__timeline-list");
+  timelineList.dataset.role = "timeline-list";
+  timelineListPane.append(timelineListHeading, timelineList);
+
+  const timeline = element(
+    "section",
+    "devtools-editor__pane devtools-editor__timeline",
+  );
+  configurePane(timeline, "timeline", true);
   timeline.setAttribute("aria-label", "Timeline inspector");
   const transport = element("div", "devtools-editor__transport");
+  const timelineListToggle = action("Hide timelines", "toggle-timelines");
+  timelineListToggle.classList.add("devtools-editor__timeline-list-toggle");
+  timelineListToggle.setAttribute("aria-controls", "devtools-editor-pane-timelines");
+  timelineListToggle.setAttribute("aria-expanded", "true");
   const playButton = action("Play", "toggle-play");
   playButton.classList.add("devtools-editor__action--primary");
   const replayButton = action("Replay", "replay");
@@ -98,8 +144,8 @@ export function createEditorUiElements(): EditorUiElements {
   const separator = element("span", "devtools-editor__time-separator", "/");
   const duration = element("output", "devtools-editor__duration", "00:00.000");
   duration.dataset.role = "duration";
-  clock.append(currentTime, separator, duration);
-  transport.append(playButton, replayButton, clock);
+  clock.append(status, currentTime, separator, duration);
+  transport.append(timelineListToggle, playButton, replayButton, clock);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
   const trackLabels = element("div", "devtools-editor__track-labels");
@@ -127,12 +173,45 @@ export function createEditorUiElements(): EditorUiElements {
   timelineViewport.append(timelineContent);
   timelineBody.append(trackLabels, timelineViewport);
   timeline.append(transport, timelineBody);
-  root.append(header, timeline);
+
+  const inspectorPane = element(
+    "aside",
+    "devtools-editor__inspector",
+  );
+  inspectorPane.dataset.role = "inspector";
+  inspectorPane.setAttribute("aria-label", "Track inspector");
+  inspectorPane.hidden = true;
+  const inspectorHeading = element("header", "devtools-editor__pane-heading");
+  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Inspector"));
+  const inspectorCloseButton = action("Close", "close-inspector");
+  inspectorCloseButton.classList.add("devtools-editor__inspector-close");
+  inspectorHeading.append(inspectorCloseButton);
+  const inspectorEmpty = element(
+    "p",
+    "devtools-editor__inspector-empty",
+    "Select a track to inspect it.",
+  );
+  inspectorEmpty.dataset.role = "inspector-empty";
+  const inspectorContent = element("div", "devtools-editor__inspector-content");
+  inspectorContent.dataset.role = "inspector-content";
+  inspectorContent.hidden = true;
+  inspectorPane.append(inspectorHeading, inspectorEmpty, inspectorContent);
+
+  workspace.append(timelineListPane, timeline, inspectorPane);
+  root.append(paneSwitcher, workspace);
 
   return {
     root,
-    timelineSelect,
     status,
+    paneTabs,
+    timelineList,
+    timelineListPane,
+    timelinePane: timeline,
+    inspectorPane,
+    inspectorCloseButton,
+    timelineListToggle,
+    inspectorContent,
+    inspectorEmpty,
     playButton,
     replayButton,
     currentTime,

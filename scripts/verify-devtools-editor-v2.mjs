@@ -19,7 +19,7 @@ async function verify({ artifactDirectory, send }) {
     "the new DevTools editor",
   );
   const desktopState = await evaluate(send, `(() => ({
-    timelines: window.__devtoolsEditorV2Harness.query("[data-role='timeline-select']").options.length,
+    timelines: window.__devtoolsEditorV2Harness.queryAll("[data-timeline-id]").length,
     hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
     tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
     rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
@@ -34,12 +34,60 @@ async function verify({ artifactDirectory, send }) {
     finiteParent: document.querySelector("#devtools-v2-finite").parentElement?.id,
     finiteNextSibling: document.querySelector("#devtools-v2-finite").nextElementSibling?.id,
     finiteSlot: document.querySelector("#devtools-v2-finite").getAttribute("slot"),
+    activeTimeline: window.__devtoolsEditorV2Harness.query("[data-timeline-id][aria-current='true']")?.dataset.timelineId,
+    paneDisplays: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].map((pane) => getComputedStyle(pane).display),
+    paneBounds: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].map((pane) => {
+      const bounds = pane.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right, width: bounds.width };
+    }),
+    listOverflow: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-list']")).overflowY,
+    inspectorOverflow: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']")).overflowY,
+    inspectorEmpty: !window.__devtoolsEditorV2Harness.query("[data-role='inspector-empty']").hidden,
+    inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
+    inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
+    inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
+    timelinesVisible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
+    hasHeader: Boolean(window.__devtoolsEditorV2Harness.query(".devtools-editor__header")),
+    editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
+    workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
   assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
   assert(desktopState.rootHeight >= 300 && desktopState.rootHeight <= 421, "The editor is not docked at the expected size.");
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
+  assert(
+    desktopState.activeTimeline === "playground/v2/finite"
+      && desktopState.paneDisplays.length === 2
+      && desktopState.paneDisplays.every((display) => display !== "none")
+      && desktopState.paneBounds[0].right <= desktopState.paneBounds[1].left + 1
+      && desktopState.listOverflow === "auto"
+      && desktopState.inspectorOverflow === "auto"
+      && desktopState.inspectorEmpty
+      && desktopState.inspectorHidden
+      && desktopState.inspectorDisplay === "none"
+      && desktopState.inspectorOpen === "false"
+      && desktopState.timelinesVisible === "true"
+      && !desktopState.hasHeader
+      && Math.abs(desktopState.workspaceTop - desktopState.editorTop) <= 1,
+    `The desktop idle workspace is incorrect: ${JSON.stringify(desktopState)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
+  const collapsedTimelineList = await evaluate(send, `(() => ({
+    visible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
+    listDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-pane='timelines']")).display,
+    expanded: window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").getAttribute("aria-expanded"),
+    timelineWidth: window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect().width,
+    workspaceWidth: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().width,
+  }))()`);
+  assert(
+    collapsedTimelineList.visible === "false"
+      && collapsedTimelineList.listDisplay === "none"
+      && collapsedTimelineList.expanded === "false"
+      && Math.abs(collapsedTimelineList.timelineWidth - collapsedTimelineList.workspaceWidth) <= 1,
+    `The desktop timeline-list toggle did not collapse the pane: ${JSON.stringify(collapsedTimelineList)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   assert(
     desktopState.shadowStyle
       && !desktopState.lightEditorRoot
@@ -61,6 +109,51 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `document.querySelectorAll("[data-devtools-editor-selected='true']").length === 1 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "true"`),
     "Track selection did not synchronize with the preview.",
   );
+  const inspectorState = await evaluate(send, `(() => ({
+    hidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden,
+    paneHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
+    text: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").textContent,
+    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+    inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
+  }))()`);
+  assert(
+    !inspectorState.hidden
+      && !inspectorState.paneHidden
+      && inspectorState.text.includes("Automatic")
+      && inspectorState.text.includes("Start")
+      && inspectorState.text.includes("Duration")
+      && inspectorState.text.includes("End")
+      && inspectorState.activePane === "timeline"
+      && inspectorState.inspectorOpen === "true",
+    `Track inspector did not render without changing panes: ${JSON.stringify(inspectorState)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
+  const collapsedWithInspector = await evaluate(send, `(() => {
+    const workspace = window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect();
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
+    const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector']").getBoundingClientRect();
+    return {
+      workspaceLeft: workspace.left,
+      workspaceRight: workspace.right,
+      timelineLeft: timeline.left,
+      timelineRight: timeline.right,
+      inspectorLeft: inspector.left,
+      inspectorRight: inspector.right,
+    };
+  })()`);
+  assert(
+    Math.abs(collapsedWithInspector.timelineLeft - collapsedWithInspector.workspaceLeft) <= 1
+      && Math.abs(collapsedWithInspector.timelineRight - collapsedWithInspector.inspectorLeft) <= 1
+      && Math.abs(collapsedWithInspector.inspectorRight - collapsedWithInspector.workspaceRight) <= 1,
+    `Hiding timelines with the inspector open left a grid gap: ${JSON.stringify(collapsedWithInspector)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden && window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen === "false" && window.__devtoolsEditorV2Harness.view.selectedTrackKey === undefined && document.querySelectorAll("[data-devtools-editor-selected='true']").length === 0 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "false"`),
+    "The desktop inspector close button did not return the track to idle.",
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.textContent === "Pause"`),
@@ -158,11 +251,25 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent === "00:00.000"`),
     "Replay did not return the finite timeline to its authored start.",
   );
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.view.selectedTrackKey === "animation:1" && window.__devtoolsEditorV2Harness.view.inspector?.trackKey === "animation:1" && window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen === "true" && !window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden`),
+    "Replay discarded the open automatic-track inspector detail.",
+  );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click(); window.__devtoolsEditorV2Harness.seek(1)`);
   assert(
     await evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "finished" && window.__devtoolsEditorV2Harness.activeTimelinePaused === false`),
     "The fixture did not reach the running-finished seek boundary.",
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
+  await waitFor(
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "running"`),
+    "playback restart from the finished state",
+  );
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.view.selectedTrackKey === "animation:1" && window.__devtoolsEditorV2Harness.view.inspector?.trackKey === "animation:1" && !window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden`),
+    "Playing from the finished state discarded inspector detail.",
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.seek(1)`);
   const finishedSeekPoint = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
     const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
@@ -175,9 +282,10 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `window.__devtoolsEditorV2Harness.activeTimelinePaused === true && window.__devtoolsEditorV2Harness.view.transport.playState === "paused" && window.__devtoolsEditorV2Harness.view.time.progress >= 0.39 && window.__devtoolsEditorV2Harness.view.time.progress <= 0.41`),
     "Click-seeking a finished timeline resumed playback.",
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   await screenshot(send, desktop);
 
-  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/particles")`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000"`),
     "the finite particle window",
@@ -229,10 +337,44 @@ async function verify({ artifactDirectory, send }) {
     deviceScaleFactor: 1,
     mobile: false,
   });
+  const narrowState = await evaluate(send, `(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+    selectedTab: window.__devtoolsEditorV2Harness.query("[data-pane-target][aria-selected='true']")?.dataset.paneTarget,
+    visiblePanes: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].filter((pane) => getComputedStyle(pane).display !== "none").map((pane) => pane.dataset.pane),
+    timelineHeight: window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect().height,
+    inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
+    inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
+    inspectorTab: Boolean(window.__devtoolsEditorV2Harness.query("[data-pane-target='inspector']")),
+  }))()`);
   assert(
-    await evaluate(send, `document.documentElement.scrollWidth <= 640 && window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect().height >= 250`),
-    "The new editor overflows or collapses its timeline at narrow width.",
+    narrowState.scrollWidth <= 640
+      && narrowState.activePane === "timeline"
+      && narrowState.selectedTab === "timeline"
+      && narrowState.visiblePanes.length === 0
+      && !narrowState.inspectorHidden
+      && narrowState.inspectorDisplay !== "none"
+      && !narrowState.inspectorTab,
+    `The mobile track-triggered inspector is incorrect: ${JSON.stringify(narrowState)}`,
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
+  const closedInspectorState = await evaluate(send, `(() => ({
+    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+    visiblePanes: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].filter((pane) => getComputedStyle(pane).display !== "none").map((pane) => pane.dataset.pane),
+    inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
+    selectedTrackKey: window.__devtoolsEditorV2Harness.view.selectedTrackKey,
+    highlightedTargets: document.querySelectorAll("[data-devtools-editor-selected='true']").length,
+  }))()`);
+  assert(
+    closedInspectorState.activePane === "timeline"
+      && closedInspectorState.visiblePanes.length === 1
+      && closedInspectorState.visiblePanes[0] === "timeline"
+      && closedInspectorState.inspectorHidden
+      && closedInspectorState.selectedTrackKey === undefined
+      && closedInspectorState.highlightedTargets === 0,
+    `Closing the mobile inspector did not restore an idle timeline: ${JSON.stringify(closedInspectorState)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   await screenshot(send, narrow);
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
@@ -250,6 +392,11 @@ async function verify({ artifactDirectory, send }) {
     status: "pass",
     checks: [
       "timeline-selection",
+      "header-removed",
+      "idle-inspector-hidden",
+      "desktop-timeline-list-toggle",
+      "desktop-timeline-list-toggle-with-inspector",
+      "track-inspector",
       "shadow-css-isolation",
       "noninteractive-hit-testing",
       "seek-preserves-playback",
@@ -259,10 +406,15 @@ async function verify({ artifactDirectory, send }) {
       "stable-track-selection",
       "transport",
       "replay",
+      "replay-preserves-inspector-detail",
+      "finished-play-preserves-inspector-detail",
       "finished-seek-pauses",
       "finite-particle-window",
       "mapped-highlight",
       "narrow-layout",
+      "mobile-track-triggered-inspector",
+      "inspector-close",
+      "inspector-close-clears-selection",
       "destroy-remount",
     ],
     screenshots: [

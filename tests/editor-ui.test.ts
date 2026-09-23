@@ -91,7 +91,20 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     await flush();
     expect(container.querySelector("[data-role='status']")?.textContent).toBe("Ready");
+    expect(container.querySelector(".devtools-editor__header")).toBeNull();
+    expect(container.querySelector(".devtools-editor__identity")).toBeNull();
+    expect(container.querySelector("[data-role='pane-switcher']")?.parentElement)
+      .toBe(container.querySelector("[data-devtools-editor]"));
     expect(container.querySelectorAll(".devtools-editor__track-block")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-timeline-id]")).toHaveLength(2);
+    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+      .toBe("timeline");
+    expect(container.querySelector("[data-timeline-id='first']")?.getAttribute("aria-current"))
+      .toBe("true");
+    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const inspectorPane = container.querySelector<HTMLElement>("[data-role='inspector']")!;
+    expect(root.dataset.inspectorOpen).toBe("false");
+    expect(inspectorPane.hidden).toBe(true);
     expect(first.root.parentNode).toBe(sourceHome);
     expect(first.root.nextSibling).toBe(firstNextSibling);
     expect(sourceHome.contains(second.root)).toBe(true);
@@ -101,6 +114,39 @@ describe("DevTools editor UI v2", () => {
     )?.click();
     expect(first.first.getAttribute("data-devtools-editor-selected")).toBe("true");
     expect(handle.controller.getSnapshot().view.selectedTrackKey).toBe("track:opening");
+    expect(root.dataset.inspectorOpen).toBe("true");
+    expect(inspectorPane.hidden).toBe(false);
+    const inspector = container.querySelector<HTMLElement>("[data-role='inspector-content']")!;
+    expect(inspector.hidden).toBe(false);
+    expect(inspector.textContent).toContain("Opening");
+    expect(inspector.textContent).toContain("track:opening");
+    expect(inspector.textContent).toContain("Authored");
+    expect(inspector.textContent).toContain("0.00s");
+    expect(inspector.textContent).toContain("1.00s");
+
+    container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
+    expect(root.dataset.inspectorOpen).toBe("false");
+    expect(inspectorPane.hidden).toBe(true);
+    expect(handle.controller.getSnapshot().view.selectedTrackKey).toBeUndefined();
+    expect(first.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
+    expect(container.querySelector("[data-track-key='track:opening']")
+      ?.getAttribute("aria-pressed")).toBe("false");
+    expect((document.activeElement as HTMLElement | null)?.dataset.trackKey)
+      .toBe("track:opening");
+    container.querySelector<HTMLButtonElement>(
+      ".devtools-editor__track-block[data-track-key='track:opening']",
+    )?.click();
+    expect(inspectorPane.hidden).toBe(false);
+
+    const timelineListToggle = container.querySelector<HTMLButtonElement>(
+      "[data-action='toggle-timelines']",
+    )!;
+    timelineListToggle.click();
+    expect(root.dataset.timelinesVisible).toBe("false");
+    expect(timelineListToggle.getAttribute("aria-expanded")).toBe("false");
+    expect(timelineListToggle.textContent).toBe("Show timelines");
+    timelineListToggle.click();
+    expect(root.dataset.timelinesVisible).toBe("true");
 
     container.querySelector<HTMLButtonElement>("[data-action='play']")?.click();
     expect(first.timeline.paused()).toBe(false);
@@ -186,11 +232,20 @@ describe("DevTools editor UI v2", () => {
     expect(playhead.dataset.dragState).toBe("idle");
     expect(first.timeline.paused()).toBe(true);
 
-    const select = container.querySelector<HTMLSelectElement>("[data-role='timeline-select']")!;
-    select.value = "second";
-    select.dispatchEvent(new Event("change"));
+    container.querySelector<HTMLButtonElement>("[data-pane-target='timelines']")?.click();
+    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+      .toBe("timelines");
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='second']")?.click();
     await flush();
     expect(handle.controller.getSnapshot().activeTimelineId).toBe("second");
+    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+      .toBe("timeline");
+    expect(container.querySelector("[data-timeline-id='second']")?.getAttribute("aria-current"))
+      .toBe("true");
+    expect(container.querySelector<HTMLElement>("[data-role='inspector-empty']")?.hidden)
+      .toBe(false);
+    expect(inspector.hidden).toBe(true);
+    expect(inspectorPane.hidden).toBe(true);
     expect(first.root.parentNode).toBe(sourceHome);
     expect(first.root.nextSibling).toBe(firstNextSibling);
     expect(second.root.parentNode).toBe(sourceHome);
@@ -228,9 +283,67 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     expect(container.querySelector("[data-role='status']")?.textContent).toBe("Empty");
     expect(container.querySelector<HTMLButtonElement>("[data-action='play']")?.disabled).toBe(true);
+    expect(container.querySelector("[data-role='timeline-list']")?.textContent)
+      .toContain("No timelines registered.");
+    expect(container.querySelector<HTMLElement>("[data-role='inspector-empty']")?.hidden)
+      .toBe(false);
+    expect(container.querySelector<HTMLElement>("[data-role='inspector']")?.hidden)
+      .toBe(true);
     expect(container.querySelector("[data-role='preview-surface']")).toBeNull();
     handle.destroy();
     expect(handle.controller.selectTimeline("missing")).toBe(false);
+    registry.destroy();
+  });
+
+  it("switches mobile panes with two tabs and opens the inspector from a track", async () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("panes", "Pane sequence");
+    const timelineRegistration = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, fixture.root);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const timelines = container.querySelector<HTMLButtonElement>(
+      "[data-pane-target='timelines']",
+    )!;
+    const timeline = container.querySelector<HTMLButtonElement>(
+      "[data-pane-target='timeline']",
+    )!;
+    expect(container.querySelectorAll("[data-pane-target]")).toHaveLength(2);
+    expect(container.querySelector("[data-pane-target='inspector']")).toBeNull();
+    expect(timeline.getAttribute("aria-selected")).toBe("true");
+    expect(timeline.tabIndex).toBe(0);
+
+    timeline.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      code: "ArrowRight",
+    }));
+    expect(root.dataset.activePane).toBe("timelines");
+    expect(timelines.getAttribute("aria-selected")).toBe("true");
+
+    timelines.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      code: "End",
+    }));
+    expect(root.dataset.activePane).toBe("timeline");
+
+    container.querySelector<HTMLButtonElement>("[data-track-key='track:opening']")?.click();
+    const inspector = container.querySelector<HTMLElement>("[data-role='inspector']")!;
+    expect(root.dataset.activePane).toBe("timeline");
+    expect(root.dataset.inspectorOpen).toBe("true");
+    expect(inspector.hidden).toBe(false);
+    expect(inspector.textContent).toContain("Opening");
+
+    container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
+    expect(root.dataset.inspectorOpen).toBe("false");
+    expect(inspector.hidden).toBe(true);
+    expect(root.dataset.activePane).toBe("timeline");
+    expect(handle.controller.getSnapshot().view.selectedTrackKey).toBeUndefined();
+
+    handle.destroy();
+    timelineRegistration.destroy();
     registry.destroy();
   });
 

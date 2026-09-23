@@ -25,6 +25,10 @@ interface HighlightedSource {
   readonly outlineOffsetPriority: string;
 }
 
+type EditorPane = "timelines" | "timeline";
+
+const EDITOR_PANES = ["timelines", "timeline"] as const;
+
 export function mountEditorUi(
   container: HTMLElement,
   options: EditorUiOptions = {},
@@ -37,6 +41,48 @@ export function mountEditorUi(
   let destroyed = false;
   let highlightedSources: HighlightedSource[] = [];
   let dragPointerId: number | undefined;
+  let inspectorTriggerKey: string | undefined;
+  let inspectorTriggerClass: string | undefined;
+  let timelineListVisible = true;
+
+  const setInspectorOpen = (open: boolean): void => {
+    elements.root.dataset.inspectorOpen = String(open);
+    elements.inspectorPane.hidden = !open;
+  };
+
+  const closeInspector = (restoreFocus = false): void => {
+    setInspectorOpen(false);
+    controller.clearTrackSelection();
+    if (!restoreFocus || !inspectorTriggerKey) return;
+    [...elements.root.querySelectorAll<HTMLElement>("[data-track-key]")]
+      .find((control) => control.dataset.trackKey === inspectorTriggerKey
+        && control.className === inspectorTriggerClass)
+      ?.focus();
+  };
+
+  const setTimelineListVisible = (visible: boolean): void => {
+    timelineListVisible = visible;
+    elements.root.dataset.timelinesVisible = String(visible);
+    elements.timelineListToggle.textContent = visible ? "Hide timelines" : "Show timelines";
+    elements.timelineListToggle.setAttribute("aria-expanded", String(visible));
+  };
+
+  const setActivePane = (pane: EditorPane, focus = false): void => {
+    closeInspector();
+    elements.root.dataset.activePane = pane;
+    for (const tab of elements.paneTabs) {
+      const selected = tab.dataset.paneTarget === pane;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && focus) tab.focus();
+    }
+    for (const panel of [
+      elements.timelineListPane,
+      elements.timelinePane,
+    ]) {
+      panel.dataset.active = String(panel.dataset.pane === pane);
+    }
+  };
 
   const clearHighlight = (): void => {
     for (const highlighted of highlightedSources) {
@@ -92,12 +138,34 @@ export function mountEditorUi(
   const onClick = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const pane = target.closest<HTMLElement>("[data-pane-target]")?.dataset.paneTarget;
+    if (pane && EDITOR_PANES.includes(pane as EditorPane)) {
+      setActivePane(pane as EditorPane);
+      return;
+    }
+    const timelineId = target.closest<HTMLElement>("[data-timeline-id]")?.dataset.timelineId;
+    if (timelineId) {
+      if (controller.selectTimeline(timelineId)) setActivePane("timeline");
+      return;
+    }
     const trackKey = target.closest<HTMLElement>("[data-track-key]")?.dataset.trackKey;
     if (trackKey) {
-      controller.selectTrack(trackKey);
+      const clickedTrackControl = target.closest<HTMLElement>("[data-track-key]");
+      const clickedClass = clickedTrackControl?.className;
+      if (controller.selectTrack(trackKey)) {
+        inspectorTriggerKey = trackKey;
+        inspectorTriggerClass = clickedClass;
+        setInspectorOpen(true);
+      }
       return;
     }
     switch (target.closest<HTMLElement>("[data-action]")?.dataset.action) {
+      case "close-inspector":
+        closeInspector(true);
+        break;
+      case "toggle-timelines":
+        setTimelineListVisible(!timelineListVisible);
+        break;
       case "play":
         controller.play();
         break;
@@ -108,10 +176,6 @@ export function mountEditorUi(
         controller.replay();
         break;
     }
-  };
-
-  const onTimelineChange = (): void => {
-    if (elements.timelineSelect.value) controller.selectTimeline(elements.timelineSelect.value);
   };
 
   const progressAt = (clientX: number): number | undefined => {
@@ -175,6 +239,27 @@ export function mountEditorUi(
     elements.playhead.dataset.dragState = "idle";
   };
   const onKeyDown = (event: KeyboardEvent): void => {
+    const paneTab = event.target instanceof HTMLElement
+      ? event.target.closest<HTMLButtonElement>("[data-pane-target]")
+      : null;
+    if (paneTab) {
+      const currentIndex = elements.paneTabs.indexOf(paneTab);
+      const nextIndex = event.code === "ArrowLeft"
+        ? (currentIndex + elements.paneTabs.length - 1) % elements.paneTabs.length
+        : event.code === "ArrowRight"
+          ? (currentIndex + 1) % elements.paneTabs.length
+          : event.code === "Home"
+            ? 0
+            : event.code === "End"
+              ? elements.paneTabs.length - 1
+              : undefined;
+      if (nextIndex !== undefined) {
+        event.preventDefault();
+        const pane = elements.paneTabs[nextIndex]?.dataset.paneTarget as EditorPane | undefined;
+        if (pane) setActivePane(pane, true);
+        return;
+      }
+    }
     if (event.target === elements.playhead) {
       const progress = controller.getSnapshot().view.time?.progress ?? 0;
       const next = event.code === "ArrowLeft" || event.code === "ArrowDown"
@@ -201,10 +286,11 @@ export function mountEditorUi(
     else if (transport.canPlay) controller.play();
   };
 
+  setTimelineListVisible(true);
+  setActivePane("timeline");
   container.append(elements.root);
   elements.root.addEventListener("click", onClick, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
-  elements.timelineSelect.addEventListener("change", onTimelineChange, listenerOptions);
   elements.timelineViewport.addEventListener(
     "pointerdown",
     onTimelinePointerDown,

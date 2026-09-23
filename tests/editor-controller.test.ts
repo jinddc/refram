@@ -66,9 +66,27 @@ describe("headless editor controller", () => {
       selected: true,
       spans: [{ start: 0, end: 1 }],
     });
+    expect(editor.getSnapshot().view.inspector).toEqual({
+      trackKey: "animation:0",
+      label: "div",
+      mapping: "automatic",
+      start: 0,
+      duration: 1,
+      end: 1,
+      ease: undefined,
+      mixedEase: false,
+      animatedTargetCount: 1,
+      visualTargetCount: 1,
+    });
+    expect(Object.isFrozen(editor.getSnapshot().view.inspector)).toBe(true);
     expect(editor.getSnapshot().view.transport.canSeek).toBe(true);
     expect(editor.selectTrack("animation:0")).toBe(true);
     expect(editor.selectTrack("animation:missing")).toBe(false);
+    expect(editor.clearTrackSelection()).toBe(true);
+    expect(editor.getSnapshot().view.selectedTrackKey).toBeUndefined();
+    expect(editor.getSnapshot().view.inspector).toBeUndefined();
+    expect(editor.clearTrackSelection()).toBe(false);
+    expect(editor.selectTrack("animation:0")).toBe(true);
     expect(editor.seek(0.5)).toBe(true);
     expect(timeline.totalProgress()).toBeCloseTo(0.5);
     expect(editor.seek(Number.NaN)).toBe(false);
@@ -145,6 +163,16 @@ describe("headless editor controller", () => {
     const before = editor.getSnapshot().selectedItem;
     expect(before?.trackId).toBe("title");
     expect(editor.getSnapshot().view.selectedTrackKey).toBe("track:title");
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      trackKey: "track:title",
+      label: "title",
+      mapping: "authored",
+      start: 0,
+      duration: 1,
+      end: 1,
+      animatedTargetCount: 1,
+      visualTargetCount: 1,
+    });
     expect(editor.replay()).toBe(true);
     expect(replayAvailability).toContain(false);
     const after = editor.getSnapshot().selectedItem;
@@ -153,6 +181,39 @@ describe("headless editor controller", () => {
     expect(after?.source).not.toBe(before?.source);
     expect(editor.getSnapshot().view.selectedTrackKey).toBe("track:title");
     expect(disposed).toBe(1);
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("preserves an automatic track selection through replay and play from finished", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const target = document.createElement("span");
+    root.append(target);
+    const registration = registry.register({
+      id: "automatic-rebuild",
+      root,
+      create() {
+        const timeline = gsap.timeline({ paused: true });
+        timeline.to(target, { x: 100, duration: 1 });
+        return { timeline, dispose: () => timeline.kill() };
+      },
+    });
+    const editor = createEditorController({ registry });
+
+    expect(editor.selectTrack("animation:0")).toBe(true);
+    expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
+    expect(editor.replay()).toBe(true);
+    expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
+
+    expect(editor.play()).toBe(true);
+    expect(editor.seek(1)).toBe(true);
+    expect(editor.getSnapshot().inspection?.playState).toBe("finished");
+    expect(editor.play()).toBe(true);
+    expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
+    expect(editor.getSnapshot().inspection?.playState).toBe("running");
+
     editor.destroy();
     registration.destroy();
     registry.destroy();

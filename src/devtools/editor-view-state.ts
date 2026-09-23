@@ -1,3 +1,4 @@
+import type { gsap } from "gsap";
 import type { MotionTimelineReplayState } from "./timeline-control";
 import type { EditorTimeWindow } from "./editor-time";
 import type {
@@ -37,6 +38,19 @@ export interface EditorViewTrack {
   readonly spans: readonly EditorViewTrackSpan[];
 }
 
+export interface EditorViewInspector {
+  readonly trackKey: string;
+  readonly label: string;
+  readonly mapping: "authored" | "automatic";
+  readonly start: number;
+  readonly duration: number;
+  readonly end: number;
+  readonly ease: string | undefined;
+  readonly mixedEase: boolean;
+  readonly animatedTargetCount: number;
+  readonly visualTargetCount: number;
+}
+
 export type EditorViewStatus =
   | "empty"
   | "connecting"
@@ -64,6 +78,7 @@ export interface EditorViewState {
   readonly time: EditorTimeWindow | undefined;
   readonly tracks: readonly EditorViewTrack[];
   readonly selectedTrackKey: string | undefined;
+  readonly inspector: EditorViewInspector | undefined;
   readonly transport: EditorViewTransport;
   readonly error: unknown;
 }
@@ -87,6 +102,30 @@ function status(input: EditorViewInput): EditorViewStatus {
   if (input.error !== undefined) return "error";
   if (!input.inspection) return "connecting";
   return input.inspection.readiness === "ready" ? "ready" : "not-ready";
+}
+
+function inspector(item: TimelineInspectionItem | undefined): EditorViewInspector | undefined {
+  if (!item) return undefined;
+  const eases = item.animations.map((animation) => {
+    const tween = animation as gsap.core.Animation & {
+      readonly vars?: Readonly<Record<string, unknown>>;
+    };
+    return tween.vars?.ease;
+  });
+  const firstEase = eases[0];
+  const mixedEase = eases.some((ease) => ease !== firstEase);
+  return Object.freeze({
+    trackKey: editorTrackKey(item),
+    label: trackLabel(item),
+    mapping: item.trackId === undefined ? "automatic" : "authored",
+    start: item.resolvedStart,
+    duration: item.resolvedDuration,
+    end: item.resolvedEnd,
+    ease: !mixedEase && typeof firstEase === "string" ? firstEase : undefined,
+    mixedEase,
+    animatedTargetCount: item.animatedTargetCount,
+    visualTargetCount: item.sources.length,
+  });
 }
 
 export function buildEditorViewState(input: EditorViewInput): EditorViewState {
@@ -120,6 +159,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     time: input.timeWindow,
     tracks,
     selectedTrackKey: input.selectedItem ? editorTrackKey(input.selectedItem) : undefined,
+    inspector: inspector(input.selectedItem),
     transport: Object.freeze({
       playState,
       timeScale: inspection?.timeScale,
