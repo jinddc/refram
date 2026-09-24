@@ -90,12 +90,19 @@ describe("DevTools editor UI v2", () => {
 
     const handle = mountEditorUi(container, { registry });
     await flush();
-    expect(container.querySelector("[data-role='status']")?.textContent).toBe("Ready");
+    expect(container.querySelector("[data-role='status']")).toBeNull();
     expect(container.querySelector(".devtools-editor__header")).toBeNull();
     expect(container.querySelector(".devtools-editor__identity")).toBeNull();
     expect(container.querySelector("[data-role='pane-switcher']")?.parentElement)
       .toBe(container.querySelector("[data-devtools-editor]"));
     expect(container.querySelectorAll(".devtools-editor__track-block")).toHaveLength(2);
+    expect(container.querySelector("[data-role='duration']")?.textContent)
+      .toBe("00:12.000");
+    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+      .toBe("12s");
+    expect(container.querySelectorAll<HTMLElement>(".devtools-editor__track-block")[0]
+      ?.style.getPropertyValue("--devtools-editor-track-width"))
+      .toContain("8.333333333333332%");
     expect(container.querySelectorAll("[data-timeline-id]")).toHaveLength(2);
     expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
       .toBe("timeline");
@@ -190,7 +197,7 @@ describe("DevTools editor UI v2", () => {
     emptyLaneArea.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true,
       button: 0,
-      clientX: 200,
+      clientX: 36.25,
       clientY: 100,
     }));
     expect(first.timeline.totalProgress()).toBeCloseTo(0.25);
@@ -217,7 +224,7 @@ describe("DevTools editor UI v2", () => {
     playhead.dispatchEvent(new PointerEvent("pointermove", {
       bubbles: true,
       button: 0,
-      clientX: 600,
+      clientX: 84.75,
       clientY: 100,
       pointerId: 7,
     }));
@@ -225,7 +232,7 @@ describe("DevTools editor UI v2", () => {
     playhead.dispatchEvent(new PointerEvent("pointerup", {
       bubbles: true,
       button: 0,
-      clientX: 600,
+      clientX: 84.75,
       clientY: 100,
       pointerId: 7,
     }));
@@ -281,10 +288,13 @@ describe("DevTools editor UI v2", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const handle = mountEditorUi(container, { registry });
-    expect(container.querySelector("[data-role='status']")?.textContent).toBe("Empty");
+    expect(container.querySelector("[data-role='status']")).toBeNull();
     expect(container.querySelector<HTMLButtonElement>("[data-action='play']")?.disabled).toBe(true);
     expect(container.querySelector("[data-role='timeline-list']")?.textContent)
       .toContain("No timelines registered.");
+    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+      .toBe("12s");
+    expect(container.querySelectorAll(".devtools-editor__ruler-mark")).toHaveLength(121);
     expect(container.querySelector<HTMLElement>("[data-role='inspector-empty']")?.hidden)
       .toBe(false);
     expect(container.querySelector<HTMLElement>("[data-role='inspector']")?.hidden)
@@ -292,6 +302,36 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelector("[data-role='preview-surface']")).toBeNull();
     handle.destroy();
     expect(handle.controller.selectTimeline("missing")).toBe(false);
+    registry.destroy();
+  });
+
+  it("maps authored seconds onto the default twelve-second ruler", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    document.body.append(container, root);
+    const handle = mountEditorUi(container, { registry });
+
+    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+      .toBe("12s");
+
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(target, { x: 20, duration: 1 });
+    const timelineRegistration = registry.register({ id: "one-second", root, timeline });
+    await flush();
+
+    expect(container.querySelector("[data-role='duration']")?.textContent)
+      .toBe("00:12.000");
+    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+      .toBe("12s");
+    expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")
+      ?.style.getPropertyValue("--devtools-editor-track-width"))
+      .toContain("8.333333333333332%");
+
+    handle.destroy();
+    timelineRegistration.destroy();
     registry.destroy();
   });
 
@@ -379,7 +419,7 @@ describe("DevTools editor UI v2", () => {
       new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
-        clientX: 320,
+        clientX: 50.8,
         clientY: 100,
       }),
     );
@@ -415,12 +455,12 @@ describe("DevTools editor UI v2", () => {
     const replay = container.querySelector<HTMLButtonElement>("[data-action='replay']")!;
 
     replay.click();
-    expect(container.querySelector("[data-role='status']")?.textContent).toContain("Retry");
+    expect(handle.controller.getSnapshot().view.status).toBe("retryable");
     expect(replay.textContent).toBe("Retry");
     expect(replay.disabled).toBe(false);
 
     replay.click();
-    expect(container.querySelector("[data-role='status']")?.textContent).toBe("Ready");
+    expect(handle.controller.getSnapshot().view.status).toBe("ready");
     expect(replay.textContent).toBe("Replay");
     expect(attempts).toBe(3);
     handle.destroy();

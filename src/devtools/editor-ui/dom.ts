@@ -1,6 +1,7 @@
+export const EDITOR_TIMELINE_EDGE_GUTTER = 12;
+
 export interface EditorUiElements {
   readonly root: HTMLElement;
-  readonly status: HTMLOutputElement;
   readonly paneTabs: readonly HTMLButtonElement[];
   readonly timelineList: HTMLElement;
   readonly timelineListPane: HTMLElement;
@@ -107,10 +108,6 @@ export function createEditorUiElements(): EditorUiElements {
     paneTab("Timeline", "timeline", true),
   ];
   paneSwitcher.append(...paneTabs);
-  const status = element("output", "devtools-editor__status", "Empty");
-  status.dataset.role = "status";
-  status.setAttribute("aria-live", "polite");
-
   const workspace = element("div", "devtools-editor__workspace");
   workspace.dataset.role = "workspace";
 
@@ -144,7 +141,7 @@ export function createEditorUiElements(): EditorUiElements {
   const separator = element("span", "devtools-editor__time-separator", "/");
   const duration = element("output", "devtools-editor__duration", "00:00.000");
   duration.dataset.role = "duration";
-  clock.append(status, currentTime, separator, duration);
+  clock.append(currentTime, separator, duration);
   transport.append(timelineListToggle, playButton, replayButton, clock);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
@@ -182,7 +179,7 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorPane.setAttribute("aria-label", "Track inspector");
   inspectorPane.hidden = true;
   const inspectorHeading = element("header", "devtools-editor__pane-heading");
-  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Inspector"));
+  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Properties"));
   const inspectorCloseButton = action("Close", "close-inspector");
   inspectorCloseButton.classList.add("devtools-editor__inspector-close");
   inspectorHeading.append(inspectorCloseButton);
@@ -202,7 +199,6 @@ export function createEditorUiElements(): EditorUiElements {
 
   return {
     root,
-    status,
     paneTabs,
     timelineList,
     timelineListPane,

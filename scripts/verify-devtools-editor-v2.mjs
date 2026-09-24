@@ -15,16 +15,27 @@ async function verify({ artifactDirectory, send }) {
   const narrow = join(artifactDirectory, "devtools-editor-v2-narrow.png");
 
   await waitFor(
-    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='status']")?.textContent === "Ready" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
+    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:12.000" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
     "the new DevTools editor",
   );
   const desktopState = await evaluate(send, `(() => ({
     timelines: window.__devtoolsEditorV2Harness.queryAll("[data-timeline-id]").length,
     hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
     tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+    rulerEnd: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent,
+    rulerMarks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark").length,
+    zeroTickInset: (() => {
+      const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+      const tick = window.__devtoolsEditorV2Harness.query(".devtools-editor__tick").getBoundingClientRect();
+      return tick.left + tick.width / 2 - content.left;
+    })(),
+    firstBlockRatio: (() => {
+      const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+      const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block").getBoundingClientRect();
+      return block.width / content.width;
+    })(),
     rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
     userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
-    statusPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='status']")).pointerEvents,
     trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-track-key='animation:0']")).pointerEvents,
     viewportPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']")).pointerEvents,
     playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon")),
@@ -54,6 +65,13 @@ async function verify({ artifactDirectory, send }) {
   assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
+  assert(
+    desktopState.rulerEnd === "12s"
+      && desktopState.rulerMarks === 121
+      && desktopState.zeroTickInset >= 10
+      && desktopState.firstBlockRatio < 0.2,
+    `The default ruler or absolute track scale is incorrect: ${JSON.stringify(desktopState)}`,
+  );
   assert(desktopState.rootHeight >= 300 && desktopState.rootHeight <= 421, "The editor is not docked at the expected size.");
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
@@ -99,7 +117,6 @@ async function verify({ artifactDirectory, send }) {
   );
   assert(
     desktopState.userSelect === "none"
-      && desktopState.statusPointerEvents === "none"
       && desktopState.trackPointerEvents === "auto"
       && desktopState.viewportPointerEvents === "auto",
     `Editor interaction styles are incorrect: ${JSON.stringify(desktopState)}`,
@@ -163,7 +180,7 @@ async function verify({ artifactDirectory, send }) {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
     const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
     const lane = lanes[lanes.length - 1].getBoundingClientRect();
-    return { x: content.left + content.width * 0.25, y: lane.top + lane.height / 2 };
+    return { x: content.left + 12 + (content.width - 24) * 0.03, y: lane.top + lane.height / 2 };
   })()`);
   await send("Input.dispatchMouseEvent", { type: "mousePressed", ...seekPoint, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...seekPoint, button: "left", clickCount: 1 });
@@ -172,8 +189,8 @@ async function verify({ artifactDirectory, send }) {
     playState: window.__devtoolsEditorV2Harness.view.transport.playState,
   }))()`);
   assert(
-    runningSeek.progress >= 0.24
-      && runningSeek.progress <= 0.27
+    runningSeek.progress >= 0.029
+      && runningSeek.progress <= 0.033
       && runningSeek.playState === "running",
     `Click seek did not preserve playback: ${JSON.stringify(runningSeek)}`,
   );
@@ -226,7 +243,7 @@ async function verify({ artifactDirectory, send }) {
   }))()`);
   const dragTarget = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-    return { x: content.left + content.width * 0.65, y: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect().top + 12 };
+    return { x: content.left + 12 + (content.width - 24) * 0.08, y: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect().top + 12 };
   })()`);
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...dragTarget, button: "left" });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...dragTarget, button: "left", clickCount: 1 });
@@ -241,8 +258,8 @@ async function verify({ artifactDirectory, send }) {
       && activeDrag.playState === "paused"
       && finishedDrag.dragState === "idle"
       && finishedDrag.playState === "paused"
-      && finishedDrag.progress >= 0.64
-      && finishedDrag.progress <= 0.66
+      && finishedDrag.progress >= 0.079
+      && finishedDrag.progress <= 0.081
       && finishedDrag.cursor.includes("ew-resize"),
     `Playhead drag states are incorrect: ${JSON.stringify({ activeDrag, finishedDrag })}`,
   );
@@ -274,12 +291,12 @@ async function verify({ artifactDirectory, send }) {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
     const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
     const lane = lanes[lanes.length - 1].getBoundingClientRect();
-    return { x: content.left + content.width * 0.4, y: lane.top + lane.height / 2 };
+    return { x: content.left + 12 + (content.width - 24) * 0.05, y: lane.top + lane.height / 2 };
   })()`);
   await send("Input.dispatchMouseEvent", { type: "mousePressed", ...finishedSeekPoint, button: "left", clickCount: 1 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...finishedSeekPoint, button: "left", clickCount: 1 });
   assert(
-    await evaluate(send, `window.__devtoolsEditorV2Harness.activeTimelinePaused === true && window.__devtoolsEditorV2Harness.view.transport.playState === "paused" && window.__devtoolsEditorV2Harness.view.time.progress >= 0.39 && window.__devtoolsEditorV2Harness.view.time.progress <= 0.41`),
+    await evaluate(send, `window.__devtoolsEditorV2Harness.activeTimelinePaused === true && window.__devtoolsEditorV2Harness.view.transport.playState === "paused" && window.__devtoolsEditorV2Harness.view.time.progress >= 0.049 && window.__devtoolsEditorV2Harness.view.time.progress <= 0.051`),
     "Click-seeking a finished timeline resumed playback.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
@@ -287,8 +304,17 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:12.000"`),
     "the finite particle window",
+  );
+  const particleZeroState = await evaluate(send, `(() => {
+    const tick = window.__devtoolsEditorV2Harness.query(".devtools-editor__tick[data-edge='start']").getBoundingClientRect();
+    const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon").getBoundingClientRect();
+    return { tickLeft: tick.left, iconRight: icon.right };
+  })()`);
+  assert(
+    particleZeroState.tickLeft > particleZeroState.iconRight,
+    `The zero-second ruler label overlaps the playhead: ${JSON.stringify(particleZeroState)}`,
   );
   assert(
     await evaluate(send, `document.querySelector("#devtools-v2-particles").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles" && window.__devtoolsEditorV2Harness.view.time.start === 99`),
@@ -384,7 +410,7 @@ async function verify({ artifactDirectory, send }) {
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.remount()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='status']")?.textContent === "Ready"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1`),
     "editor destroy and remount",
   );
 
@@ -392,6 +418,10 @@ async function verify({ artifactDirectory, send }) {
     status: "pass",
     checks: [
       "timeline-selection",
+      "default-twelve-second-ruler",
+      "absolute-track-time-scale",
+      "standard-particle-ruler",
+      "ruler-detail-and-edge-spacing",
       "header-removed",
       "idle-inspector-hidden",
       "desktop-timeline-list-toggle",

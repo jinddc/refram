@@ -4,7 +4,10 @@ import {
   type EditorControllerOptions,
   type EditorSnapshot,
 } from "../editor-controller";
-import { createEditorUiElements } from "./dom";
+import {
+  createEditorUiElements,
+  EDITOR_TIMELINE_EDGE_GUTTER,
+} from "./dom";
 import { renderEditorUi } from "./render";
 
 export interface EditorUiHandle {
@@ -180,8 +183,12 @@ export function mountEditorUi(
 
   const progressAt = (clientX: number): number | undefined => {
     const bounds = elements.timelineContent.getBoundingClientRect();
-    if (bounds.width <= 0) return undefined;
-    return Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width));
+    const width = bounds.width - EDITOR_TIMELINE_EDGE_GUTTER * 2;
+    if (width <= 0) return undefined;
+    return Math.min(1, Math.max(
+      0,
+      (clientX - bounds.left - EDITOR_TIMELINE_EDGE_GUTTER) / width,
+    ));
   };
 
   const isScrollbarPointer = (event: PointerEvent): boolean => {

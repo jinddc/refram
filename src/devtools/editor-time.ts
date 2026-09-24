@@ -1,6 +1,8 @@
 import type { gsap } from "gsap";
 import type { TimelineInspectionItem, TimelineInspectionSnapshot } from "./timeline-session";
 
+export const DEFAULT_FINITE_TIMELINE_DURATION = 12;
+
 export interface EditorTrackSpan {
   readonly item: TimelineInspectionItem;
   readonly start: number;
@@ -52,18 +54,25 @@ function cycleDuration(timeline: gsap.core.Timeline): number | undefined {
 }
 
 function visibleTracks(
-  timeline: gsap.core.Timeline,
   inspection: TimelineInspectionSnapshot,
   start: number,
   end: number,
   duration: number,
+  repeatPeriod: number | undefined,
 ): readonly EditorTrackSpan[] {
   const spans: EditorTrackSpan[] = [];
   for (const item of inspection.items) {
-    const offsets = timeline.repeat() === -1 && item.resolvedDuration <= duration
-      ? [Math.floor((start - item.resolvedStart) / duration) * duration,
-        Math.ceil((start - item.resolvedStart) / duration) * duration]
-      : [0];
+    const offsets: number[] = [];
+    if (repeatPeriod !== undefined && item.resolvedDuration <= repeatPeriod) {
+      let offset = Math.floor((start - item.resolvedEnd) / repeatPeriod) * repeatPeriod;
+      const limit = Math.ceil(duration / repeatPeriod) + 2;
+      for (let index = 0; index < limit; index += 1, offset += repeatPeriod) {
+        if (item.resolvedStart + offset >= end) break;
+        if (item.resolvedEnd + offset > start) offsets.push(offset);
+      }
+    } else {
+      offsets.push(0);
+    }
     for (const offset of new Set(offsets)) {
       const visibleStart = Math.max(start, item.resolvedStart + offset);
       const visibleEnd = Math.min(end, item.resolvedEnd + offset);
@@ -82,13 +91,18 @@ export function readEditorTimeWindow(
   timeline: gsap.core.Timeline,
   inspection: TimelineInspectionSnapshot,
   origin: number,
+  cursorTime?: number,
 ): EditorTimeWindow | undefined {
   const periods = repeatingPeriods(timeline);
   const repeating = periods.length > 0;
-  const duration = repeating ? cycleDuration(timeline) : inspection.totalDuration;
-  if (duration === undefined || !Number.isFinite(duration) || duration <= 0) return undefined;
+  const repeatPeriod = repeating ? cycleDuration(timeline) : undefined;
+  const sourceDuration = repeating ? repeatPeriod : inspection.totalDuration;
+  if (sourceDuration === undefined || !Number.isFinite(sourceDuration) || sourceDuration <= 0) {
+    return undefined;
+  }
+  const duration = Math.max(DEFAULT_FINITE_TIMELINE_DURATION, sourceDuration);
 
-  const time = timeline.totalTime();
+  const time = !repeating && cursorTime !== undefined ? cursorTime : timeline.totalTime();
   const start = repeating
     ? Math.max(0, origin + Math.floor((time - origin) / duration) * duration)
     : 0;
@@ -100,6 +114,6 @@ export function readEditorTimeWindow(
     time,
     progress: clamp((time - start) / duration, 0, 1),
     repeating,
-    tracks: visibleTracks(timeline, inspection, start, end, duration),
+    tracks: visibleTracks(inspection, start, end, duration, repeatPeriod),
   });
 }

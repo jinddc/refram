@@ -1,7 +1,16 @@
 import type { EditorViewState, EditorViewTrack } from "../editor-view-state";
-import type { EditorUiElements } from "./dom";
+import {
+  EDITOR_TIMELINE_EDGE_GUTTER,
+  type EditorUiElements,
+} from "./dom";
 
-const TICK_COUNT = 5;
+const TICK_COUNT = 12;
+const MINOR_TICKS_PER_SECOND = 10;
+
+function timelinePosition(progress: number): string {
+  const offset = EDITOR_TIMELINE_EDGE_GUTTER * (1 - progress * 2);
+  return `calc(${progress * 100}% + ${offset}px)`;
+}
 
 function node<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -23,6 +32,7 @@ function formatTime(seconds: number): string {
 }
 
 function formatRulerTime(seconds: number): string {
+  if (Number.isInteger(seconds)) return `${seconds}s`;
   if (seconds < 10) return `${seconds.toFixed(1)}s`;
   if (seconds < 60) return `${Math.round(seconds)}s`;
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
@@ -51,21 +61,6 @@ function renderTimelines(elements: EditorUiElements, view: EditorViewState): voi
   elements.timelineList.replaceChildren(...entries);
 }
 
-function renderStatus(elements: EditorUiElements, view: EditorViewState): void {
-  const labels = {
-    empty: "Empty",
-    connecting: "Connecting",
-    ready: "Ready",
-    "not-ready": "No tracks",
-    retryable: "Replay failed. Retry available",
-    blocked: "Replay blocked",
-    error: "Timeline error",
-  } as const;
-  elements.status.value = labels[view.status];
-  elements.status.textContent = elements.status.value;
-  elements.status.dataset.state = view.status;
-}
-
 function renderTransport(elements: EditorUiElements, view: EditorViewState): void {
   const running = view.transport.playState === "running";
   elements.playButton.textContent = running ? "Pause" : "Play";
@@ -82,22 +77,40 @@ function renderTransport(elements: EditorUiElements, view: EditorViewState): voi
   elements.duration.value = formatTime(time?.duration ?? 0);
   elements.duration.textContent = elements.duration.value;
   elements.root.style.setProperty("--devtools-editor-progress", String(time?.progress ?? 0));
+  elements.root.style.setProperty(
+    "--devtools-editor-playhead-position",
+    timelinePosition(time?.progress ?? 0),
+  );
   elements.playhead.setAttribute("aria-valuenow", String(Math.round((time?.progress ?? 0) * 100)));
   elements.playhead.setAttribute("aria-valuetext", elements.currentTime.value);
 }
 
 function renderRuler(elements: EditorUiElements, view: EditorViewState): void {
-  const signature = String(view.time?.duration ?? 0);
+  const duration = view.time?.duration ?? 12;
+  const signature = String(duration);
   if (elements.ruler.dataset.signature === signature) return;
   elements.ruler.dataset.signature = signature;
+  const marks = Array.from(
+    { length: TICK_COUNT * MINOR_TICKS_PER_SECOND + 1 },
+    (_, index) => {
+      const mark = node("span", "devtools-editor__ruler-mark");
+      const progress = index / (TICK_COUNT * MINOR_TICKS_PER_SECOND);
+      mark.style.left = timelinePosition(progress);
+      mark.dataset.major = String(index % MINOR_TICKS_PER_SECOND === 0);
+      mark.dataset.mid = String(index % (MINOR_TICKS_PER_SECOND / 2) === 0);
+      return mark;
+    },
+  );
   const ticks = Array.from({ length: TICK_COUNT + 1 }, (_, index) => {
     const tick = node("span", "devtools-editor__tick");
     const progress = index / TICK_COUNT;
-    tick.style.left = `${progress * 100}%`;
-    tick.textContent = formatRulerTime((view.time?.duration ?? 0) * progress);
+    tick.style.left = timelinePosition(progress);
+    tick.textContent = formatRulerTime(duration * progress);
+    if (index === 0) tick.dataset.edge = "start";
+    if (index === TICK_COUNT) tick.dataset.edge = "end";
     return tick;
   });
-  elements.ruler.replaceChildren(...ticks);
+  elements.ruler.replaceChildren(...marks, ...ticks);
 }
 
 function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
@@ -112,13 +125,16 @@ function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
     lane.append(unavailable);
   } else {
     for (const span of track.spans) {
-      const block = node("button", "devtools-editor__track-block", track.label);
+      const block = node("button", "devtools-editor__track-block");
       block.type = "button";
       block.dataset.trackKey = track.key;
       block.dataset.selected = String(track.selected);
       block.setAttribute("aria-pressed", String(track.selected));
-      block.style.left = `${span.start * 100}%`;
-      block.style.width = `${Math.max(0.8, (span.end - span.start) * 100)}%`;
+      block.style.setProperty("--devtools-editor-track-left", timelinePosition(span.start));
+      block.style.setProperty(
+        "--devtools-editor-track-width",
+        `calc(${(span.end - span.start) * 100}% - ${EDITOR_TIMELINE_EDGE_GUTTER * 2 * (span.end - span.start)}px)`,
+      );
       lane.append(block);
     }
   }
@@ -212,7 +228,6 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
 
 export function renderEditorUi(elements: EditorUiElements, view: EditorViewState): void {
   renderTimelines(elements, view);
-  renderStatus(elements, view);
   renderTransport(elements, view);
   renderRuler(elements, view);
   renderTracks(elements, view);
