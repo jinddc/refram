@@ -9,6 +9,7 @@ import {
   EDITOR_TIMELINE_EDGE_GUTTER,
 } from "./dom";
 import { renderEditorUi } from "./render";
+import { createSelectionHighlightOverlay } from "./selection-highlight-overlay";
 
 export interface EditorUiHandle {
   readonly controller: EditorController;
@@ -17,15 +18,6 @@ export interface EditorUiHandle {
 
 export interface EditorUiOptions extends EditorControllerOptions {
   readonly controller?: EditorController;
-}
-
-interface HighlightedSource {
-  readonly source: Element;
-  readonly style: CSSStyleDeclaration | undefined;
-  readonly outline: string;
-  readonly outlinePriority: string;
-  readonly outlineOffset: string;
-  readonly outlineOffsetPriority: string;
 }
 
 type EditorPane = "timelines" | "timeline";
@@ -39,10 +31,10 @@ export function mountEditorUi(
   const ownsController = options.controller === undefined;
   const controller = options.controller ?? createEditorController(options);
   const elements = createEditorUiElements();
+  const selectionHighlight = createSelectionHighlightOverlay(container.ownerDocument);
   const eventController = new AbortController();
   const listenerOptions = { signal: eventController.signal };
   let destroyed = false;
-  let highlightedSources: HighlightedSource[] = [];
   let dragPointerId: number | undefined;
   let inspectorTriggerKey: string | undefined;
   let inspectorTriggerClass: string | undefined;
@@ -87,54 +79,12 @@ export function mountEditorUi(
     }
   };
 
-  const clearHighlight = (): void => {
-    for (const highlighted of highlightedSources) {
-      highlighted.source.removeAttribute("data-devtools-editor-selected");
-      highlighted.style?.setProperty(
-        "outline",
-        highlighted.outline,
-        highlighted.outlinePriority,
-      );
-      highlighted.style?.setProperty(
-        "outline-offset",
-        highlighted.outlineOffset,
-        highlighted.outlineOffsetPriority,
-      );
-    }
-    highlightedSources = [];
-  };
-
-  const highlightSelection = (snapshot: EditorSnapshot): void => {
-    const sources = snapshot.selectedItem?.sources ?? [];
-    if (sources.length === highlightedSources.length
-      && sources.every((source, index) => source === highlightedSources[index]?.source)) return;
-    clearHighlight();
-    highlightedSources = sources.map((source) => {
-      const style = source instanceof HTMLElement || source instanceof SVGElement
-        ? source.style
-        : undefined;
-      const highlighted = {
-        source,
-        style,
-        outline: style?.getPropertyValue("outline") ?? "",
-        outlinePriority: style?.getPropertyPriority("outline") ?? "",
-        outlineOffset: style?.getPropertyValue("outline-offset") ?? "",
-        outlineOffsetPriority: style?.getPropertyPriority("outline-offset") ?? "",
-      } satisfies HighlightedSource;
-      source.setAttribute("data-devtools-editor-selected", "true");
-      style?.setProperty(
-        "outline",
-        "2px solid var(--devtools-editor-accent, #47d7e8)",
-        "important",
-      );
-      style?.setProperty("outline-offset", "4px");
-      return highlighted;
-    });
-  };
-
   const render = (snapshot: EditorSnapshot): void => {
     if (destroyed) return;
-    highlightSelection(snapshot);
+    selectionHighlight.update(
+      snapshot.selectedItem?.sources ?? [],
+      snapshot.selectedItem?.label,
+    );
     renderEditorUi(elements, snapshot.view);
   };
 
@@ -325,7 +275,7 @@ export function mountEditorUi(
       dragPointerId = undefined;
       eventController.abort();
       unsubscribe();
-      clearHighlight();
+      selectionHighlight.destroy();
       elements.root.remove();
       if (ownsController) controller.destroy();
     },

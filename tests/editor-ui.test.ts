@@ -43,6 +43,20 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
+function bounds(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 function registration(id: string, label: string) {
   const root = document.createElement("section");
   const first = document.createElement("article");
@@ -76,6 +90,60 @@ function registration(id: string, label: string) {
 }
 
 describe("DevTools editor UI v2", () => {
+  it("renders a non-interactive selection overlay that follows the target", async () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("overlay", "Overlay sequence");
+    const registered = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, fixture.root);
+    fixture.first.style.outline = "3px dashed tomato";
+    const originalOutline = fixture.first.style.outline;
+    fixture.first.setAttribute("data-devtools-editor-selected", "consumer");
+    let targetBounds = bounds(24, 36, 120, 48);
+    vi.spyOn(fixture.first, "getBoundingClientRect")
+      .mockImplementation(() => targetBounds);
+
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+    container.querySelector<HTMLButtonElement>(
+      ".devtools-editor__track-block[data-track-key='track:opening']",
+    )?.click();
+
+    const overlayRoot = document.querySelector<HTMLElement>(
+      "[data-devtools-editor-highlight-root]",
+    )!;
+    const overlay = overlayRoot.querySelector<HTMLElement>(
+      "[data-devtools-editor-highlight]",
+    )!;
+    expect(overlayRoot.style.pointerEvents).toBe("none");
+    expect(overlayRoot.style.zIndex).toBe("2147483646");
+    expect(overlay.getAttribute("aria-hidden")).toBeNull();
+    expect(overlay.style.left).toBe("24px");
+    expect(overlay.style.top).toBe("36px");
+    expect(overlay.style.width).toBe("120px");
+    expect(overlay.style.height).toBe("48px");
+    expect(overlay.textContent).toContain("Opening");
+    expect(overlay.textContent).toContain("article#overlay-first");
+    expect(fixture.first.style.outline).toBe(originalOutline);
+    expect(fixture.first.getAttribute("data-devtools-editor-selected")).toBe("true");
+
+    targetBounds = bounds(80, 92, 180, 64);
+    await flush();
+    expect(overlay.style.left).toBe("80px");
+    expect(overlay.style.top).toBe("92px");
+    expect(overlay.style.width).toBe("180px");
+    expect(overlay.style.height).toBe("64px");
+
+    container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
+    expect(document.querySelector("[data-devtools-editor-highlight-root]")).toBeNull();
+    expect(fixture.first.getAttribute("data-devtools-editor-selected")).toBe("consumer");
+    expect(fixture.first.style.outline).toBe(originalOutline);
+
+    handle.destroy();
+    registered.destroy();
+    registry.destroy();
+  });
+
   it("clamps the playhead to the authored animation duration", async () => {
     const registry = createTimelineRegistry();
     const finite = registration("play-from-empty-time", "Play from empty time");
@@ -520,7 +588,8 @@ describe("DevTools editor UI v2", () => {
     shadow.querySelector<HTMLButtonElement>(
       ".devtools-editor__track-block[data-track-key='track:opening']",
     )?.click();
-    expect(fixture.first.style.outline).toContain("--devtools-editor-accent");
+    expect(document.querySelectorAll("[data-devtools-editor-highlight]")).toHaveLength(1);
+    expect(fixture.first.style.outline).toBe("");
 
     editor.remove();
     expect(editor.controller).toBeUndefined();
@@ -528,6 +597,7 @@ describe("DevTools editor UI v2", () => {
     expect(fixture.root.slot).toBe("application-slot");
     expect(fixture.first.style.outline).toBe("");
     expect(fixture.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
+    expect(document.querySelector("[data-devtools-editor-highlight-root]")).toBeNull();
 
     document.body.append(editor);
     await flush();

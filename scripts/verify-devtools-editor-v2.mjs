@@ -122,9 +122,37 @@ async function verify({ artifactDirectory, send }) {
     `Editor interaction styles are incorrect: ${JSON.stringify(desktopState)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
+  const highlightState = await evaluate(send, `(() => {
+    const target = document.querySelector("[data-devtools-editor-selected='true']");
+    const overlay = document.querySelector("[data-devtools-editor-highlight]");
+    const targetBounds = target?.getBoundingClientRect();
+    const overlayBounds = overlay?.getBoundingClientRect();
+    return {
+      selectedTargets: document.querySelectorAll("[data-devtools-editor-selected='true']").length,
+      overlays: document.querySelectorAll("[data-devtools-editor-highlight]").length,
+      pointerEvents: getComputedStyle(document.querySelector("[data-devtools-editor-highlight-root]")).pointerEvents,
+      overlayZIndex: Number(getComputedStyle(document.querySelector("[data-devtools-editor-highlight-root]")).zIndex),
+      editorZIndex: Number(getComputedStyle(document.querySelector("motion-devtools-editor")).zIndex),
+      label: overlay?.textContent,
+      targetOutline: target?.style.outline,
+      aligned: Boolean(targetBounds && overlayBounds
+        && Math.abs(targetBounds.left - overlayBounds.left) <= 1
+        && Math.abs(targetBounds.top - overlayBounds.top) <= 1
+        && Math.abs(targetBounds.width - overlayBounds.width) <= 1
+        && Math.abs(targetBounds.height - overlayBounds.height) <= 1),
+      pressed: window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed"),
+    };
+  })()`);
   assert(
-    await evaluate(send, `document.querySelectorAll("[data-devtools-editor-selected='true']").length === 1 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "true"`),
-    "Track selection did not synchronize with the preview.",
+    highlightState.selectedTargets === 1
+      && highlightState.overlays === 1
+      && highlightState.pointerEvents === "none"
+      && highlightState.overlayZIndex < highlightState.editorZIndex
+      && highlightState.label
+      && highlightState.targetOutline === ""
+      && highlightState.aligned
+      && highlightState.pressed === "true",
+    `Track selection overlay did not synchronize with the preview: ${JSON.stringify(highlightState)}`,
   );
   const inspectorState = await evaluate(send, `(() => ({
     hidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden,
@@ -175,6 +203,18 @@ async function verify({ artifactDirectory, send }) {
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.textContent === "Pause"`),
     "finite timeline playback",
+  );
+  assert(
+    await evaluate(send, `(() => {
+      const target = document.querySelector("[data-devtools-editor-selected='true']")?.getBoundingClientRect();
+      const overlay = document.querySelector("[data-devtools-editor-highlight]")?.getBoundingClientRect();
+      return Boolean(target && overlay
+        && Math.abs(target.left - overlay.left) <= 1
+        && Math.abs(target.top - overlay.top) <= 1
+        && Math.abs(target.width - overlay.width) <= 1
+        && Math.abs(target.height - overlay.height) <= 1);
+    })()`),
+    "The selection overlay did not follow the animated target.",
   );
   const seekPoint = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
@@ -416,7 +456,7 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
   assert(
-    await evaluate(send, `document.querySelectorAll("motion-devtools-editor").length === 0 && document.querySelector("#devtools-v2-finite").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles"`),
+    await evaluate(send, `document.querySelectorAll("motion-devtools-editor").length === 0 && document.querySelectorAll("[data-devtools-editor-highlight-root]").length === 0 && document.querySelector("#devtools-v2-finite").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles"`),
     "Destroying the editor removed or moved application roots.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.remount()`);
