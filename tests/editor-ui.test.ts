@@ -21,6 +21,7 @@ let nextFrame = 0;
 beforeEach(() => {
   frames = new Map();
   nextFrame = 0;
+  sessionStorage.clear();
   vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
     const id = ++nextFrame;
     frames.set(id, callback);
@@ -90,6 +91,194 @@ function registration(id: string, label: string) {
 }
 
 describe("DevTools editor UI v2", () => {
+  it("exposes keyboard height resizing, clamps values, and resets to the CSS default", () => {
+    vi.stubGlobal("innerHeight", 800);
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    container.style.setProperty("--devtools-editor-height", "260px");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(bounds(0, 540, 1000, 260));
+    document.body.append(container);
+
+    const handle = mountEditorUi(container, { registry });
+    const separator = container.querySelector<HTMLElement>("[data-role='height-separator']")!;
+    expect(separator.getAttribute("role")).toBe("separator");
+    expect(separator.getAttribute("aria-orientation")).toBe("horizontal");
+    expect(separator.getAttribute("aria-label")).toBe("Resize DevTools editor height");
+    expect(separator.getAttribute("aria-valuemin")).toBe("180");
+    expect(separator.getAttribute("aria-valuemax")).toBe("520");
+    expect(separator.getAttribute("aria-valuenow")).toBe("260");
+
+    separator.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "ArrowUp",
+    }));
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("276px");
+    expect(separator.getAttribute("aria-valuetext")).toBe("276 pixels high");
+
+    for (let index = 0; index < 10; index += 1) {
+      separator.dispatchEvent(new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "ArrowUp",
+        shiftKey: true,
+      }));
+    }
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("520px");
+
+    for (let index = 0; index < 10; index += 1) {
+      separator.dispatchEvent(new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "ArrowDown",
+        shiftKey: true,
+      }));
+    }
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("180px");
+
+    separator.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("260px");
+    expect(sessionStorage.getItem("motion-lab-devtools-editor-height-ratio")).toBeNull();
+
+    const storagePrototype = Object.getPrototypeOf(sessionStorage) as Storage;
+    vi.spyOn(storagePrototype, "setItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+    expect(() => separator.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "ArrowUp",
+    }))).not.toThrow();
+
+    handle.destroy();
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("260px");
+    registry.destroy();
+  });
+
+  it("batches pointer resizing and releases resize resources on every finish path", async () => {
+    vi.stubGlobal("innerHeight", 800);
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    container.style.setProperty("--devtools-editor-height", "250px", "important");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(bounds(0, 550, 1000, 250));
+    document.body.append(container);
+    const handle = mountEditorUi(container, { registry });
+    const separator = container.querySelector<HTMLElement>("[data-role='height-separator']")!;
+    const setPointerCapture = vi.spyOn(separator, "setPointerCapture")
+      .mockImplementation(() => undefined);
+    const releasePointerCapture = vi.spyOn(separator, "releasePointerCapture")
+      .mockImplementation(() => undefined);
+    vi.spyOn(separator, "hasPointerCapture").mockReturnValue(true);
+
+    separator.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      pointerId: 4,
+    }));
+    separator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientY: 400,
+      pointerId: 4,
+    }));
+    separator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientY: 380,
+      pointerId: 4,
+    }));
+    expect(setPointerCapture).toHaveBeenCalledWith(4);
+    expect(separator.dataset.resizeState).toBe("active");
+    expect(frames.size).toBe(1);
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("250px");
+
+    await flush();
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("420px");
+    separator.dispatchEvent(new PointerEvent("pointercancel", {
+      bubbles: true,
+      pointerId: 4,
+    }));
+    expect(releasePointerCapture).toHaveBeenCalledWith(4);
+    expect(separator.dataset.resizeState).toBe("idle");
+    expect(Number(sessionStorage.getItem("motion-lab-devtools-editor-height-ratio")))
+      .toBeCloseTo(0.525);
+
+    separator.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      pointerId: 5,
+    }));
+    separator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientY: 100,
+      pointerId: 5,
+    }));
+    separator.dispatchEvent(new PointerEvent("lostpointercapture", {
+      bubbles: true,
+      pointerId: 5,
+    }));
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("520px");
+    expect(frames.size).toBe(0);
+
+    vi.stubGlobal("innerHeight", 1000);
+    window.dispatchEvent(new Event("resize"));
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("650px");
+    expect(separator.getAttribute("aria-valuemax")).toBe("720");
+
+    separator.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      pointerId: 6,
+    }));
+    separator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientY: 500,
+      pointerId: 6,
+    }));
+    handle.destroy();
+    expect(releasePointerCapture).toHaveBeenCalledWith(6);
+    expect(frames.size).toBe(0);
+    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("250px");
+    expect(container.style.getPropertyPriority("--devtools-editor-height")).toBe("important");
+    registry.destroy();
+  });
+
+  it("restores a stored height ratio on remount at a new viewport size", () => {
+    vi.stubGlobal("innerHeight", 800);
+    const registry = createTimelineRegistry();
+    const firstContainer = document.createElement("div");
+    vi.spyOn(firstContainer, "getBoundingClientRect")
+      .mockReturnValue(bounds(0, 500, 1000, 300));
+    document.body.append(firstContainer);
+    const firstHandle = mountEditorUi(firstContainer, { registry });
+    const firstSeparator = firstContainer.querySelector<HTMLElement>(
+      "[data-role='height-separator']",
+    )!;
+    vi.spyOn(firstSeparator, "setPointerCapture").mockImplementation(() => undefined);
+    vi.spyOn(firstSeparator, "hasPointerCapture").mockReturnValue(false);
+    firstSeparator.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      pointerId: 7,
+    }));
+    firstSeparator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientY: 400,
+      pointerId: 7,
+    }));
+    firstSeparator.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      pointerId: 7,
+    }));
+    expect(firstContainer.style.getPropertyValue("--devtools-editor-height")).toBe("400px");
+    firstHandle.destroy();
+
+    vi.stubGlobal("innerHeight", 1000);
+    const secondContainer = document.createElement("div");
+    document.body.append(secondContainer);
+    const secondHandle = mountEditorUi(secondContainer, { registry });
+    expect(secondContainer.style.getPropertyValue("--devtools-editor-height")).toBe("500px");
+    expect(secondContainer.querySelector("[data-role='height-separator']")
+      ?.getAttribute("aria-valuenow")).toBe("500");
+
+    secondHandle.destroy();
+    registry.destroy();
+  });
+
   it("renders a non-interactive selection overlay that follows the target", async () => {
     const registry = createTimelineRegistry();
     const fixture = registration("overlay", "Overlay sequence");
@@ -585,6 +774,19 @@ describe("DevTools editor UI v2", () => {
     expect(fixture.root.slot).toBe("application-slot");
     expect(shadow.querySelector("slot")).toBeNull();
 
+    const heightSeparator = shadow.querySelector<HTMLElement>(
+      "[data-role='height-separator']",
+    )!;
+    const initialHeight = Number(heightSeparator.getAttribute("aria-valuenow"));
+    heightSeparator.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "ArrowUp",
+    }));
+    const resizedHeight = editor.style.getPropertyValue("--devtools-editor-height");
+    expect(Number.parseFloat(resizedHeight)).toBeCloseTo(initialHeight + 16, 0);
+    expect(shadow.querySelector<HTMLElement>("[data-devtools-editor]")
+      ?.style.getPropertyValue("--devtools-editor-height")).toBe("");
+
     shadow.querySelector<HTMLButtonElement>(
       ".devtools-editor__track-block[data-track-key='track:opening']",
     )?.click();
@@ -593,6 +795,7 @@ describe("DevTools editor UI v2", () => {
 
     editor.remove();
     expect(editor.controller).toBeUndefined();
+    expect(editor.style.getPropertyValue("--devtools-editor-height")).toBe("");
     expect(sourceHome.contains(fixture.root)).toBe(true);
     expect(fixture.root.slot).toBe("application-slot");
     expect(fixture.first.style.outline).toBe("");
@@ -603,6 +806,7 @@ describe("DevTools editor UI v2", () => {
     await flush();
     expect(editor.controller).toBeDefined();
     expect(editor.controller).not.toBe(firstController);
+    expect(editor.style.getPropertyValue("--devtools-editor-height")).toBe(resizedHeight);
 
     editor.remove();
     timelineRegistration.destroy();

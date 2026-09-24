@@ -2,6 +2,7 @@ export const EDITOR_TIMELINE_EDGE_GUTTER = 12;
 
 export interface EditorUiElements {
   readonly root: HTMLElement;
+  readonly heightSeparator: HTMLElement;
   readonly paneTabs: readonly HTMLButtonElement[];
   readonly timelineList: HTMLElement;
   readonly timelineListPane: HTMLElement;
@@ -99,6 +100,14 @@ export function createEditorUiElements(): EditorUiElements {
   root.dataset.devtoolsEditor = "";
   root.tabIndex = -1;
 
+  const heightSeparator = element("div", "devtools-editor__height-separator");
+  heightSeparator.dataset.role = "height-separator";
+  heightSeparator.dataset.resizeState = "idle";
+  heightSeparator.tabIndex = 0;
+  heightSeparator.setAttribute("role", "separator");
+  heightSeparator.setAttribute("aria-label", "Resize DevTools editor height");
+  heightSeparator.setAttribute("aria-orientation", "horizontal");
+
   const paneSwitcher = element("div", "devtools-editor__pane-switcher");
   paneSwitcher.dataset.role = "pane-switcher";
   paneSwitcher.setAttribute("role", "tablist");
@@ -195,10 +204,11 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorPane.append(inspectorHeading, inspectorEmpty, inspectorContent);
 
   workspace.append(timelineListPane, timeline, inspectorPane);
-  root.append(paneSwitcher, workspace);
+  root.append(heightSeparator, paneSwitcher, workspace);
 
   return {
     root,
+    heightSeparator,
     paneTabs,
     timelineList,
     timelineListPane,

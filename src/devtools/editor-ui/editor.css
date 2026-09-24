@@ -33,6 +33,7 @@
   --devtools-editor-drag-cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMyIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSIgdmlld0JveD0iMCAwIDIzIDIwIj48ZyBmaWx0ZXI9InVybCgjYSkiPjxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik05LjUgMXY2LjAxSDguNDhWMy41NEwyLjUgOS4wMWw1Ljk4IDUuNDZ2LTMuNDhIOS41VjE3aDMuOTh2LTYuMDFoMS4wNnYzLjQ3bDUuOTYtNS40Ny01Ljk2LTUuNDZWN2gtMS4wNlYxeiIvPjxwYXRoIGZpbGw9IiMwMDAiIGQ9Im0xOC44NCA4Ljk5LTMuMzItMy4yMnYyLjI1SDEyLjVWMi4wNmgtLjAydi0uMDJoLTEuOTR2Nkg3LjQ4VjUuNzZMNC4xNiA5LjAxbDMuMzIgMy4yMlY5Ljk4aDMuMDZ2NmgxLjk2di02aDMuMDJ2Mi4yNnoiLz48L2c+PGRlZnM+PGZpbHRlciBpZD0iYSIgd2lkdGg9IjIxLjYiIGhlaWdodD0iMTkuNiIgeD0iLjciIHk9Ii4yIiBjb2xvci1pbnRlcnBvbGF0aW9uLWZpbHRlcnM9InNSR0IiIGZpbHRlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PGZlRmxvb2QgZmxvb2Qtb3BhY2l0eT0iMCIgcmVzdWx0PSJCYWNrZ3JvdW5kSW1hZ2VGaXgiLz48ZmVDb2xvck1hdHJpeCBpbj0iU291cmNlQWxwaGEiIHJlc3VsdD0iaGFyZEFscGhhIiB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDEyNyAwIi8+PGZlT2Zmc2V0IGR5PSIxIi8+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iLjkiLz48ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAuNjUgMCIvPjxmZUJsZW5kIGluMj0iQmFja2dyb3VuZEltYWdlRml4IiByZXN1bHQ9ImVmZmVjdDFfZHJvcFNoYWRvd180ODAyXzk5NDgiLz48ZmVCbGVuZCBpbj0iU291cmNlR3JhcGhpYyIgaW4yPSJlZmZlY3QxX2Ryb3BTaGFkb3dfNDgwMl85OTQ4IiByZXN1bHQ9InNoYXBlIi8+PC9maWx0ZXI+PC9kZWZzPjwvc3ZnPg==") 11 10, ew-resize;
   --devtools-editor-progress: 0;
   display: grid;
+  position: relative;
   grid-template-rows: minmax(0, 1fr);
   width: 100%;
   min-width: 320px;
@@ -43,6 +44,35 @@
   background: #101216;
   box-shadow: 0 -16px 48px rgb(0 0 0 / 42%);
   user-select: none;
+}
+
+.devtools-editor__height-separator {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 9px;
+  border: 0;
+  outline: 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.devtools-editor__height-separator::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: #454b54;
+  content: "";
+}
+
+.devtools-editor__height-separator:focus-visible::after,
+.devtools-editor__height-separator[data-resize-state="active"]::after {
+  height: 2px;
+  background: var(--devtools-editor-accent);
 }
 
 .devtools-editor button {

@@ -8,6 +8,7 @@ import {
   createEditorUiElements,
   EDITOR_TIMELINE_EDGE_GUTTER,
 } from "./dom";
+import { createEditorHeightResize } from "./editor-height-resize";
 import { renderEditorUi } from "./render";
 import { createSelectionHighlightOverlay } from "./selection-highlight-overlay";
 
@@ -246,6 +247,11 @@ export function mountEditorUi(
   setTimelineListVisible(true);
   setActivePane("timeline");
   container.append(elements.root);
+  const heightResize = createEditorHeightResize(
+    container,
+    elements.root,
+    elements.heightSeparator,
+  );
   elements.root.addEventListener("click", onClick, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
   elements.timelineViewport.addEventListener(
@@ -275,6 +281,7 @@ export function mountEditorUi(
       dragPointerId = undefined;
       eventController.abort();
       unsubscribe();
+      heightResize.destroy();
       selectionHighlight.destroy();
       elements.root.remove();
       if (ownsController) controller.destroy();

@@ -121,6 +121,120 @@ async function verify({ artifactDirectory, send }) {
       && desktopState.viewportPointerEvents === "auto",
     `Editor interaction styles are incorrect: ${JSON.stringify(desktopState)}`,
   );
+  const resizeHitTarget = await evaluate(send, `(() => {
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='height-separator']");
+    const bounds = separator.getBoundingClientRect();
+    const hit = window.__devtoolsEditorV2Harness.editorRoot.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
+    return {
+      x: bounds.left + bounds.width / 2,
+      y: bounds.top + bounds.height / 2,
+      height: bounds.height,
+      cursor: getComputedStyle(separator).cursor,
+      role: separator.getAttribute("role"),
+      orientation: separator.getAttribute("aria-orientation"),
+      hitRole: hit?.dataset.role,
+      viewportHeight: window.innerHeight,
+    };
+  })()`);
+  assert(
+    resizeHitTarget.height === 9
+      && resizeHitTarget.cursor === "ns-resize"
+      && resizeHitTarget.role === "separator"
+      && resizeHitTarget.orientation === "horizontal"
+      && resizeHitTarget.hitRole === "height-separator",
+    `The editor height separator is not a usable top-edge hit target: ${JSON.stringify(resizeHitTarget)}`,
+  );
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: resizeHitTarget.x,
+    y: resizeHitTarget.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: resizeHitTarget.x,
+    y: resizeHitTarget.viewportHeight - 500,
+    button: "left",
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: resizeHitTarget.x,
+    y: resizeHitTarget.viewportHeight - 500,
+    button: "left",
+    clickCount: 1,
+  });
+  const enlargedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  assert(
+    Math.abs(enlargedHeight - 500) <= 1,
+    `Dragging the editor border upward did not enlarge it: ${enlargedHeight}`,
+  );
+  const enlargedHandle = await evaluate(send, `(() => {
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='height-separator']");
+    const bounds = separator.getBoundingClientRect();
+    return { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+  })()`);
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    ...enlargedHandle,
+    button: "left",
+    clickCount: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: enlargedHandle.x,
+    y: resizeHitTarget.viewportHeight - 420,
+    button: "left",
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: enlargedHandle.x,
+    y: resizeHitTarget.viewportHeight - 420,
+    button: "left",
+    clickCount: 1,
+  });
+  const reducedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  assert(
+    Math.abs(reducedHeight - 420) <= 1,
+    `Dragging the editor border downward did not reduce it: ${reducedHeight}`,
+  );
+  const keyboardResize = await evaluate(send, `(() => {
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='height-separator']");
+    separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    const normal = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }));
+    const large = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    separator.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const reset = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    return {
+      normal,
+      large,
+      reset,
+      stored: sessionStorage.getItem("motion-lab-devtools-editor-height-ratio"),
+    };
+  })()`);
+  assert(
+    Math.abs(keyboardResize.normal - 436) <= 1
+      && Math.abs(keyboardResize.large - 500) <= 1
+      && keyboardResize.reset >= 230
+      && keyboardResize.reset <= 301
+      && keyboardResize.stored === null,
+    `Keyboard resize or double-click reset failed: ${JSON.stringify(keyboardResize)}`,
+  );
+  await evaluate(send, `(() => {
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='height-separator']");
+    for (let index = 0; index < 3; index += 1) {
+      separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }));
+    }
+  })()`);
+  const persistedDesktopHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  assert(
+    persistedDesktopHeight >= 420 && persistedDesktopHeight <= 500,
+    `The resized desktop height was not retained for persistence checks: ${persistedDesktopHeight}`,
+  );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   const highlightState = await evaluate(send, `(() => {
     const target = document.querySelector("[data-devtools-editor-selected='true']");
@@ -414,6 +528,13 @@ async function verify({ artifactDirectory, send }) {
     deviceScaleFactor: 1,
     mobile: false,
   });
+  const expectedNarrowHeight = persistedDesktopHeight
+    / resizeHitTarget.viewportHeight
+    * 820;
+  await waitFor(
+    () => evaluate(send, `Math.abs(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height - ${expectedNarrowHeight}) <= 2`),
+    "the persisted editor ratio to adapt to the narrow viewport",
+  );
   const narrowState = await evaluate(send, `(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
@@ -423,6 +544,8 @@ async function verify({ artifactDirectory, send }) {
     inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
     inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
     inspectorTab: Boolean(window.__devtoolsEditorV2Harness.query("[data-pane-target='inspector']")),
+    editorHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
+    editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
   }))()`);
   assert(
     narrowState.scrollWidth <= 640
@@ -431,7 +554,9 @@ async function verify({ artifactDirectory, send }) {
       && narrowState.visiblePanes.length === 0
       && !narrowState.inspectorHidden
       && narrowState.inspectorDisplay !== "none"
-      && !narrowState.inspectorTab,
+      && !narrowState.inspectorTab
+      && Math.abs(narrowState.editorHeight - expectedNarrowHeight) <= 2
+      && narrowState.editorTop >= 280,
     `The mobile track-triggered inspector is incorrect: ${JSON.stringify(narrowState)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
@@ -464,6 +589,17 @@ async function verify({ artifactDirectory, send }) {
     () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1`),
     "editor destroy and remount",
   );
+  const remountedResizeState = await evaluate(send, `(() => ({
+    height: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
+    resizeState: window.__devtoolsEditorV2Harness.query("[data-role='height-separator']").dataset.resizeState,
+    valueNow: window.__devtoolsEditorV2Harness.query("[data-role='height-separator']").getAttribute("aria-valuenow"),
+  }))()`);
+  assert(
+    Math.abs(remountedResizeState.height - expectedNarrowHeight) <= 2
+      && remountedResizeState.resizeState === "idle"
+      && Math.abs(Number(remountedResizeState.valueNow) - remountedResizeState.height) <= 1,
+    `The editor height ratio or resize lifecycle did not survive remount: ${JSON.stringify(remountedResizeState)}`,
+  );
 
   console.log(JSON.stringify({
     status: "pass",
@@ -480,6 +616,12 @@ async function verify({ artifactDirectory, send }) {
       "track-inspector",
       "shadow-css-isolation",
       "noninteractive-hit-testing",
+      "editor-height-hit-target",
+      "editor-height-pointer-resize",
+      "editor-height-keyboard-resize",
+      "editor-height-reset",
+      "editor-height-session-persistence",
+      "editor-height-preview-clamp",
       "seek-preserves-playback",
       "scrollbar-does-not-seek",
       "playhead-drag-states",
