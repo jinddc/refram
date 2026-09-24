@@ -15,7 +15,7 @@ async function verify({ artifactDirectory, send }) {
   const narrow = join(artifactDirectory, "devtools-editor-v2-narrow.png");
 
   await waitFor(
-    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:12.000" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
+    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:01.640" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
     "the new DevTools editor",
   );
   const desktopState = await evaluate(send, `(() => ({
@@ -36,7 +36,7 @@ async function verify({ artifactDirectory, send }) {
     })(),
     rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
     userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
-    trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-track-key='animation:0']")).pointerEvents,
+    trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block")).pointerEvents,
     viewportPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']")).pointerEvents,
     playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon")),
     shadowStyle: Boolean(window.__devtoolsEditorV2Harness.editorRoot.querySelector("style")),
@@ -277,6 +277,17 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "finished" && window.__devtoolsEditorV2Harness.activeTimelinePaused === false`),
     "The fixture did not reach the running-finished seek boundary.",
   );
+  const clampedSeek = await evaluate(send, `(() => ({
+    time: window.__devtoolsEditorV2Harness.view.time.time,
+    sourceDuration: window.__devtoolsEditorV2Harness.view.time.sourceDuration,
+    progress: window.__devtoolsEditorV2Harness.view.time.progress,
+  }))()`);
+  assert(
+    Math.abs(clampedSeek.time - clampedSeek.sourceDuration) <= 0.000001
+      && clampedSeek.progress > 0
+      && clampedSeek.progress < 0.2,
+    `Seeking into empty timeline space was not clamped to the authored duration: ${JSON.stringify(clampedSeek)}`,
+  );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.view.transport.playState === "running"`),
@@ -304,7 +315,7 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:12.000"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000"`),
     "the finite particle window",
   );
   const particleZeroState = await evaluate(send, `(() => {
@@ -438,6 +449,7 @@ async function verify({ artifactDirectory, send }) {
       "replay",
       "replay-preserves-inspector-detail",
       "finished-play-preserves-inspector-detail",
+      "seek-clamped-to-authored-duration",
       "finished-seek-pauses",
       "finite-particle-window",
       "mapped-highlight",

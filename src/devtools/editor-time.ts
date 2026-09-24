@@ -13,6 +13,7 @@ export interface EditorTimeWindow {
   readonly start: number;
   readonly end: number;
   readonly duration: number;
+  readonly sourceDuration: number;
   readonly time: number;
   readonly progress: number;
   readonly repeating: boolean;
@@ -91,7 +92,6 @@ export function readEditorTimeWindow(
   timeline: gsap.core.Timeline,
   inspection: TimelineInspectionSnapshot,
   origin: number,
-  cursorTime?: number,
 ): EditorTimeWindow | undefined {
   const periods = repeatingPeriods(timeline);
   const repeating = periods.length > 0;
@@ -102,7 +102,7 @@ export function readEditorTimeWindow(
   }
   const duration = Math.max(DEFAULT_FINITE_TIMELINE_DURATION, sourceDuration);
 
-  const time = !repeating && cursorTime !== undefined ? cursorTime : timeline.totalTime();
+  const time = timeline.totalTime();
   const start = repeating
     ? Math.max(0, origin + Math.floor((time - origin) / duration) * duration)
     : 0;
@@ -111,6 +111,7 @@ export function readEditorTimeWindow(
     start,
     end,
     duration,
+    sourceDuration,
     time,
     progress: clamp((time - start) / duration, 0, 1),
     repeating,

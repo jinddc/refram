@@ -65,8 +65,6 @@ export function createEditorController(
   let attachment: TimelineSessionAttachment | undefined;
   let inspection: TimelineInspectionSnapshot | undefined;
   let timeOrigin = 0;
-  let cursorTime: number | undefined;
-  let cursorPinned = false;
   let trackKey: string | undefined;
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
@@ -83,12 +81,7 @@ export function createEditorController(
       previewRoot: active?.root,
       inspection,
       timeWindow: active && inspection
-        ? readEditorTimeWindow(
-          active.timeline,
-          inspection,
-          timeOrigin,
-          cursorPinned ? cursorTime : undefined,
-        )
+        ? readEditorTimeWindow(active.timeline, inspection, timeOrigin)
         : undefined,
       selectedItem: selectedItem(inspection, trackKey, animation),
       error,
@@ -109,21 +102,16 @@ export function createEditorController(
     attachment?.detach();
     attachment = undefined;
     inspection = undefined;
-    cursorTime = undefined;
-    cursorPinned = false;
   };
 
   const attach = (registration: MotionTimelineRegistration): void => {
     const token = ++generation;
     timeOrigin = registration.timeline.totalTime();
-    cursorTime = timeOrigin;
-    cursorPinned = false;
     const next = attachGsapTimelineSession(
       registration.timeline,
       (snapshot) => {
         if (destroyed || active !== registration || token !== generation) return;
         inspection = snapshot;
-        if (!cursorPinned) cursorTime = registration.timeline.totalTime();
         const item = selectedItem(snapshot, trackKey, animation);
         if (item) {
           trackKey = editorTrackKey(item);
@@ -286,10 +274,9 @@ export function createEditorController(
       if (inspection.playState === "finished") active.timeline.pause();
       if (!window.repeating) {
         const requestedTime = window.start + progress * window.duration;
-        active.timeline.totalTime(requestedTime, true);
+        const seekTime = Math.min(requestedTime, inspection.totalDuration);
+        active.timeline.totalTime(seekTime, true);
         inspection = attachment!.read();
-        cursorTime = requestedTime;
-        cursorPinned = requestedTime > inspection.totalDuration;
         publish();
         return true;
       }

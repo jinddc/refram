@@ -138,7 +138,7 @@ describe("headless editor controller", () => {
     registry.destroy();
   });
 
-  it("keeps the editor cursor in empty time after the authored animation ends", () => {
+  it("clamps the editor cursor to the authored animation duration", () => {
     const registry = createTimelineRegistry();
     const { root, timeline } = directTimeline("empty-time");
     registry.register({ id: "empty-time", root, timeline });
@@ -148,8 +148,8 @@ describe("headless editor controller", () => {
     expect(timeline.totalTime()).toBe(1);
     expect(editor.getSnapshot().view.time).toMatchObject({
       duration: DEFAULT_FINITE_TIMELINE_DURATION,
-      time: 8.94,
-      progress: 8.94 / DEFAULT_FINITE_TIMELINE_DURATION,
+      time: 1,
+      progress: 1 / DEFAULT_FINITE_TIMELINE_DURATION,
     });
 
     editor.destroy();

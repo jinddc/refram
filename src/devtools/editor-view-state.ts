@@ -84,6 +84,8 @@ export interface EditorViewState {
 }
 
 export function editorTrackKey(item: TimelineInspectionItem): string {
+  const sourceKey = (item.source as HTMLElement).dataset.key;
+  if (sourceKey) return sourceKey;
   return item.trackId === undefined
     ? `animation:${item.index}`
     : `track:${item.trackId}`;
@@ -91,7 +93,8 @@ export function editorTrackKey(item: TimelineInspectionItem): string {
 
 function trackLabel(item: TimelineInspectionItem): string {
   if (item.label) return item.label;
-  const source = item.source.id ? `#${item.source.id}` : item.source.localName;
+  const sourceLabel = (item.source as HTMLElement).dataset.label ?? item.source.localName;
+  const source = item.source.id ? `#${item.source.id}` : sourceLabel;
   return item.sources.length > 1 ? `${source} × ${item.sources.length}` : source;
 }
 

@@ -25,9 +25,10 @@ function node<K extends keyof HTMLElementTagNameMap>(
 
 function formatTime(seconds: number): string {
   const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
-  const minutes = Math.floor(safe / 60);
-  const wholeSeconds = Math.floor(safe % 60);
-  const milliseconds = Math.floor((safe % 1) * 1000);
+  const totalMilliseconds = Math.round(safe * 1000);
+  const minutes = Math.floor(totalMilliseconds / 60_000);
+  const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
   return `${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
 }
 
@@ -74,7 +75,7 @@ function renderTransport(elements: EditorUiElements, view: EditorViewState): voi
   const time = view.time;
   elements.currentTime.value = formatTime(time ? time.progress * time.duration : 0);
   elements.currentTime.textContent = elements.currentTime.value;
-  elements.duration.value = formatTime(time?.duration ?? 0);
+  elements.duration.value = formatTime(time?.sourceDuration ?? 0);
   elements.duration.textContent = elements.duration.value;
   elements.root.style.setProperty("--devtools-editor-progress", String(time?.progress ?? 0));
   elements.root.style.setProperty(

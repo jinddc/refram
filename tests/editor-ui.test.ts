@@ -9,6 +9,7 @@ import {
   type MotionDevtoolsEditorElement,
 } from "../src/devtools/editor-ui/element";
 import { mountEditorUi } from "../src/devtools/editor-ui/mount";
+import { DEFAULT_FINITE_TIMELINE_DURATION } from "../src/devtools/editor-time";
 import {
   createTimelineRegistry,
   defaultTimelineRegistry,
@@ -75,6 +76,31 @@ function registration(id: string, label: string) {
 }
 
 describe("DevTools editor UI v2", () => {
+  it("clamps the playhead to the authored animation duration", async () => {
+    const registry = createTimelineRegistry();
+    const finite = registration("play-from-empty-time", "Play from empty time");
+    const registered = registry.register(finite.declaration);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+
+    expect(handle.controller.seek(8.94 / DEFAULT_FINITE_TIMELINE_DURATION)).toBe(true);
+    expect(handle.controller.getSnapshot().view.time).toMatchObject({
+      time: 1.5,
+      progress: 1.5 / DEFAULT_FINITE_TIMELINE_DURATION,
+    });
+    expect(root.style.getPropertyValue("--devtools-editor-playhead-position"))
+      .toBe("calc(12.5% + 9px)");
+    expect(container.querySelector("[data-role='current-time']")?.textContent)
+      .toBe("00:01.500");
+
+    handle.destroy();
+    registered.destroy();
+    registry.destroy();
+  });
+
   it("renders controller state and routes timeline, track, transport, and seek actions", async () => {
     const registry = createTimelineRegistry();
     const sourceHome = document.createElement("div");
@@ -97,7 +123,7 @@ describe("DevTools editor UI v2", () => {
       .toBe(container.querySelector("[data-devtools-editor]"));
     expect(container.querySelectorAll(".devtools-editor__track-block")).toHaveLength(2);
     expect(container.querySelector("[data-role='duration']")?.textContent)
-      .toBe("00:12.000");
+      .toBe("00:01.500");
     expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
       .toBe("12s");
     expect(container.querySelectorAll<HTMLElement>(".devtools-editor__track-block")[0]
@@ -323,7 +349,7 @@ describe("DevTools editor UI v2", () => {
     await flush();
 
     expect(container.querySelector("[data-role='duration']")?.textContent)
-      .toBe("00:12.000");
+      .toBe("00:01.000");
     expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
       .toBe("12s");
     expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")
