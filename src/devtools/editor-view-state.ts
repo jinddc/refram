@@ -107,7 +107,10 @@ function status(input: EditorViewInput): EditorViewStatus {
   return input.inspection.readiness === "ready" ? "ready" : "not-ready";
 }
 
-function inspector(item: TimelineInspectionItem | undefined): EditorViewInspector | undefined {
+function inspector(
+  item: TimelineInspectionItem | undefined,
+  timeWindow: EditorTimeWindow | undefined,
+): EditorViewInspector | undefined {
   if (!item) return undefined;
   const eases = item.animations.map((animation) => {
     const tween = animation as gsap.core.Animation & {
@@ -117,13 +120,14 @@ function inspector(item: TimelineInspectionItem | undefined): EditorViewInspecto
   });
   const firstEase = eases[0];
   const mixedEase = eases.some((ease) => ease !== firstEase);
+  const timing = timeWindow?.trackTimings.find((candidate) => candidate.item === item);
   return Object.freeze({
     trackKey: editorTrackKey(item),
     label: trackLabel(item),
     mapping: item.trackId === undefined ? "automatic" : "authored",
-    start: item.resolvedStart,
-    duration: item.resolvedDuration,
-    end: item.resolvedEnd,
+    start: timing?.start ?? item.resolvedStart,
+    duration: timing?.duration ?? item.resolvedDuration,
+    end: timing?.end ?? item.resolvedEnd,
     ease: !mixedEase && typeof firstEase === "string" ? firstEase : undefined,
     mixedEase,
     animatedTargetCount: item.animatedTargetCount,
@@ -162,7 +166,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     time: input.timeWindow,
     tracks,
     selectedTrackKey: input.selectedItem ? editorTrackKey(input.selectedItem) : undefined,
-    inspector: inspector(input.selectedItem),
+    inspector: inspector(input.selectedItem, input.timeWindow),
     transport: Object.freeze({
       playState,
       timeScale: inspection?.timeScale,

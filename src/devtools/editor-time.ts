@@ -9,6 +9,13 @@ export interface EditorTrackSpan {
   readonly end: number;
 }
 
+export interface EditorTrackTiming {
+  readonly item: TimelineInspectionItem;
+  readonly start: number;
+  readonly duration: number;
+  readonly end: number;
+}
+
 export interface EditorTimeWindow {
   readonly start: number;
   readonly end: number;
@@ -17,6 +24,7 @@ export interface EditorTimeWindow {
   readonly time: number;
   readonly progress: number;
   readonly repeating: boolean;
+  readonly trackTimings: readonly EditorTrackTiming[];
   readonly tracks: readonly EditorTrackSpan[];
 }
 
@@ -24,7 +32,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function repeatingPeriods(timeline: gsap.core.Timeline): readonly number[] {
+function repeatingPeriods(animation: gsap.core.Animation): readonly number[] {
   const periods: number[] = [];
   const visited = new Set<gsap.core.Animation>();
   const visit = (animation: gsap.core.Animation): void => {
@@ -40,7 +48,7 @@ function repeatingPeriods(timeline: gsap.core.Timeline): readonly number[] {
     for (const child of children.getChildren?.(false, true, true) ?? []) visit(child);
     if (children.timeline) visit(children.timeline);
   };
-  visit(timeline);
+  visit(animation);
   return periods;
 }
 
@@ -54,36 +62,44 @@ function cycleDuration(timeline: gsap.core.Timeline): number | undefined {
     : undefined;
 }
 
-function visibleTracks(
+function trackTimings(
   inspection: TimelineInspectionSnapshot,
+  repeatPeriod: number | undefined,
+): readonly EditorTrackTiming[] {
+  return Object.freeze(inspection.items.map((item) => {
+    const periods = item.animations.flatMap((animation) => repeatingPeriods(animation));
+    const usesCommonPeriod = repeatPeriod !== undefined
+      && periods.length > 0
+      && periods.every((period) => Math.abs(period - repeatPeriod) < 0.000001);
+    const duration = usesCommonPeriod ? repeatPeriod : item.resolvedDuration;
+    return Object.freeze({
+      item,
+      start: item.resolvedStart,
+      duration,
+      end: item.resolvedStart + duration,
+    });
+  }));
+}
+
+function visibleTracks(
+  timings: readonly EditorTrackTiming[],
   start: number,
   end: number,
   duration: number,
   repeatPeriod: number | undefined,
 ): readonly EditorTrackSpan[] {
   const spans: EditorTrackSpan[] = [];
-  for (const item of inspection.items) {
-    const offsets: number[] = [];
-    if (repeatPeriod !== undefined && item.resolvedDuration <= repeatPeriod) {
-      let offset = Math.floor((start - item.resolvedEnd) / repeatPeriod) * repeatPeriod;
-      const limit = Math.ceil(duration / repeatPeriod) + 2;
-      for (let index = 0; index < limit; index += 1, offset += repeatPeriod) {
-        if (item.resolvedStart + offset >= end) break;
-        if (item.resolvedEnd + offset > start) offsets.push(offset);
-      }
-    } else {
-      offsets.push(0);
-    }
-    for (const offset of new Set(offsets)) {
-      const visibleStart = Math.max(start, item.resolvedStart + offset);
-      const visibleEnd = Math.min(end, item.resolvedEnd + offset);
-      if (visibleEnd <= visibleStart) continue;
-      spans.push(Object.freeze({
-        item,
-        start: clamp((visibleStart - start) / duration, 0, 1),
-        end: clamp((visibleEnd - start) / duration, 0, 1),
-      }));
-    }
+  for (const timing of timings) {
+    const domainStart = repeatPeriod === undefined ? start : 0;
+    const domainEnd = repeatPeriod === undefined ? end : repeatPeriod;
+    const visibleStart = Math.max(domainStart, timing.start);
+    const visibleEnd = Math.min(domainEnd, timing.end);
+    if (visibleEnd <= visibleStart) continue;
+    spans.push(Object.freeze({
+      item: timing.item,
+      start: clamp((visibleStart - domainStart) / duration, 0, 1),
+      end: clamp((visibleEnd - domainStart) / duration, 0, 1),
+    }));
   }
   return Object.freeze(spans);
 }
@@ -101,20 +117,23 @@ export function readEditorTimeWindow(
     return undefined;
   }
   const duration = Math.max(DEFAULT_FINITE_TIMELINE_DURATION, sourceDuration);
+  const timings = trackTimings(inspection, repeatPeriod);
 
   const time = timeline.totalTime();
   const start = repeating
-    ? Math.max(0, origin + Math.floor((time - origin) / duration) * duration)
+    ? Math.max(0, origin + Math.floor((time - origin) / sourceDuration) * sourceDuration)
     : 0;
   const end = start + duration;
+  const displayedTime = repeating ? time - start : time;
   return Object.freeze({
     start,
     end,
     duration,
     sourceDuration,
     time,
-    progress: clamp((time - start) / duration, 0, 1),
+    progress: clamp(displayedTime / duration, 0, 1),
     repeating,
-    tracks: visibleTracks(inspection, start, end, duration, repeatPeriod),
+    trackTimings: timings,
+    tracks: visibleTracks(timings, start, end, duration, repeatPeriod),
   });
 }

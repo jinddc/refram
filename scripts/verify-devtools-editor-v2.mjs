@@ -469,7 +469,7 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000" && [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent === "12s"`),
     "the finite particle window",
   );
   const particleZeroState = await evaluate(send, `(() => {
@@ -516,10 +516,118 @@ async function verify({ artifactDirectory, send }) {
     `The Canvas or docked editor size is incorrect: ${JSON.stringify(canvasSize)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
+  const particleTiming = await evaluate(send, `(() => ({
+    sourceDuration: window.__devtoolsEditorV2Harness.view.time.sourceDuration,
+    spans: window.__devtoolsEditorV2Harness.view.tracks[0].spans,
+    inspector: window.__devtoolsEditorV2Harness.view.inspector,
+    inspectorText: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").textContent,
+  }))()`);
   assert(
-    await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-devtools-editor-selected") === "true"`),
-    "The mapped Canvas target was not highlighted.",
+    await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-devtools-editor-selected") === "true"`)
+      && particleTiming.sourceDuration === 5
+      && particleTiming.spans.length === 1
+      && particleTiming.spans[0].start === 0
+      && Math.abs(particleTiming.spans[0].end - 5 / 12) < 0.000001
+      && particleTiming.inspector.start === 0
+      && particleTiming.inspector.duration === 5
+      && particleTiming.inspector.end === 5
+      && particleTiming.inspectorText.includes("5.00s")
+      && !particleTiming.inspectorText.includes("∞"),
+    `The particle cycle geometry, inspector timing, or target highlight is incorrect: ${JSON.stringify(particleTiming)}`,
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.seek(0)`);
+  const canvasAtCycleStart = await evaluate(send, `(() => {
+    const canvas = document.querySelector("#devtools-v2-canvas");
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 0;
+    for (let index = 0; index < data.length; index += 97) hash = (hash * 31 + data[index]) >>> 0;
+    return hash;
+  })()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.seek(7 / 12)`);
+  const pausedSeekState = await evaluate(send, `(() => {
+    const canvas = document.querySelector("#devtools-v2-canvas");
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 0;
+    for (let index = 0; index < data.length; index += 97) hash = (hash * 31 + data[index]) >>> 0;
+    return { hash, paused: window.__devtoolsEditorV2Harness.activeTimelinePaused };
+  })()`);
+  assert(
+    pausedSeekState.paused && pausedSeekState.hash !== canvasAtCycleStart,
+    `Paused seeking did not redraw the Canvas particle phase: ${JSON.stringify({ canvasAtCycleStart, pausedSeekState })}`,
+  );
+  for (const [rulerTime, cycleTime] of [[2, 2], [5, 5], [7, 2], [10, 5], [12, 2]]) {
+    await evaluate(send, `window.__devtoolsEditorV2Harness.seek(${rulerTime} / 12)`);
+    const seekState = await evaluate(send, `(() => ({
+      progress: window.__devtoolsEditorV2Harness.view.time.progress,
+      currentTime: window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent,
+      blocks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+    }))()`);
+    assert(
+      Math.abs(seekState.progress - cycleTime / 12) < 0.000001
+        && seekState.currentTime === `00:0${cycleTime}.000`
+        && seekState.blocks === 1,
+      `Seeking to ${rulerTime}s did not resolve to the ${cycleTime}s loop phase: ${JSON.stringify(seekState)}`,
+    );
+  }
+  const readEndpointDragState = () => evaluate(send, `(() => {
+    const canvas = document.querySelector("#devtools-v2-canvas");
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 0;
+    for (let index = 0; index < data.length; index += 97) hash = (hash * 31 + data[index]) >>> 0;
+    return {
+      currentTime: window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent,
+      progress: window.__devtoolsEditorV2Harness.view.time.progress,
+      paused: window.__devtoolsEditorV2Harness.activeTimelinePaused,
+      hash,
+    };
+  })()`);
+  for (const rulerTime of [5, 6, 7, 12]) {
+    await evaluate(send, `window.__devtoolsEditorV2Harness.seek(0)`);
+    const endpointDrag = await evaluate(send, `(() => {
+      const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+      const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon").getBoundingClientRect();
+      return {
+        from: { x: icon.left + icon.width / 2, y: icon.top + icon.height / 2 },
+        to: {
+          x: Math.round(content.left + 12 + (content.width - 24) * ${rulerTime} / 12),
+          y: icon.top + icon.height / 2,
+        },
+      };
+    })()`);
+    await send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      ...endpointDrag.from,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      ...endpointDrag.to,
+      button: "left",
+      buttons: 1,
+    });
+    const endpointDuringDrag = await readEndpointDragState();
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      ...endpointDrag.to,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+    await evaluate(send, `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+    const endpointAfterRefresh = await readEndpointDragState();
+    assert(
+      endpointDuringDrag.currentTime === "00:05.000"
+        && Math.abs(endpointDuringDrag.progress - 5 / 12) < 0.000001
+        && endpointDuringDrag.paused
+        && endpointAfterRefresh.currentTime === "00:05.000"
+        && Math.abs(endpointAfterRefresh.progress - 5 / 12) < 0.000001
+        && endpointAfterRefresh.paused
+        && endpointAfterRefresh.hash === endpointDuringDrag.hash,
+      `Dragging to ${rulerTime}s did not clamp and hold the cycle endpoint: ${JSON.stringify({ endpointDuringDrag, endpointAfterRefresh })}`,
+    );
+  }
   await screenshot(send, particles);
 
   await send("Emulation.setDeviceMetricsOverride", {

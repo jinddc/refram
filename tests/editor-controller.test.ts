@@ -393,17 +393,18 @@ describe("headless editor controller", () => {
     expect(disposed).toBe(2);
   });
 
-  it("maps the five-second particle cycle onto the standard twelve-second ruler", () => {
+  it("uses one five-second particle cycle as the complete editor domain", () => {
     const registry = createTimelineRegistry();
     const root = document.createElement("section");
     const canvas = document.createElement("canvas");
+    let renderCount = 0;
     root.append(canvas);
     const registration = registry.register({
       id: "particles",
       root,
       create() {
         const particles = Array.from({ length: 99 }, () => ({ x: 0, scale: 0 }));
-        const timeline = gsap.timeline({ paused: true }).fromTo(
+        const timeline = gsap.timeline({ paused: true, onUpdate: () => { renderCount += 1; } }).fromTo(
           particles,
           { x: 100, scale: 1 },
           { x: 0, scale: 0, duration: 5, stagger: { each: -0.05, repeat: -1 } },
@@ -422,21 +423,60 @@ describe("headless editor controller", () => {
     const initial = editor.getSnapshot().timeWindow;
     expect(initial?.duration).toBe(DEFAULT_FINITE_TIMELINE_DURATION);
     expect(initial?.start).toBeCloseTo(99);
+    expect(initial?.sourceDuration).toBe(5);
+    expect(initial?.repeating).toBe(true);
     expect(initial?.progress).toBeCloseTo(0);
+    expect(initial?.trackTimings[0]).toMatchObject({ start: 0, duration: 5, end: 5 });
     expect(initial?.tracks).toHaveLength(1);
-    expect(initial?.tracks[0]).toMatchObject({ start: 0, end: 1 });
+    expect(initial?.tracks.map(({ start, end }) => ({ start, end }))).toEqual([
+      { start: 0, end: 5 / 12 },
+    ]);
     expect(editor.getSnapshot().view.tracks[0]).toMatchObject({
       key: "track:particles",
       label: "particles",
       animatedTargetCount: 99,
       visualTargetCount: 1,
-      spans: [{ start: 0, end: 1 }],
+      spans: [{ start: 0, end: 5 / 12 }],
     });
-    expect(editor.seek(0.5)).toBe(true);
-    expect(registration.timeline.totalTime()).toBeCloseTo(105);
-    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(0.5);
+    expect(editor.selectTrack("track:particles")).toBe(true);
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      start: 0,
+      duration: 5,
+      end: 5,
+    });
+    registration.timeline.totalTime(103.999, true);
+    expect(editor.setTimeScale(1)).toBe(true);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(4.999 / 12);
+    expect(
+      editor.getSnapshot().timeWindow!.progress * editor.getSnapshot().timeWindow!.duration,
+    ).toBeCloseTo(4.999);
+    registration.timeline.totalTime(104, true);
+    expect(editor.setTimeScale(1)).toBe(true);
+    expect(editor.getSnapshot().timeWindow).toMatchObject({ start: 104, progress: 0 });
+    const rendersBeforePausedSeek = renderCount;
+    expect(editor.seek(2 / 12)).toBe(true);
+    expect(registration.timeline.totalTime()).toBeCloseTo(106);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(2 / 12);
+    expect(registration.timeline.paused()).toBe(true);
+    expect(renderCount).toBeGreaterThan(rendersBeforePausedSeek);
+    expect(editor.seek(7 / 12)).toBe(true);
+    expect(registration.timeline.totalTime()).toBeCloseTo(106);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(2 / 12);
+    expect(editor.seek(5 / 12)).toBe(true);
+    expect(registration.timeline.totalTime()).toBeCloseTo(109);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(5 / 12);
+    expect(editor.seek(10 / 12)).toBe(true);
+    expect(registration.timeline.totalTime()).toBeCloseTo(109);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(5 / 12);
+    expect(editor.play()).toBe(true);
+    registration.timeline.totalTime(109.25, true);
+    expect(editor.setTimeScale(1)).toBe(true);
+    expect(editor.getSnapshot().timeWindow).toMatchObject({ start: 109 });
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(0.25 / 12);
+    expect(editor.pause()).toBe(true);
     expect(editor.seek(1)).toBe(true);
-    expect(editor.getSnapshot().timeWindow?.progress).toBeGreaterThan(0.999);
+    expect(registration.timeline.totalTime()).toBeCloseTo(111);
+    expect(editor.getSnapshot().timeWindow?.progress).toBeCloseTo(2 / 12);
 
     expect(editor.replay()).toBe(true);
     expect(registration.timeline.totalTime()).toBeCloseTo(99);
@@ -455,11 +495,11 @@ describe("headless editor controller", () => {
     const editor = createEditorController({ registry });
     expect(editor.getSnapshot().timeWindow?.duration).toBe(DEFAULT_FINITE_TIMELINE_DURATION);
     expect(editor.seek(0.5)).toBe(true);
-    expect(repeating.timeline.totalTime()).toBeCloseTo(6);
+    expect(repeating.timeline.totalTime()).toBeCloseTo(1);
     repeating.timeline.totalTime(1.25);
     expect(editor.seek(0.5)).toBe(true);
-    expect(repeating.timeline.totalTime()).toBeCloseTo(6);
-    expect(editor.getSnapshot().timeWindow?.tracks).toHaveLength(12);
+    expect(repeating.timeline.totalTime()).toBeCloseTo(2);
+    expect(editor.getSnapshot().timeWindow?.tracks).toHaveLength(1);
     editor.destroy();
     registration.destroy();
 

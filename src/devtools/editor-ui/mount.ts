@@ -24,6 +24,7 @@ export interface EditorUiOptions extends EditorControllerOptions {
 type EditorPane = "timelines" | "timeline";
 
 const EDITOR_PANES = ["timelines", "timeline"] as const;
+const EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS = 1;
 
 export function mountEditorUi(
   container: HTMLElement,
@@ -136,10 +137,19 @@ export function mountEditorUi(
     const bounds = elements.timelineContent.getBoundingClientRect();
     const width = bounds.width - EDITOR_TIMELINE_EDGE_GUTTER * 2;
     if (width <= 0) return undefined;
-    return Math.min(1, Math.max(
+    const progress = Math.min(1, Math.max(
       0,
       (clientX - bounds.left - EDITOR_TIMELINE_EDGE_GUTTER) / width,
     ));
+    const time = controller.getSnapshot().timeWindow;
+    if (!time?.repeating) return progress;
+    const cycleProgress = time.sourceDuration / time.duration;
+    const nearestBoundary = Math.round(progress / cycleProgress) * cycleProgress;
+    return nearestBoundary > 0
+      && nearestBoundary <= 1
+      && Math.abs(progress - nearestBoundary) * width <= EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS
+      ? nearestBoundary
+      : progress;
   };
 
   const isScrollbarPointer = (event: PointerEvent): boolean => {
@@ -153,14 +163,19 @@ export function mountEditorUi(
     return overVerticalScrollbar || overHorizontalScrollbar;
   };
 
-  const seekFromPointer = (event: PointerEvent): void => {
-    const progress = progressAt(event.clientX);
-    if (progress !== undefined) controller.seek(progress);
+  const seekFromPointer = (event: PointerEvent, clampToCycle: boolean): void => {
+    const pointerProgress = progressAt(event.clientX);
+    if (pointerProgress === undefined) return;
+    const time = controller.getSnapshot().timeWindow;
+    const progress = clampToCycle && time?.repeating
+      ? Math.min(pointerProgress, time.sourceDuration / time.duration)
+      : pointerProgress;
+    controller.seek(progress);
   };
 
   const finishPlayheadDrag = (event: PointerEvent, seek: boolean): void => {
     if (event.pointerId !== dragPointerId) return;
-    if (seek) seekFromPointer(event);
+    if (seek) seekFromPointer(event, true);
     if (elements.playhead.hasPointerCapture?.(event.pointerId)) {
       elements.playhead.releasePointerCapture(event.pointerId);
     }
@@ -180,10 +195,10 @@ export function mountEditorUi(
       return;
     }
     if (event.target instanceof Element && event.target.closest("[data-track-key]")) return;
-    seekFromPointer(event);
+    seekFromPointer(event, false);
   };
   const onPlayheadPointerMove = (event: PointerEvent): void => {
-    if (event.pointerId === dragPointerId) seekFromPointer(event);
+    if (event.pointerId === dragPointerId) seekFromPointer(event, true);
   };
   const onPlayheadPointerUp = (event: PointerEvent): void => {
     finishPlayheadDrag(event, true);

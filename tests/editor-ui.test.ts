@@ -618,6 +618,63 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
+  it("clamps repeat playhead drags to a discovered non-five-second cycle", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    document.body.append(container, root);
+    const timeline = gsap.timeline({ paused: true }).to(target, { x: 30, duration: 3 });
+    timeline.repeat(-1);
+    const timelineRegistration = registry.register({ id: "three-second-loop", root, timeline });
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    expect(handle.controller.getSnapshot().timeWindow).toMatchObject({
+      duration: DEFAULT_FINITE_TIMELINE_DURATION,
+      sourceDuration: 3,
+    });
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 1200, 400));
+
+    playhead.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 12,
+      clientY: 100,
+      pointerId: 31,
+    }));
+    playhead.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      button: 0,
+      clientX: 900,
+      clientY: 100,
+      pointerId: 31,
+    }));
+    expect(handle.controller.getSnapshot().timeWindow?.progress).toBeCloseTo(3 / 12);
+    expect(container.querySelector("[data-role='current-time']")?.textContent).toBe("00:03.000");
+    expect(timeline.paused()).toBe(true);
+
+    playhead.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      clientX: 1188,
+      clientY: 100,
+      pointerId: 31,
+    }));
+    await flush();
+    await flush();
+    expect(playhead.dataset.dragState).toBe("idle");
+    expect(handle.controller.getSnapshot().timeWindow?.progress).toBeCloseTo(3 / 12);
+    expect(container.querySelector("[data-role='current-time']")?.textContent).toBe("00:03.000");
+
+    handle.destroy();
+    timelineRegistration.destroy();
+    registry.destroy();
+  });
+
   it("switches mobile panes with two tabs and opens the inspector from a track", async () => {
     const registry = createTimelineRegistry();
     const fixture = registration("panes", "Pane sequence");

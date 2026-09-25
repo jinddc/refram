@@ -275,15 +275,19 @@ export function createEditorController(
       if (!window.repeating) {
         const requestedTime = window.start + progress * window.duration;
         const seekTime = Math.min(requestedTime, inspection.totalDuration);
-        active.timeline.totalTime(seekTime, true);
+        active.timeline.totalTime(seekTime, false);
         inspection = attachment!.read();
         publish();
         return true;
       }
-      const time = progress === 1
-        ? window.end - Math.min(0.000001, window.duration / 2)
-        : window.start + progress * window.duration;
-      active.timeline.totalTime(time, true);
+      const requestedTime = progress * window.duration;
+      const remainder = requestedTime % window.sourceDuration;
+      const atPositiveBoundary = requestedTime > 0 && Math.abs(remainder) < 0.000001;
+      const phase = atPositiveBoundary
+        ? window.sourceDuration - Math.min(0.000001, window.sourceDuration / 2)
+        : remainder;
+      const time = window.start + phase;
+      active.timeline.totalTime(time, false);
       inspection = attachment!.read();
       publish();
       return true;
