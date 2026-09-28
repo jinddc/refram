@@ -73,6 +73,7 @@
   --editor-on-accent: #071316;
   --editor-track-lane: #ffffff08;
   --editor-track-block: #37393c;
+  --editor-post-duration: rgb(0 0 0 / 16%);
   --editor-focus: #55adff;
 
   display: grid;
@@ -106,6 +107,7 @@
   --editor-on-accent: #ffffff;
   --editor-track-lane: #f3f4f5;
   --editor-track-block: #adb2b7;
+  --editor-post-duration: rgb(47 59 66 / 6%);
   --editor-focus: #087b8a;
 }
 
@@ -321,7 +323,7 @@
 
 .devtools-editor__timeline-body {
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
+  grid-template-columns: 168px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }
@@ -330,9 +332,18 @@
   position: relative;
   z-index: 2;
   overflow: hidden;
-  padding-top: 44px;
   border-right: 1px solid var(--editor-border);
   background: var(--editor-surface);
+}
+
+.devtools-editor__track-heading {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  padding: 0 14px;
+  color: var(--editor-text-muted);
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .devtools-editor__track-label,
@@ -361,6 +372,14 @@
   white-space: nowrap;
 }
 
+.devtools-editor__track-label-text {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .devtools-editor__track-label:hover {
   color: var(--editor-text-muted);
 }
@@ -373,7 +392,6 @@
   position: relative;
   min-width: 0;
   overflow: auto;
-  cursor: default;
 
   scrollbar-width: thin;
   scrollbar-color: #ffffff1f #0000;
@@ -395,7 +413,7 @@
   z-index: 3;
   height: 44px;
   /* border-bottom: 1px solid var(--editor-divider); */
-  /* background: var(--editor-surface); */
+  background: var(--editor-surface);
 }
 
 .devtools-editor__ruler-mark {
@@ -437,6 +455,39 @@
 
 .devtools-editor__track-lanes {
   min-width: 100%;
+}
+
+.devtools-editor__post-duration {
+  position: absolute;
+  z-index: 3;
+  top: 0px;
+  right: 0px;
+  bottom: 0;
+  background: var(--editor-post-duration);
+  pointer-events: none;
+}
+
+.devtools-editor__timeline-end-marker {
+  display: block;
+  position: absolute;
+  z-index: 3;
+  top: 35px;
+  bottom: 0;
+  width: 1px;
+  background: var(--editor-text-muted);
+  pointer-events: none;
+  opacity: .84;
+}
+
+.devtools-editor__timeline-end-marker::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  content: "";
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .devtools-editor__track-lane {
@@ -495,7 +546,7 @@
 
 .devtools-editor__playhead {
   position: absolute;
-  top: 0;
+  top: 0px;
   bottom: 0;
   left: 12px;
   z-index: 4;
@@ -509,10 +560,11 @@
 }
 
 .devtools-editor__playhead-icon {
-  position: absolute;
-  top: 1px;
-  left: 50%;
+  position: sticky;
+  top: 0px;
   display: block;
+  z-index: 1;
+  margin-left: 50%;
   color: var(--editor-accent);
   pointer-events: none;
   transform: translateX(-50%);
@@ -520,7 +572,7 @@
 }
 
 .devtools-editor__playhead-icon-background {
-  fill: transparent;
+  fill: var(--editor-surface);
   transition: fill 120ms ease;
 }
 
@@ -536,7 +588,6 @@
   width: 1px;
   background: var(--editor-accent);
   content: "";
-  opacity: .84;
   transform: translateX(-50%);
   transition: box-shadow 120ms ease, opacity 120ms ease, width 120ms ease;
 }

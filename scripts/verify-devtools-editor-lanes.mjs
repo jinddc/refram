@@ -95,9 +95,11 @@ async function verify({ artifactDirectory, send }) {
   })()`);
   assert(
     typographyState.fontSizes.includes("12px")
+      && typographyState.fontSizes.includes("11px")
       && typographyState.fontSizes.includes("10px")
-      && typographyState.fontSizes.length === 2
+      && typographyState.fontSizes.length === 3
       && typographyState.lineHeights.includes("17.4px")
+      && typographyState.lineHeights.includes("15.95px")
       && typographyState.lineHeights.includes("14.5px")
       && typographyState.fontFamilies.some((family) => family.includes('"SF Pro Text"'))
       && typographyState.fontFamilies.some((family) => family.includes("monospace")),

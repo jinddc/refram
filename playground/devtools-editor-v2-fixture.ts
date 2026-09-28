@@ -114,6 +114,29 @@ function registerParticleTimeline(): MotionTimelineRegistration {
 }
 
 const registrations = [registerFiniteTimeline(), registerParticleTimeline()];
+let longTimelineRegistration: MotionTimelineRegistration | undefined;
+let longTimeline: gsap.core.Timeline | undefined;
+
+function registerLongTimeline(): string {
+  if (longTimelineRegistration) return longTimelineRegistration.id;
+  const root = requireElement<HTMLElement>("#devtools-v2-finite");
+  const target = requireElement<HTMLElement>("#devtools-v2-finite .devtools-v2-panel");
+  longTimeline = gsap.timeline({ paused: true }).to(target, { x: 160, duration: 16 });
+  longTimelineRegistration = defaultTimelineRegistry.register({
+    id: "playground/v2/long",
+    label: "Long inspection",
+    root,
+    timeline: longTimeline,
+  });
+  return longTimelineRegistration.id;
+}
+
+function removeLongTimeline(): void {
+  longTimelineRegistration?.destroy();
+  longTimeline?.kill();
+  longTimelineRegistration = undefined;
+  longTimeline = undefined;
+}
 
 function createFixtureEditor(): MotionDevtoolsEditor {
   const fixtureEditor = new MotionDevtoolsEditor({
@@ -153,6 +176,8 @@ const harness = {
   seek(progress: number) {
     return editor.controller.seek(progress);
   },
+  registerLongTimeline,
+  removeLongTimeline,
   destroy() {
     editor.destroy();
   },
@@ -165,12 +190,14 @@ Object.assign(window, { __devtoolsEditorV2Harness: harness });
 
 window.addEventListener("beforeunload", () => {
   harness.destroy();
+  removeLongTimeline();
   for (const registration of registrations) registration.destroy();
 }, { once: true });
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     harness.destroy();
+    removeLongTimeline();
     for (const registration of registrations) registration.destroy();
   });
 }

@@ -31,6 +31,7 @@ export interface EditorViewTrack {
   readonly key: string;
   readonly index: number;
   readonly label: string;
+  readonly fullLabel: string;
   readonly trackId: string | undefined;
   readonly animatedTargetCount: number;
   readonly visualTargetCount: number;
@@ -49,6 +50,7 @@ export interface EditorViewInspector {
   readonly mixedEase: boolean;
   readonly animatedTargetCount: number;
   readonly visualTargetCount: number;
+  readonly properties: readonly string[];
 }
 
 export type EditorViewStatus =
@@ -91,11 +93,93 @@ export function editorTrackKey(item: TimelineInspectionItem): string {
     : `track:${item.trackId}`;
 }
 
-function trackLabel(item: TimelineInspectionItem): string {
-  if (item.label) return item.label;
-  const sourceLabel = (item.source as HTMLElement).dataset.label ?? item.source.localName;
-  const source = item.source.id ? `#${item.source.id}` : sourceLabel;
-  return item.sources.length > 1 ? `${source} × ${item.sources.length}` : source;
+interface TrackLabel {
+  readonly short: string;
+  readonly full: string;
+}
+
+const GENERIC_CLASS_NAMES = new Set([
+  "active",
+  "block",
+  "disabled",
+  "flex",
+  "grid",
+  "hidden",
+  "relative",
+  "selected",
+]);
+
+function meaningfulClass(classes: readonly string[]): string | undefined {
+  return classes.find((name) => (
+    !GENERIC_CLASS_NAMES.has(name)
+    && !/^(?:has|is|js|u)-/.test(name)
+  )) ?? classes[0];
+}
+
+function automaticTrackLabel(item: TimelineInspectionItem): TrackLabel {
+  const authoredLabel = (item.source as HTMLElement).dataset.label;
+  if (authoredLabel) return { short: authoredLabel, full: authoredLabel };
+  const classes = [...item.source.classList].filter((name) => name.trim().length > 0);
+  const preferredClass = meaningfulClass(classes);
+  const shortSelector = `${item.source.localName}${preferredClass ? `.${preferredClass}` : ""}`;
+  const fullSelector = `${item.source.localName}${classes.map((name) => `.${name}`).join("")}`;
+  const suffix = item.sources.length > 1 ? ` × ${item.sources.length}` : "";
+  return {
+    short: `${shortSelector}${suffix}`,
+    full: `${fullSelector}${suffix}`,
+  };
+}
+
+function trackLabel(item: TimelineInspectionItem): TrackLabel {
+  if (item.label) return { short: item.label, full: item.label };
+  return automaticTrackLabel(item);
+}
+
+const GSAP_OPTION_KEYS = new Set([
+  "autoRevert",
+  "callbackScope",
+  "data",
+  "delay",
+  "defaults",
+  "duration",
+  "ease",
+  "id",
+  "immediateRender",
+  "inherit",
+  "keyframes",
+  "lazy",
+  "onCompleteParams",
+  "onInterruptParams",
+  "onRepeatParams",
+  "onReverseCompleteParams",
+  "onStartParams",
+  "onUpdateParams",
+  "overwrite",
+  "parent",
+  "paused",
+  "repeat",
+  "repeatDelay",
+  "reversed",
+  "runBackwards",
+  "scrollTrigger",
+  "stagger",
+  "startAt",
+  "yoyo",
+  "yoyoEase",
+]);
+
+function animatedProperties(item: TimelineInspectionItem): readonly string[] {
+  const properties = new Set<string>();
+  for (const animation of item.animations) {
+    const vars = (animation as gsap.core.Animation & {
+      readonly vars?: Readonly<Record<string, unknown>>;
+    }).vars;
+    for (const key of Object.keys(vars ?? {})) {
+      if (GSAP_OPTION_KEYS.has(key) || /^on[A-Z]/.test(key)) continue;
+      properties.add(key);
+    }
+  }
+  return Object.freeze([...properties].sort((left, right) => left.localeCompare(right)));
 }
 
 function status(input: EditorViewInput): EditorViewStatus {
@@ -123,7 +207,7 @@ function inspector(
   const timing = timeWindow?.trackTimings.find((candidate) => candidate.item === item);
   return Object.freeze({
     trackKey: editorTrackKey(item),
-    label: trackLabel(item),
+    label: trackLabel(item).short,
     mapping: item.trackId === undefined ? "automatic" : "authored",
     start: timing?.start ?? item.resolvedStart,
     duration: timing?.duration ?? item.resolvedDuration,
@@ -132,6 +216,7 @@ function inspector(
     mixedEase,
     animatedTargetCount: item.animatedTargetCount,
     visualTargetCount: item.sources.length,
+    properties: animatedProperties(item),
   });
 }
 
@@ -147,17 +232,20 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     spans.push(Object.freeze({ start: span.start, end: span.end }));
     spansByItem.set(span.item, spans);
   }
-  const tracks = Object.freeze((inspection?.items ?? []).map((item): EditorViewTrack =>
-    Object.freeze({
+  const tracks = Object.freeze((inspection?.items ?? []).map((item): EditorViewTrack => {
+    const label = trackLabel(item);
+    return Object.freeze({
       key: editorTrackKey(item),
       index: item.index,
-      label: trackLabel(item),
+      label: label.short,
+      fullLabel: label.full,
       trackId: item.trackId,
       animatedTargetCount: item.animatedTargetCount,
       visualTargetCount: item.sources.length,
       selected: item === input.selectedItem,
       spans: Object.freeze(spansByItem.get(item) ?? []),
-    })));
+    });
+  }));
   const playState = inspection?.playState;
   return Object.freeze({
     timelines: Object.freeze(input.timelines.map(({ id, label }) => Object.freeze({ id, label }))),

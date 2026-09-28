@@ -23,6 +23,12 @@ async function verify({ artifactDirectory, send }) {
     visibleTimelineIds: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__timeline-item-id").length,
     hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
     tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+    trackCount: window.__devtoolsEditorV2Harness.query("[data-role='track-count']")?.textContent,
+    trackLabelWidth: window.__devtoolsEditorV2Harness.query("[data-role='track-labels']").getBoundingClientRect().width,
+    trackLabels: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-label")].map((label) => ({ text: label.textContent, title: label.title, ariaLabel: label.getAttribute("aria-label") })),
+    endMarkerHidden: window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']").hidden,
+    endMarkerLabel: window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']").getAttribute("aria-label"),
+    postDurationHidden: window.__devtoolsEditorV2Harness.query("[data-role='post-duration']").hidden,
     rulerEnd: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent,
     rulerMarks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark").length,
     zeroTickInset: (() => {
@@ -71,6 +77,22 @@ async function verify({ artifactDirectory, send }) {
   assert(desktopState.visibleTimelineIds === 0, "Timeline IDs are still visible in the list UI.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
+  assert(
+    desktopState.trackCount === "3 tracks"
+      && Math.abs(desktopState.trackLabelWidth - 168) <= 0.5
+      && desktopState.trackLabels.length === 3
+      && desktopState.trackLabels[0].text === "Something"
+      && desktopState.trackLabels[0].title === "Something"
+      && desktopState.trackLabels[0].ariaLabel === "Something"
+      && desktopState.trackLabels.slice(1).every(({ text, title, ariaLabel }) => text === "article.devtools-v2-panel" && title === text && ariaLabel === text),
+    `Track count, compact pane, or selector labels are incorrect: ${JSON.stringify(desktopState)}`,
+  );
+  assert(
+    !desktopState.endMarkerHidden
+      && !desktopState.postDurationHidden
+      && desktopState.endMarkerLabel === "Animation ends at 1.64s",
+    `The finite duration boundary is not exposed: ${JSON.stringify(desktopState)}`,
+  );
   assert(
     desktopState.rulerEnd === "12s"
       && desktopState.rulerMarks === 121
@@ -301,7 +323,7 @@ async function verify({ artifactDirectory, send }) {
       text: content.textContent,
       activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
       inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
-      hasHeading: Boolean(window.__devtoolsEditorV2Harness.query(".devtools-editor__track-heading")),
+      trackHeading: window.__devtoolsEditorV2Harness.query(".devtools-editor__track-heading")?.textContent,
       hasMapping: Boolean(content.querySelector(".devtools-editor__inspector-mapping")),
       hasKey: Boolean(content.querySelector(".devtools-editor__inspector-key")),
       labelColumnLeftBefore: before.left,
@@ -328,7 +350,9 @@ async function verify({ artifactDirectory, send }) {
       && inspectorState.text.includes("End")
       && inspectorState.activePane === "timeline"
       && inspectorState.inspectorOpen === "true"
-      && !inspectorState.hasHeading
+      && inspectorState.trackHeading === "3 tracks"
+      && inspectorState.text.includes("Targets1")
+      && inspectorState.text.includes("Propertiesopacity, y")
       && !inspectorState.hasMapping
       && !inspectorState.hasKey
       && inspectorState.horizontalScroll > 0
@@ -405,6 +429,48 @@ async function verify({ artifactDirectory, send }) {
     `Click seek did not preserve playback: ${JSON.stringify(runningSeek)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']").click()`);
+  const verticalScrollState = await evaluate(send, `(() => {
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const lanes = window.__devtoolsEditorV2Harness.query("[data-role='track-lanes']");
+    const sourceLane = lanes.querySelector(".devtools-editor__track-lane");
+    const clones = Array.from({ length: 18 }, () => {
+      const clone = sourceLane.cloneNode(true);
+      clone.dataset.verticalScrollFixture = "";
+      lanes.append(clone);
+      return clone;
+    });
+    const ruler = window.__devtoolsEditorV2Harness.query("[data-role='ruler']");
+    const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
+    const icon = playhead.querySelector(".devtools-editor__playhead-icon");
+    viewport.scrollTop = 160;
+    const viewportBounds = viewport.getBoundingClientRect();
+    const rulerBounds = ruler.getBoundingClientRect();
+    const playheadBounds = playhead.getBoundingClientRect();
+    const iconBounds = icon.getBoundingClientRect();
+    const state = {
+      scrollTop: viewport.scrollTop,
+      viewportTop: viewportBounds.top,
+      viewportBottom: viewportBounds.bottom,
+      rulerTop: rulerBounds.top,
+      iconTop: iconBounds.top,
+      playheadTop: playheadBounds.top,
+      playheadBottom: playheadBounds.bottom,
+      playheadCenterX: playheadBounds.left + playheadBounds.width / 2,
+      iconCenterX: iconBounds.left + iconBounds.width / 2,
+    };
+    viewport.scrollTop = 0;
+    for (const clone of clones) clone.remove();
+    return state;
+  })()`);
+  assert(
+    verticalScrollState.scrollTop >= 150
+      && Math.abs(verticalScrollState.rulerTop - verticalScrollState.viewportTop) <= 1
+      && Math.abs(verticalScrollState.iconTop - verticalScrollState.viewportTop - 1) <= 1
+      && verticalScrollState.playheadTop < verticalScrollState.viewportTop
+      && verticalScrollState.playheadBottom >= verticalScrollState.viewportBottom
+      && Math.abs(verticalScrollState.playheadCenterX - verticalScrollState.iconCenterX) <= 0.5,
+    `The ruler or playhead did not remain aligned during vertical scrolling: ${JSON.stringify(verticalScrollState)}`,
+  );
   const scrollbarProbe = await evaluate(send, `(() => {
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
@@ -523,6 +589,55 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   await screenshot(send, desktop);
 
+  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline(window.__devtoolsEditorV2Harness.registerLongTimeline())`);
+  await waitFor(
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.view.time?.duration === 16 && [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent === "16s"`),
+    "the expanded sixteen-second inspection window",
+  );
+  const longTimelineState = await evaluate(send, `(() => {
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
+    const ticks = [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")];
+    const overflow = viewport.scrollWidth - viewport.clientWidth;
+    viewport.scrollLeft = Math.min(240, overflow);
+    const contentBounds = content.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
+    const clientX = contentBounds.left + 12 + (contentBounds.width - 24) * 12 / 16;
+    viewport.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX,
+      clientY: viewportBounds.top + 60,
+    }));
+    const playheadBounds = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+    const state = {
+      duration: window.__devtoolsEditorV2Harness.view.time.duration,
+      progress: window.__devtoolsEditorV2Harness.view.time.progress,
+      contentWidth: contentBounds.width,
+      viewportWidth: viewportBounds.width,
+      scrollWidth: viewport.scrollWidth,
+      clientWidth: viewport.clientWidth,
+      scrollLeft: viewport.scrollLeft,
+      ticks: ticks.map((tick) => tick.textContent),
+      playheadCenterX: playheadBounds.left + playheadBounds.width / 2,
+      expectedX: clientX,
+    };
+    viewport.scrollLeft = 0;
+    return state;
+  })()`);
+  assert(
+    longTimelineState.duration === 16
+      && longTimelineState.contentWidth > longTimelineState.viewportWidth
+      && longTimelineState.scrollWidth > longTimelineState.clientWidth
+      && longTimelineState.scrollLeft > 0
+      && longTimelineState.ticks.length === 17
+      && longTimelineState.ticks.every((tick, index) => tick === `${index}s`)
+      && Math.abs(longTimelineState.progress - 0.75) < 0.001
+      && Math.abs(longTimelineState.playheadCenterX - longTimelineState.expectedX) <= 1,
+    `The long timeline scale, overflow, ticks, seek, or playhead alignment is incorrect: ${JSON.stringify(longTimelineState)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.removeLongTimeline()`);
+
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000" && [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent === "12s"`),
@@ -531,11 +646,43 @@ async function verify({ artifactDirectory, send }) {
   const particleZeroState = await evaluate(send, `(() => {
     const tick = window.__devtoolsEditorV2Harness.query(".devtools-editor__tick[data-edge='start']").getBoundingClientRect();
     const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon").getBoundingClientRect();
-    return { tickLeft: tick.left, iconRight: icon.right };
+    const marker = window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']");
+    const postDuration = window.__devtoolsEditorV2Harness.query("[data-role='post-duration']");
+    const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block").getBoundingClientRect();
+    const markerBounds = marker.getBoundingClientRect();
+    const markerStyle = getComputedStyle(marker);
+    return {
+      tickLeft: tick.left,
+      iconRight: icon.right,
+      trackCount: window.__devtoolsEditorV2Harness.query("[data-role='track-count']")?.textContent,
+      endMarkerHidden: marker.hidden,
+      endMarkerLabel: marker.getAttribute("aria-label"),
+      postDurationHidden: postDuration.hidden,
+      markerLeft: markerBounds.left,
+      markerInlineLeft: marker.style.left,
+      markerDisplay: markerStyle.display,
+      markerWidth: markerStyle.width,
+      markerBackground: markerStyle.backgroundColor,
+      blockRight: block.right,
+      postDurationLeft: postDuration.getBoundingClientRect().left,
+      postDurationInlineLeft: postDuration.style.left,
+    };
   })()`);
   assert(
     particleZeroState.tickLeft > particleZeroState.iconRight,
     `The zero-second ruler label overlaps the playhead: ${JSON.stringify(particleZeroState)}`,
+  );
+  assert(
+    particleZeroState.trackCount === "1 track"
+      && !particleZeroState.endMarkerHidden
+      && !particleZeroState.postDurationHidden
+      && particleZeroState.endMarkerLabel === "Cycle ends at 5.00s"
+      && particleZeroState.markerDisplay !== "none"
+      && particleZeroState.markerWidth === "1px"
+      && particleZeroState.markerBackground !== "rgba(0, 0, 0, 0)"
+      && particleZeroState.markerInlineLeft === particleZeroState.postDurationInlineLeft
+      && Math.abs(particleZeroState.postDurationLeft - particleZeroState.blockRight) <= 1,
+    `The repeating timeline cycle boundary is incorrect: ${JSON.stringify(particleZeroState)}`,
   );
   assert(
     await evaluate(send, `document.querySelector("#devtools-v2-particles").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles" && window.__devtoolsEditorV2Harness.view.time.start === 99`),
@@ -788,6 +935,9 @@ async function verify({ artifactDirectory, send }) {
       "editor-height-preview-clamp",
       "seek-preserves-playback",
       "scrollbar-does-not-seek",
+      "vertical-scroll-sticky-ruler-and-playhead",
+      "long-timeline-stable-time-scale",
+      "long-timeline-horizontal-scroll-alignment",
       "playhead-drag-states",
       "application-root-ownership",
       "stable-track-selection",

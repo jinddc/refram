@@ -20,6 +20,8 @@ export interface EditorUiElements {
   readonly ruler: HTMLElement;
   readonly trackLabels: HTMLElement;
   readonly trackLanes: HTMLElement;
+  readonly timelineEndMarker: HTMLElement;
+  readonly postDurationRegion: HTMLElement;
   readonly playhead: HTMLElement;
   readonly timelineViewport: HTMLElement;
 }
@@ -164,6 +166,14 @@ export function createEditorUiElements(): EditorUiElements {
   ruler.dataset.role = "ruler";
   const trackLanes = element("div", "devtools-editor__track-lanes");
   trackLanes.dataset.role = "track-lanes";
+  const postDurationRegion = element("div", "devtools-editor__post-duration");
+  postDurationRegion.dataset.role = "post-duration";
+  postDurationRegion.hidden = true;
+  postDurationRegion.setAttribute("aria-hidden", "true");
+  const timelineEndMarker = element("div", "devtools-editor__timeline-end-marker");
+  timelineEndMarker.dataset.role = "timeline-end-marker";
+  timelineEndMarker.hidden = true;
+  timelineEndMarker.setAttribute("role", "img");
   const playhead = element("div", "devtools-editor__playhead");
   playhead.dataset.role = "playhead";
   playhead.dataset.dragState = "idle";
@@ -173,7 +183,7 @@ export function createEditorUiElements(): EditorUiElements {
   playhead.setAttribute("role", "slider");
   playhead.tabIndex = 0;
   playhead.append(createPlayheadIcon());
-  timelineContent.append(ruler, trackLanes, playhead);
+  timelineContent.append(ruler, trackLanes, postDurationRegion, timelineEndMarker, playhead);
   timelineViewport.append(timelineContent);
   timelineBody.append(trackLabels, timelineViewport);
   timeline.append(transport, timelineBody);
@@ -224,6 +234,8 @@ export function createEditorUiElements(): EditorUiElements {
     ruler,
     trackLabels,
     trackLanes,
+    timelineEndMarker,
+    postDurationRegion,
     playhead,
     timelineViewport,
   };

@@ -379,6 +379,8 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelector("[data-role='pane-switcher']")?.parentElement)
       .toBe(container.querySelector("[data-devtools-editor]"));
     expect(container.querySelectorAll(".devtools-editor__track-block")).toHaveLength(2);
+    expect(container.querySelector("[data-role='track-count']")?.textContent)
+      .toBe("2 tracks");
     expect(container.querySelector("[data-role='duration']")?.textContent)
       .toBe("00:01.500");
     expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
@@ -416,9 +418,12 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.textContent).not.toContain("Authored");
     expect(inspector.querySelector(".devtools-editor__inspector-key")).toBeNull();
     expect(inspector.querySelector(".devtools-editor__inspector-mapping")).toBeNull();
-    expect(container.querySelector(".devtools-editor__track-heading")).toBeNull();
+    expect(container.querySelector(".devtools-editor__track-heading")?.textContent)
+      .toBe("2 tracks");
     expect(inspector.textContent).toContain("0.00s");
     expect(inspector.textContent).toContain("1.00s");
+    expect(inspector.textContent).toContain("Targets1");
+    expect(inspector.textContent).toContain("Propertiesx");
 
     container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
     expect(root.dataset.inspectorOpen).toBe("false");
@@ -618,6 +623,15 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")
       ?.style.width)
       .toContain("8.333333333333332%");
+    const endMarker = container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")!;
+    const postDuration = container.querySelector<HTMLElement>("[data-role='post-duration']")!;
+    expect(endMarker.hidden).toBe(false);
+    expect(endMarker.style.left).toContain("8.333333333333332%");
+    expect(endMarker.getAttribute("aria-label")).toBe("Animation ends at 1.00s");
+    expect(postDuration.hidden).toBe(false);
+    expect(postDuration.style.left).toBe(endMarker.style.left);
+    expect(container.querySelector("[data-role='track-count']")?.textContent)
+      .toBe("1 track");
 
     handle.destroy();
     timelineRegistration.destroy();
@@ -640,9 +654,64 @@ describe("DevTools editor UI v2", () => {
     const block = container.querySelector<HTMLElement>(".devtools-editor__track-block")!;
     expect(block.style.left).toBe("0%");
     expect(block.style.width).toBe("100%");
+    expect(container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")?.hidden)
+      .toBe(true);
 
     handle.destroy();
     timelineRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("extends long timelines at the default pixels-per-second scale", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    document.body.append(container, root);
+    const timeline = gsap.timeline({ paused: true }).to(target, { x: 20, duration: 16 });
+    const registration = registry.register({ id: "sixteen-seconds", root, timeline });
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    expect(handle.controller.getSnapshot().timeWindow?.duration).toBe(16);
+    expect(content.style.width).toBe("133.33333333333331%");
+    expect(content.style.minWidth).toBe("1333.3333333333333px");
+    expect(container.querySelectorAll(".devtools-editor__tick")).toHaveLength(17);
+    expect(container.querySelectorAll(".devtools-editor__tick").item(16).textContent)
+      .toBe("16s");
+    expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")?.style.width)
+      .toBe("100%");
+
+    const contentWidth = 1600;
+    const contentLeft = -400;
+    vi.spyOn(content, "getBoundingClientRect")
+      .mockReturnValue(bounds(contentLeft, 0, contentWidth, 400));
+    vi.spyOn(viewport, "getBoundingClientRect")
+      .mockReturnValue(bounds(0, 0, 900, 200));
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 180 },
+      offsetHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 180 },
+      scrollWidth: { configurable: true, value: contentWidth },
+    });
+    viewport.scrollLeft = 400;
+    const twelveSecondX = contentLeft + 12 + (contentWidth - 24) * 12 / 16;
+    viewport.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: twelveSecondX,
+      clientY: 100,
+    }));
+    expect(timeline.totalProgress()).toBeCloseTo(0.75);
+    expect(playhead.style.left).toBe("calc(75% + -6px)");
+
+    handle.destroy();
+    registration.destroy();
     registry.destroy();
   });
 
@@ -665,6 +734,13 @@ describe("DevTools editor UI v2", () => {
     });
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    const endMarker = container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")!;
+    const postDuration = container.querySelector<HTMLElement>("[data-role='post-duration']")!;
+    expect(endMarker.hidden).toBe(false);
+    expect(endMarker.style.left).toBe("calc(25% + 6px)");
+    expect(endMarker.getAttribute("aria-label")).toBe("Cycle ends at 3.00s");
+    expect(postDuration.hidden).toBe(false);
+    expect(postDuration.style.left).toBe(endMarker.style.left);
     vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 1200, 400));
 
     playhead.dispatchEvent(new PointerEvent("pointerdown", {

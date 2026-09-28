@@ -6,6 +6,7 @@ import {
 
 const TICK_COUNT = 12;
 const MINOR_TICKS_PER_SECOND = 10;
+const DEFAULT_TIMELINE_CONTENT_WIDTH = 1000;
 
 function timelinePosition(progress: number): string {
   const offset = EDITOR_TIMELINE_EDGE_GUTTER * (1 - progress * 2);
@@ -84,35 +85,59 @@ function renderRuler(elements: EditorUiElements, view: EditorViewState): void {
   const signature = String(duration);
   if (elements.ruler.dataset.signature === signature) return;
   elements.ruler.dataset.signature = signature;
+  const scale = Math.max(1, duration / TICK_COUNT);
+  elements.timelineContent.style.width = `${scale * 100}%`;
+  elements.timelineContent.style.minWidth = `${scale * DEFAULT_TIMELINE_CONTENT_WIDTH}px`;
+  const tickCount = Math.max(TICK_COUNT, Math.round(duration));
   const marks = Array.from(
-    { length: TICK_COUNT * MINOR_TICKS_PER_SECOND + 1 },
+    { length: tickCount * MINOR_TICKS_PER_SECOND + 1 },
     (_, index) => {
       const mark = node("span", "devtools-editor__ruler-mark");
-      const progress = index / (TICK_COUNT * MINOR_TICKS_PER_SECOND);
+      const progress = index / (tickCount * MINOR_TICKS_PER_SECOND);
       mark.style.left = timelinePosition(progress);
       mark.dataset.major = String(index % MINOR_TICKS_PER_SECOND === 0);
       mark.dataset.mid = String(index % (MINOR_TICKS_PER_SECOND / 2) === 0);
       return mark;
     },
   );
-  const ticks = Array.from({ length: TICK_COUNT + 1 }, (_, index) => {
+  const ticks = Array.from({ length: tickCount + 1 }, (_, index) => {
     const tick = node("span", "devtools-editor__tick");
-    const progress = index / TICK_COUNT;
+    const progress = index / tickCount;
     tick.style.left = timelinePosition(progress);
-    tick.textContent = formatRulerTime(duration * progress);
+    tick.textContent = formatRulerTime(index);
     if (index === 0) tick.dataset.edge = "start";
-    if (index === TICK_COUNT) tick.dataset.edge = "end";
+    if (index === tickCount) tick.dataset.edge = "end";
     return tick;
   });
   elements.ruler.replaceChildren(...marks, ...ticks);
 }
 
+function renderFiniteEnd(elements: EditorUiElements, view: EditorViewState): void {
+  const time = view.time;
+  const visible = time !== undefined
+    && time.sourceDuration < time.duration;
+  elements.timelineEndMarker.hidden = !visible;
+  elements.postDurationRegion.hidden = !visible;
+  if (!visible || !time) return;
+  const progress = time.sourceDuration / time.duration;
+  const position = timelinePosition(progress);
+  elements.timelineEndMarker.style.left = position;
+  elements.timelineEndMarker.setAttribute(
+    "aria-label",
+    `${time.repeating ? "Cycle" : "Animation"} ends at ${formatInspectorTime(time.sourceDuration)}`,
+  );
+  elements.postDurationRegion.style.left = position;
+}
+
 function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
-  const label = node("button", "devtools-editor__track-label", track.label);
+  const label = node("button", "devtools-editor__track-label");
   label.type = "button";
   label.dataset.trackKey = track.key;
   label.dataset.selected = String(track.selected);
   label.setAttribute("aria-pressed", String(track.selected));
+  label.title = track.fullLabel;
+  label.setAttribute("aria-label", track.fullLabel);
+  label.append(node("span", "devtools-editor__track-label-text", track.label));
   const lane = node("div", "devtools-editor__track-lane");
   if (track.spans.length === 0) {
     const unavailable = node("span", "devtools-editor__track-unavailable", "Timing unavailable");
@@ -136,12 +161,19 @@ function renderTracks(elements: EditorUiElements, view: EditorViewState): void {
   const signature = view.tracks.map((track) => [
     track.key,
     track.label,
+    track.fullLabel,
     track.selected,
     track.spans.map(({ start, end }) => `${start}:${end}`).join(","),
   ].join("|")).join(";");
   if (elements.trackLanes.dataset.signature === signature) return;
   elements.trackLanes.dataset.signature = signature;
-  const labels: HTMLElement[] = [];
+  const count = view.tracks.length;
+  const labels: HTMLElement[] = [node(
+    "div",
+    "devtools-editor__track-heading",
+    `${count} ${count === 1 ? "track" : "tracks"}`,
+  )];
+  labels[0]!.dataset.role = "track-count";
   const lanes: HTMLElement[] = [];
   for (const track of view.tracks) {
     const [label, lane] = renderTrack(track);
@@ -189,6 +221,7 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
     ease,
     inspector.animatedTargetCount,
     inspector.visualTargetCount,
+    inspector.properties.join(","),
   ].join("|");
   if (elements.inspectorContent.dataset.signature === signature) return;
   elements.inspectorContent.dataset.signature = signature;
@@ -198,13 +231,22 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
   identity.append(heading);
 
   const details = node("dl", "devtools-editor__inspector-details");
+  const targetFields = inspector.animatedTargetCount === inspector.visualTargetCount
+    ? [inspectorField("Targets", String(inspector.animatedTargetCount))]
+    : [
+      inspectorField("Animated objects", String(inspector.animatedTargetCount)),
+      inspectorField("Preview elements", String(inspector.visualTargetCount)),
+    ];
   details.append(
     inspectorField("Start", formatInspectorTime(inspector.start)),
     inspectorField("Duration", formatInspectorTime(inspector.duration)),
     inspectorField("End", formatInspectorTime(inspector.end)),
     inspectorField("Ease", ease),
-    inspectorField("Animated", String(inspector.animatedTargetCount)),
-    inspectorField("Visual", String(inspector.visualTargetCount)),
+    ...targetFields,
+    inspectorField(
+      "Properties",
+      inspector.properties.length > 0 ? inspector.properties.join(", ") : "Unavailable",
+    ),
   );
   elements.inspectorContent.replaceChildren(identity, details);
 }
@@ -213,6 +255,7 @@ export function renderEditorUi(elements: EditorUiElements, view: EditorViewState
   renderTimelines(elements, view);
   renderTransport(elements, view);
   renderRuler(elements, view);
+  renderFiniteEnd(elements, view);
   renderTracks(elements, view);
   renderInspector(elements, view);
   elements.timelineViewport.dataset.seekable = String(view.transport.canSeek);

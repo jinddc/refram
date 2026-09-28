@@ -79,6 +79,7 @@ describe("headless editor controller", () => {
       mixedEase: false,
       animatedTargetCount: 1,
       visualTargetCount: 1,
+      properties: ["x"],
     });
     expect(Object.isFrozen(editor.getSnapshot().view.inspector)).toBe(true);
     expect(editor.getSnapshot().view.transport.canSeek).toBe(true);
@@ -115,6 +116,72 @@ describe("headless editor controller", () => {
     registration.replay();
     expect(notifications).toHaveBeenCalledTimes(count);
     expect(vi.mocked(cancelAnimationFrame)).toHaveBeenCalled();
+    registry.destroy();
+  });
+
+  it("distinguishes duplicate automatic tracks and deduplicates animated properties", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const lead = document.createElement("article");
+    const supporting = document.createElement("article");
+    const named = document.createElement("article");
+    lead.className = "is-active story lead";
+    supporting.className = "u-hidden supporting-story";
+    named.className = "story named";
+    named.dataset.label = "Named story";
+    root.append(lead, supporting, named);
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(lead, { opacity: 0.5, y: 20, duration: 1 });
+    timeline.to(supporting, { y: 40, opacity: 0.25, duration: 1 });
+    timeline.to(named, { opacity: 1, duration: 1 });
+    registry.register({ id: "duplicate-automatic", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.getSnapshot().view.tracks.map(({ label, fullLabel }) => ({
+      label,
+      fullLabel,
+    }))).toEqual([
+      { label: "article.story", fullLabel: "article.is-active.story.lead" },
+      { label: "article.supporting-story", fullLabel: "article.u-hidden.supporting-story" },
+      { label: "Named story", fullLabel: "Named story" },
+    ]);
+    expect(editor.selectItem(0)).toBe(true);
+    expect(editor.getSnapshot().view.inspector?.properties).toEqual(["opacity", "y"]);
+
+    editor.destroy();
+    registry.destroy();
+  });
+
+  it("collects properties and preserves unequal target counts across an authored group", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const first = document.createElement("article");
+    const second = document.createElement("article");
+    root.append(first, second);
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(first, { opacity: 0.5, y: 20, duration: 1 });
+    timeline.to(second, { y: 40, opacity: 0.25, duration: 1 });
+    const animations = timeline.getChildren(false, true, false) as gsap.core.Tween[];
+    registry.register({
+      id: "grouped-properties",
+      root,
+      timeline,
+      tracks: [{
+        id: "stories",
+        animations,
+        targets: first,
+      }],
+    });
+    const editor = createEditorController({ registry });
+
+    expect(editor.selectTrack("track:stories")).toBe(true);
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      animatedTargetCount: 2,
+      visualTargetCount: 1,
+      properties: ["opacity", "y"],
+    });
+
+    editor.destroy();
     registry.destroy();
   });
 

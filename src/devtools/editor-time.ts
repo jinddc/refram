@@ -116,7 +116,10 @@ export function readEditorTimeWindow(
   if (sourceDuration === undefined || !Number.isFinite(sourceDuration) || sourceDuration <= 0) {
     return undefined;
   }
-  const duration = Math.max(DEFAULT_FINITE_TIMELINE_DURATION, sourceDuration);
+  const duration = Math.max(
+    DEFAULT_FINITE_TIMELINE_DURATION,
+    Math.ceil(sourceDuration - 0.000000001),
+  );
   const timings = trackTimings(inspection, repeatPeriod);
 
   const time = timeline.totalTime();
