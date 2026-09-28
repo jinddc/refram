@@ -277,22 +277,69 @@ async function verify({ artifactDirectory, send }) {
       && highlightState.pressed === "true",
     `Track selection overlay did not synchronize with the preview: ${JSON.stringify(highlightState)}`,
   );
-  const inspectorState = await evaluate(send, `(() => ({
-    hidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden,
-    paneHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
-    text: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").textContent,
-    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
-    inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
-  }))()`);
+  const inspectorState = await evaluate(send, `(() => {
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
+    const labels = window.__devtoolsEditorV2Harness.query("[data-role='track-labels']");
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const trackLabelStyle = getComputedStyle(
+      window.__devtoolsEditorV2Harness.query(".devtools-editor__track-label"),
+    );
+    const termStyle = getComputedStyle(
+      window.__devtoolsEditorV2Harness.query(".devtools-editor__inspector-term"),
+    );
+    const valueStyle = getComputedStyle(
+      window.__devtoolsEditorV2Harness.query(".devtools-editor__inspector-value"),
+    );
+    const before = labels.getBoundingClientRect();
+    viewport.scrollLeft = 120;
+    const after = labels.getBoundingClientRect();
+    const horizontalScroll = viewport.scrollLeft;
+    viewport.scrollLeft = 0;
+    return {
+      hidden: content.hidden,
+      paneHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
+      text: content.textContent,
+      activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+      inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
+      hasHeading: Boolean(window.__devtoolsEditorV2Harness.query(".devtools-editor__track-heading")),
+      hasMapping: Boolean(content.querySelector(".devtools-editor__inspector-mapping")),
+      hasKey: Boolean(content.querySelector(".devtools-editor__inspector-key")),
+      labelColumnLeftBefore: before.left,
+      labelColumnLeftAfter: after.left,
+      labelColumnWidthBefore: before.width,
+      labelColumnWidthAfter: after.width,
+      horizontalScroll,
+      trackLabelFontSize: trackLabelStyle.fontSize,
+      termFontSize: termStyle.fontSize,
+      valueFontSize: valueStyle.fontSize,
+      termFontFamily: termStyle.fontFamily,
+      valueFontFamily: valueStyle.fontFamily,
+      termColor: termStyle.color,
+      valueColor: valueStyle.color,
+    };
+  })()`);
   assert(
     !inspectorState.hidden
       && !inspectorState.paneHidden
-      && inspectorState.text.includes("Automatic")
+      && !inspectorState.text.includes("Automatic")
+      && !inspectorState.text.includes("animation:1")
       && inspectorState.text.includes("Start")
       && inspectorState.text.includes("Duration")
       && inspectorState.text.includes("End")
       && inspectorState.activePane === "timeline"
-      && inspectorState.inspectorOpen === "true",
+      && inspectorState.inspectorOpen === "true"
+      && !inspectorState.hasHeading
+      && !inspectorState.hasMapping
+      && !inspectorState.hasKey
+      && inspectorState.horizontalScroll > 0
+      && Math.abs(inspectorState.labelColumnLeftBefore - inspectorState.labelColumnLeftAfter) <= 0.5
+      && Math.abs(inspectorState.labelColumnWidthBefore - inspectorState.labelColumnWidthAfter) <= 0.5
+      && inspectorState.trackLabelFontSize === "12px"
+      && inspectorState.termFontSize === "11px"
+      && inspectorState.valueFontSize === "11px"
+      && inspectorState.termFontFamily.includes("monospace")
+      && inspectorState.valueFontFamily.includes("monospace")
+      && inspectorState.termColor !== inspectorState.valueColor,
     `Track inspector did not render without changing panes: ${JSON.stringify(inspectorState)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);

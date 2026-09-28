@@ -156,8 +156,6 @@ export function createEditorUiElements(): EditorUiElements {
   const timelineBody = element("div", "devtools-editor__timeline-body");
   const trackLabels = element("div", "devtools-editor__track-labels");
   trackLabels.dataset.role = "track-labels";
-  const labelHeading = element("div", "devtools-editor__track-heading", "Tracks");
-  trackLabels.append(labelHeading);
   const timelineViewport = element("div", "devtools-editor__timeline-viewport");
   timelineViewport.dataset.role = "timeline-viewport";
   const timelineContent = element("div", "devtools-editor__timeline-content");

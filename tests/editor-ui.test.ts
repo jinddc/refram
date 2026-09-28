@@ -412,8 +412,11 @@ describe("DevTools editor UI v2", () => {
     const inspector = container.querySelector<HTMLElement>("[data-role='inspector-content']")!;
     expect(inspector.hidden).toBe(false);
     expect(inspector.textContent).toContain("Opening");
-    expect(inspector.textContent).toContain("track:opening");
-    expect(inspector.textContent).toContain("Authored");
+    expect(inspector.textContent).not.toContain("track:opening");
+    expect(inspector.textContent).not.toContain("Authored");
+    expect(inspector.querySelector(".devtools-editor__inspector-key")).toBeNull();
+    expect(inspector.querySelector(".devtools-editor__inspector-mapping")).toBeNull();
+    expect(container.querySelector(".devtools-editor__track-heading")).toBeNull();
     expect(inspector.textContent).toContain("0.00s");
     expect(inspector.textContent).toContain("1.00s");
 

@@ -15,6 +15,7 @@ function readLaneState(send) {
     const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block");
     const lane = lanes[0];
     const alternateLane = lanes[1];
+    const label = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-label");
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
     const editor = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
     const marks = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark");
@@ -26,10 +27,14 @@ function readLaneState(send) {
     const span = window.__devtoolsEditorV2Harness.view.tracks[0].spans[0];
     const laneStyle = getComputedStyle(lane);
     const alternateLaneStyle = getComputedStyle(alternateLane);
+    const labelStyle = getComputedStyle(label);
     const blockStyle = getComputedStyle(block);
     return {
       laneBackground: laneStyle.backgroundColor,
+      laneShadow: laneStyle.boxShadow,
       alternateLaneBackground: alternateLaneStyle.backgroundColor,
+      labelBackground: labelStyle.backgroundColor,
+      labelColor: labelStyle.color,
       laneDivider: laneStyle.borderBottomColor,
       laneHeight: laneBounds.height,
       blockBackground: blockStyle.backgroundColor,
@@ -89,21 +94,23 @@ async function verify({ artifactDirectory, send }) {
     };
   })()`);
   assert(
-    typographyState.fontSizes.length === 1
-      && typographyState.fontSizes[0] === "12px"
-      && typographyState.lineHeights.length === 1
-      && typographyState.lineHeights[0] === "17.4px"
-      && typographyState.fontFamilies.length === 1
-      && typographyState.fontFamilies[0].includes('"SF Pro Text"')
-      && !typographyState.fontFamilies[0].includes("monospace"),
-    `Editor typography is not fully synchronized: ${JSON.stringify(typographyState)}`,
+    typographyState.fontSizes.includes("12px")
+      && typographyState.fontSizes.includes("10px")
+      && typographyState.fontSizes.length === 2
+      && typographyState.lineHeights.includes("17.4px")
+      && typographyState.lineHeights.includes("14.5px")
+      && typographyState.fontFamilies.some((family) => family.includes('"SF Pro Text"'))
+      && typographyState.fontFamilies.some((family) => family.includes("monospace")),
+    `Editor typography hierarchy is incorrect: ${JSON.stringify(typographyState)}`,
   );
 
   const darkState = await readLaneState(send);
   assert(
     darkState.theme === "dark"
       && darkState.laneBackground === "rgba(255, 255, 255, 0.03)"
+      && darkState.laneShadow === "none"
       && darkState.alternateLaneBackground === "rgba(255, 255, 255, 0.03)"
+      && darkState.labelBackground === "rgba(0, 0, 0, 0)"
       && darkState.blockBackground === "rgb(55, 57, 60)"
       && darkState.blockBorderWidth === "0px"
       && darkState.blockColor === "rgb(216, 221, 226)"
@@ -148,9 +155,14 @@ async function verify({ artifactDirectory, send }) {
   const darkSelectedState = await readLaneState(send);
   assert(
     darkSelectedState.selected === "true"
+      && darkSelectedState.laneBackground === "rgba(255, 255, 255, 0.03)"
+      && darkSelectedState.labelBackground === "rgba(0, 0, 0, 0)"
+      && darkSelectedState.labelColor === "rgb(85, 173, 255)"
+      && darkSelectedState.laneShadow === "none"
       && darkSelectedState.blockBackground === "color(srgb 0.367216 0.377882 0.391529)"
       && darkSelectedState.blockBorderWidth === "0px"
-      && darkSelectedState.blockColor === "rgb(216, 221, 226)",
+      && darkSelectedState.blockColor === "rgb(216, 221, 226)"
+      && darkSelectedState.blockShadow === "none",
     `Dark lane selection is not a restrained neutral state: ${JSON.stringify(darkSelectedState)}`,
   );
   await screenshot(send, darkSelected);
@@ -176,6 +188,9 @@ async function verify({ artifactDirectory, send }) {
     lightSelectedState.theme === "light"
       && lightSelectedState.laneBackground === "rgb(243, 244, 245)"
       && lightSelectedState.alternateLaneBackground === "rgb(243, 244, 245)"
+      && lightSelectedState.labelBackground === "rgba(0, 0, 0, 0)"
+      && lightSelectedState.labelColor === "rgb(8, 123, 138)"
+      && lightSelectedState.laneShadow === "none"
       && lightSelectedState.blockBackground === "color(srgb 0.559843 0.586039 0.607529)"
       && lightSelectedState.blockBorderWidth === "0px"
       && lightSelectedState.blockColor === "rgb(47, 59, 66)"
@@ -201,7 +216,7 @@ async function verify({ artifactDirectory, send }) {
       "keyboard-focus",
       "light-neutral-lanes",
       "runtime-theme-update",
-      "uniform-12px-editor-typography",
+      "track-and-metadata-typography-hierarchy",
     ],
     screenshots: [
       "artifacts/visual/devtools-editor-lanes-dark.png",

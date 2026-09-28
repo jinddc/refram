@@ -153,7 +153,6 @@
 }
 
 .devtools-editor__clock,
-.devtools-editor__track-heading,
 .devtools-editor__track-empty,
 .devtools-editor__tick,
 .devtools-editor__track-unavailable {
@@ -246,6 +245,7 @@
 
 .devtools-editor__timeline-empty {
   color: var(--editor-text-muted);
+  font: 10px/1.45 ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
 }
 
 .devtools-editor__timeline-empty {
@@ -327,12 +327,14 @@
 }
 
 .devtools-editor__track-labels {
+  position: relative;
+  z-index: 2;
   overflow: hidden;
+  padding-top: 44px;
   border-right: 1px solid var(--editor-border);
-  /* background: var(--editor-surface); */
+  background: var(--editor-surface);
 }
 
-.devtools-editor__track-heading,
 .devtools-editor__track-label,
 .devtools-editor__track-empty {
   display: flex;
@@ -351,17 +353,9 @@
   border-radius: 6px;
 }
 
-.devtools-editor__track-heading {
-  height: 44px;
-  color: var(--editor-text-muted);
-  font-weight: 650;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  margin-bottom: 0;
-}
-
 .devtools-editor__track-label {
   overflow: hidden;
+  font-size: 12px;
   cursor: pointer;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -427,7 +421,8 @@
   top: 0;
   height: 100%;
   padding-top: 11px;
-  color: var(--editor-text);
+  color: var(--editor-text-muted);
+  font: 10px/1.45 ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
   font-weight: 600;
   transform: translateX(-50%);
 }
@@ -605,8 +600,6 @@
 
 .devtools-editor__inspector-identity {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px 8px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--editor-border);
 }
@@ -617,28 +610,6 @@
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.devtools-editor__inspector-key {
-  grid-column: 1 / -1;
-  overflow: hidden;
-  color: var(--editor-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.devtools-editor__inspector-mapping {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: center;
-  padding: 3px 6px;
-  border: 1px solid var(--editor-accent);
-  border-radius: 999px;
-  color: var(--editor-accent);
-  background: var(--editor-accent-soft);
-  font-weight: 650;
-  letter-spacing: .05em;
-  text-transform: uppercase;
 }
 
 .devtools-editor__inspector-details {
@@ -659,6 +630,8 @@
 .devtools-editor__inspector-term,
 .devtools-editor__inspector-value {
   margin: 0;
+  color: var(--editor-text-muted);
+  font: 11px/1.45 ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
 }
 
 .devtools-editor__inspector-term {

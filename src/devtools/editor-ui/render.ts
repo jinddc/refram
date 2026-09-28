@@ -141,8 +141,7 @@ function renderTracks(elements: EditorUiElements, view: EditorViewState): void {
   ].join("|")).join(";");
   if (elements.trackLanes.dataset.signature === signature) return;
   elements.trackLanes.dataset.signature = signature;
-  const heading = node("div", "devtools-editor__track-heading", "Tracks");
-  const labels: HTMLElement[] = [heading];
+  const labels: HTMLElement[] = [];
   const lanes: HTMLElement[] = [];
   for (const track of view.tracks) {
     const [label, lane] = renderTrack(track);
@@ -184,7 +183,6 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
   const signature = [
     inspector.trackKey,
     inspector.label,
-    inspector.mapping,
     inspector.start,
     inspector.duration,
     inspector.end,
@@ -197,13 +195,7 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
 
   const identity = node("div", "devtools-editor__inspector-identity");
   const heading = node("div", "devtools-editor__inspector-label", inspector.label);
-  const key = node("code", "devtools-editor__inspector-key", inspector.trackKey);
-  const mapping = node(
-    "span",
-    "devtools-editor__inspector-mapping",
-    inspector.mapping === "authored" ? "Authored" : "Automatic",
-  );
-  identity.append(heading, key, mapping);
+  identity.append(heading);
 
   const details = node("dl", "devtools-editor__inspector-details");
   details.append(
