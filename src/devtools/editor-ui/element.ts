@@ -5,6 +5,8 @@ import { mountEditorUi, type EditorUiHandle } from "./mount";
 export const MOTION_DEVTOOLS_EDITOR_TAG = "motion-devtools-editor";
 
 export class MotionDevtoolsEditorElement extends HTMLElement {
+  static readonly observedAttributes = ["theme"];
+
   readonly #mountPoint: HTMLElement;
   #handle: EditorUiHandle | undefined;
 
@@ -22,7 +24,13 @@ export class MotionDevtoolsEditorElement extends HTMLElement {
     return this.#handle?.controller;
   }
 
+  attributeChangedCallback(name: string): void {
+    if (name !== "theme") return;
+    this.#syncTheme();
+  }
+
   connectedCallback(): void {
+    this.#syncTheme();
     if (this.#handle) return;
     this.#handle = mountEditorUi(this.#mountPoint);
   }
@@ -30,6 +38,10 @@ export class MotionDevtoolsEditorElement extends HTMLElement {
   disconnectedCallback(): void {
     this.#handle?.destroy();
     this.#handle = undefined;
+  }
+
+  #syncTheme(): void {
+    this.dataset.theme = this.getAttribute("theme") === "light" ? "light" : "dark";
   }
 }
 

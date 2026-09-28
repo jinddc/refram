@@ -7,6 +7,7 @@ import {
 
 export interface MotionDevtoolsEditorOptions {
   readonly container?: HTMLElement;
+  readonly theme?: "dark" | "light";
 }
 
 const liveEditors = new WeakMap<Document, MotionDevtoolsEditor>();
@@ -41,6 +42,7 @@ export class MotionDevtoolsEditor {
     const element = ownerDocument.createElement(
       MOTION_DEVTOOLS_EDITOR_TAG,
     ) as MotionDevtoolsEditorElement;
+    if (options.theme) element.setAttribute("theme", options.theme);
     const container = options.container ?? ownerDocument.body;
     container.append(element);
 

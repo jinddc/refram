@@ -24,6 +24,7 @@
     "prepack": "npm run build",
     "verify:visual:motion-devtools": "node scripts/verify-motion-devtools.mjs",
     "verify:visual:devtools-editor-v2": "node scripts/verify-devtools-editor-v2.mjs",
+    "verify:visual:devtools-editor-lanes": "node scripts/verify-devtools-editor-lanes.mjs",
     "verify:visual:scroll-shader": "node scripts/verify-scroll-shader.mjs",
     "verify:visual:image-sequence": "node scripts/verify-image-sequence.mjs"
   },

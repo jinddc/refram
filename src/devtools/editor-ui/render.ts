@@ -50,10 +50,7 @@ function renderTimelines(elements: EditorUiElements, view: EditorViewState): voi
     button.type = "button";
     button.dataset.timelineId = id;
     button.setAttribute("aria-current", String(id === view.activeTimelineId));
-    button.append(
-      node("span", "devtools-editor__timeline-item-label", label),
-      node("span", "devtools-editor__timeline-item-id", id),
-    );
+    button.append(node("span", "devtools-editor__timeline-item-label", label));
     return button;
   });
   if (entries.length === 0) {
@@ -77,11 +74,7 @@ function renderTransport(elements: EditorUiElements, view: EditorViewState): voi
   elements.currentTime.textContent = elements.currentTime.value;
   elements.duration.value = formatTime(time?.sourceDuration ?? 0);
   elements.duration.textContent = elements.duration.value;
-  elements.root.style.setProperty("--devtools-editor-progress", String(time?.progress ?? 0));
-  elements.root.style.setProperty(
-    "--devtools-editor-playhead-position",
-    timelinePosition(time?.progress ?? 0),
-  );
+  elements.playhead.style.left = timelinePosition(time?.progress ?? 0);
   elements.playhead.setAttribute("aria-valuenow", String(Math.round((time?.progress ?? 0) * 100)));
   elements.playhead.setAttribute("aria-valuetext", elements.currentTime.value);
 }
@@ -131,11 +124,8 @@ function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
       block.dataset.trackKey = track.key;
       block.dataset.selected = String(track.selected);
       block.setAttribute("aria-pressed", String(track.selected));
-      block.style.setProperty("--devtools-editor-track-left", timelinePosition(span.start));
-      block.style.setProperty(
-        "--devtools-editor-track-width",
-        `calc(${(span.end - span.start) * 100}% - ${EDITOR_TIMELINE_EDGE_GUTTER * 2 * (span.end - span.start)}px)`,
-      );
+      block.style.left = `${span.start * 100}%`;
+      block.style.width = `${(span.end - span.start) * 100}%`;
       lane.append(block);
     }
   }

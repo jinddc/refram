@@ -20,6 +20,7 @@ async function verify({ artifactDirectory, send }) {
   );
   const desktopState = await evaluate(send, `(() => ({
     timelines: window.__devtoolsEditorV2Harness.queryAll("[data-timeline-id]").length,
+    visibleTimelineIds: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__timeline-item-id").length,
     hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
     tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
     rulerEnd: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent,
@@ -35,6 +36,10 @@ async function verify({ artifactDirectory, send }) {
       return block.width / content.width;
     })(),
     rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
+    hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
+    hostComputedHeight: getComputedStyle(document.querySelector("motion-devtools-editor")).height,
+    hostInlineHeight: document.querySelector("motion-devtools-editor").style.height,
+    rootComputedHeight: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).height,
     userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
     trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block")).pointerEvents,
     viewportPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']")).pointerEvents,
@@ -63,6 +68,7 @@ async function verify({ artifactDirectory, send }) {
     workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
   assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
+  assert(desktopState.visibleTimelineIds === 0, "Timeline IDs are still visible in the list UI.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
   assert(
@@ -72,7 +78,10 @@ async function verify({ artifactDirectory, send }) {
       && desktopState.firstBlockRatio < 0.2,
     `The default ruler or absolute track scale is incorrect: ${JSON.stringify(desktopState)}`,
   );
-  assert(desktopState.rootHeight >= 300 && desktopState.rootHeight <= 421, "The editor is not docked at the expected size.");
+  assert(
+    desktopState.rootHeight >= 300 && desktopState.rootHeight <= 421,
+    `The editor is not docked at the expected size: ${JSON.stringify(desktopState)}`,
+  );
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
     desktopState.activeTimeline === "playground/v2/finite"
@@ -141,7 +150,7 @@ async function verify({ artifactDirectory, send }) {
   })()`);
   assert(
     resizeHitTarget.height === 9
-      && resizeHitTarget.cursor === "ns-resize"
+      && resizeHitTarget.cursor === "row-resize"
       && resizeHitTarget.role === "separator"
       && resizeHitTarget.orientation === "horizontal"
       && resizeHitTarget.hitRole === "height-separator",

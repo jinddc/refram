@@ -95,7 +95,7 @@ describe("DevTools editor UI v2", () => {
     vi.stubGlobal("innerHeight", 800);
     const registry = createTimelineRegistry();
     const container = document.createElement("div");
-    container.style.setProperty("--devtools-editor-height", "260px");
+    container.style.setProperty("height", "260px");
     vi.spyOn(container, "getBoundingClientRect").mockReturnValue(bounds(0, 540, 1000, 260));
     document.body.append(container);
 
@@ -112,7 +112,7 @@ describe("DevTools editor UI v2", () => {
       bubbles: true,
       key: "ArrowUp",
     }));
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("276px");
+    expect(container.style.getPropertyValue("height")).toBe("276px");
     expect(separator.getAttribute("aria-valuetext")).toBe("276 pixels high");
 
     for (let index = 0; index < 10; index += 1) {
@@ -122,7 +122,7 @@ describe("DevTools editor UI v2", () => {
         shiftKey: true,
       }));
     }
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("520px");
+    expect(container.style.getPropertyValue("height")).toBe("520px");
 
     for (let index = 0; index < 10; index += 1) {
       separator.dispatchEvent(new KeyboardEvent("keydown", {
@@ -131,10 +131,10 @@ describe("DevTools editor UI v2", () => {
         shiftKey: true,
       }));
     }
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("180px");
+    expect(container.style.getPropertyValue("height")).toBe("180px");
 
     separator.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("260px");
+    expect(container.style.getPropertyValue("height")).toBe("260px");
     expect(sessionStorage.getItem("motion-lab-devtools-editor-height-ratio")).toBeNull();
 
     const storagePrototype = Object.getPrototypeOf(sessionStorage) as Storage;
@@ -147,7 +147,7 @@ describe("DevTools editor UI v2", () => {
     }))).not.toThrow();
 
     handle.destroy();
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("260px");
+    expect(container.style.getPropertyValue("height")).toBe("260px");
     registry.destroy();
   });
 
@@ -155,7 +155,7 @@ describe("DevTools editor UI v2", () => {
     vi.stubGlobal("innerHeight", 800);
     const registry = createTimelineRegistry();
     const container = document.createElement("div");
-    container.style.setProperty("--devtools-editor-height", "250px", "important");
+    container.style.setProperty("height", "250px", "important");
     vi.spyOn(container, "getBoundingClientRect").mockReturnValue(bounds(0, 550, 1000, 250));
     document.body.append(container);
     const handle = mountEditorUi(container, { registry });
@@ -184,10 +184,10 @@ describe("DevTools editor UI v2", () => {
     expect(setPointerCapture).toHaveBeenCalledWith(4);
     expect(separator.dataset.resizeState).toBe("active");
     expect(frames.size).toBe(1);
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("250px");
+    expect(container.style.getPropertyValue("height")).toBe("250px");
 
     await flush();
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("420px");
+    expect(container.style.getPropertyValue("height")).toBe("420px");
     separator.dispatchEvent(new PointerEvent("pointercancel", {
       bubbles: true,
       pointerId: 4,
@@ -211,12 +211,12 @@ describe("DevTools editor UI v2", () => {
       bubbles: true,
       pointerId: 5,
     }));
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("520px");
+    expect(container.style.getPropertyValue("height")).toBe("520px");
     expect(frames.size).toBe(0);
 
     vi.stubGlobal("innerHeight", 1000);
     window.dispatchEvent(new Event("resize"));
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("650px");
+    expect(container.style.getPropertyValue("height")).toBe("650px");
     expect(separator.getAttribute("aria-valuemax")).toBe("720");
 
     separator.dispatchEvent(new PointerEvent("pointerdown", {
@@ -232,8 +232,8 @@ describe("DevTools editor UI v2", () => {
     handle.destroy();
     expect(releasePointerCapture).toHaveBeenCalledWith(6);
     expect(frames.size).toBe(0);
-    expect(container.style.getPropertyValue("--devtools-editor-height")).toBe("250px");
-    expect(container.style.getPropertyPriority("--devtools-editor-height")).toBe("important");
+    expect(container.style.getPropertyValue("height")).toBe("250px");
+    expect(container.style.getPropertyPriority("height")).toBe("important");
     registry.destroy();
   });
 
@@ -264,14 +264,14 @@ describe("DevTools editor UI v2", () => {
       bubbles: true,
       pointerId: 7,
     }));
-    expect(firstContainer.style.getPropertyValue("--devtools-editor-height")).toBe("400px");
+    expect(firstContainer.style.getPropertyValue("height")).toBe("400px");
     firstHandle.destroy();
 
     vi.stubGlobal("innerHeight", 1000);
     const secondContainer = document.createElement("div");
     document.body.append(secondContainer);
     const secondHandle = mountEditorUi(secondContainer, { registry });
-    expect(secondContainer.style.getPropertyValue("--devtools-editor-height")).toBe("500px");
+    expect(secondContainer.style.getPropertyValue("height")).toBe("500px");
     expect(secondContainer.querySelector("[data-role='height-separator']")
       ?.getAttribute("aria-valuenow")).toBe("500");
 
@@ -341,14 +341,14 @@ describe("DevTools editor UI v2", () => {
     document.body.append(container);
     const handle = mountEditorUi(container, { registry });
     await flush();
-    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
 
     expect(handle.controller.seek(8.94 / DEFAULT_FINITE_TIMELINE_DURATION)).toBe(true);
     expect(handle.controller.getSnapshot().view.time).toMatchObject({
       time: 1.5,
       progress: 1.5 / DEFAULT_FINITE_TIMELINE_DURATION,
     });
-    expect(root.style.getPropertyValue("--devtools-editor-playhead-position"))
+    expect(playhead.style.left)
       .toBe("calc(12.5% + 9px)");
     expect(container.querySelector("[data-role='current-time']")?.textContent)
       .toBe("00:01.500");
@@ -384,9 +384,12 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
       .toBe("12s");
     expect(container.querySelectorAll<HTMLElement>(".devtools-editor__track-block")[0]
-      ?.style.getPropertyValue("--devtools-editor-track-width"))
+      ?.style.width)
       .toContain("8.333333333333332%");
     expect(container.querySelectorAll("[data-timeline-id]")).toHaveLength(2);
+    expect(container.querySelector(".devtools-editor__timeline-item-id")).toBeNull();
+    expect(container.querySelector("[data-timeline-id='first']")?.textContent)
+      .toBe("First sequence");
     expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
       .toBe("timeline");
     expect(container.querySelector("[data-timeline-id='first']")?.getAttribute("aria-current"))
@@ -610,8 +613,30 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
       .toBe("12s");
     expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")
-      ?.style.getPropertyValue("--devtools-editor-track-width"))
+      ?.style.width)
       .toContain("8.333333333333332%");
+
+    handle.destroy();
+    timelineRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("maps full-duration tracks onto the shared inset lane content box", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    document.body.append(container, root);
+    const handle = mountEditorUi(container, { registry });
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(target, { x: 20, duration: DEFAULT_FINITE_TIMELINE_DURATION });
+    const timelineRegistration = registry.register({ id: "full-duration", root, timeline });
+    await flush();
+
+    const block = container.querySelector<HTMLElement>(".devtools-editor__track-block")!;
+    expect(block.style.left).toBe("0%");
+    expect(block.style.width).toBe("100%");
 
     handle.destroy();
     timelineRegistration.destroy();
@@ -839,10 +864,10 @@ describe("DevTools editor UI v2", () => {
       bubbles: true,
       key: "ArrowUp",
     }));
-    const resizedHeight = editor.style.getPropertyValue("--devtools-editor-height");
+    const resizedHeight = editor.style.getPropertyValue("height");
     expect(Number.parseFloat(resizedHeight)).toBeCloseTo(initialHeight + 16, 0);
     expect(shadow.querySelector<HTMLElement>("[data-devtools-editor]")
-      ?.style.getPropertyValue("--devtools-editor-height")).toBe("");
+      ?.style.getPropertyValue("height")).toBe("");
 
     shadow.querySelector<HTMLButtonElement>(
       ".devtools-editor__track-block[data-track-key='track:opening']",
@@ -852,7 +877,7 @@ describe("DevTools editor UI v2", () => {
 
     editor.remove();
     expect(editor.controller).toBeUndefined();
-    expect(editor.style.getPropertyValue("--devtools-editor-height")).toBe("");
+    expect(editor.style.getPropertyValue("height")).toBe("");
     expect(sourceHome.contains(fixture.root)).toBe(true);
     expect(fixture.root.slot).toBe("application-slot");
     expect(fixture.first.style.outline).toBe("");
@@ -863,10 +888,80 @@ describe("DevTools editor UI v2", () => {
     await flush();
     expect(editor.controller).toBeDefined();
     expect(editor.controller).not.toBe(firstController);
-    expect(editor.style.getPropertyValue("--devtools-editor-height")).toBe(resizedHeight);
+    expect(editor.style.getPropertyValue("height")).toBe(resizedHeight);
 
     editor.remove();
     timelineRegistration.destroy();
+  });
+
+  it("resolves missing and invalid editor themes to dark", async () => {
+    defineMotionDevtoolsEditor();
+    const editor = document.createElement(
+      MOTION_DEVTOOLS_EDITOR_TAG,
+    ) as MotionDevtoolsEditorElement;
+    document.body.append(editor);
+    await flush();
+
+    expect(editor.dataset.theme).toBe("dark");
+    editor.setAttribute("theme", "sepia");
+    expect(editor.dataset.theme).toBe("dark");
+    editor.removeAttribute("theme");
+    expect(editor.dataset.theme).toBe("dark");
+
+    editor.remove();
+  });
+
+  it("applies explicit themes and responds to runtime attribute changes", async () => {
+    defineMotionDevtoolsEditor();
+    const editor = document.createElement(
+      MOTION_DEVTOOLS_EDITOR_TAG,
+    ) as MotionDevtoolsEditorElement;
+    editor.setAttribute("theme", "light");
+    document.body.append(editor);
+    await flush();
+
+    expect(editor.dataset.theme).toBe("light");
+    editor.setAttribute("theme", "dark");
+    expect(editor.dataset.theme).toBe("dark");
+    editor.setAttribute("theme", "light");
+    expect(editor.dataset.theme).toBe("light");
+
+    editor.remove();
+  });
+
+  it("configures constructor themes before mounting into the requested container", () => {
+    const container = document.createElement("aside");
+    document.body.append(container);
+    const append = container.append.bind(container);
+    const appendSpy = vi.spyOn(container, "append").mockImplementation((...nodes) => {
+      expect((nodes[0] as Element).getAttribute("theme")).toBe("light");
+      append(...nodes);
+    });
+
+    const editor = new MotionDevtoolsEditor({ container, theme: "light" });
+
+    expect(appendSpy).toHaveBeenCalledOnce();
+    expect(editor.domElement.parentNode).toBe(container);
+    expect(editor.domElement.getAttribute("theme")).toBe("light");
+    expect(editor.domElement.dataset.theme).toBe("light");
+    editor.destroy();
+  });
+
+  it("supports explicit dark and missing constructor theme options", () => {
+    const container = document.createElement("aside");
+    document.body.append(container);
+
+    const darkEditor = new MotionDevtoolsEditor({ container, theme: "dark" });
+    expect(darkEditor.domElement.parentNode).toBe(container);
+    expect(darkEditor.domElement.getAttribute("theme")).toBe("dark");
+    expect(darkEditor.domElement.dataset.theme).toBe("dark");
+    darkEditor.destroy();
+
+    const defaultEditor = new MotionDevtoolsEditor({ container });
+    expect(defaultEditor.domElement.parentNode).toBe(container);
+    expect(defaultEditor.domElement.hasAttribute("theme")).toBe(false);
+    expect(defaultEditor.domElement.dataset.theme).toBe("dark");
+    defaultEditor.destroy();
   });
 
   it("owns one JavaScript-created editor per document without owning registrations", async () => {

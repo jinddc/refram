@@ -6,6 +6,7 @@ import {
   defaultTimelineRegistry,
   MotionDevtoolsEditor,
   registerTimeline,
+  type MotionDevtoolsEditorOptions,
   type MotionTimelineDeclaration,
   type MotionTimelineRegistration,
   type MotionTimelineRegistry,
@@ -20,6 +21,7 @@ describe("local package entry", () => {
     expect(defaultTimelineRegistry.getSnapshot()).toBeDefined();
 
     const declarationsCompile: readonly [
+      MotionDevtoolsEditorOptions?,
       MotionTimelineDeclaration?,
       MotionTimelineRegistration?,
       MotionTimelineRegistry?,

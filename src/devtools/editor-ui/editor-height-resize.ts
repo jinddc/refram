@@ -1,4 +1,4 @@
-const EDITOR_HEIGHT_PROPERTY = "--devtools-editor-height";
+const EDITOR_HEIGHT_PROPERTY = "height";
 const EDITOR_HEIGHT_STORAGE_KEY = "motion-lab-devtools-editor-height-ratio";
 const MIN_EDITOR_HEIGHT = 180;
 const MIN_PREVIEW_HEIGHT = 280;

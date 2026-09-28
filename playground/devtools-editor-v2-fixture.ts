@@ -114,7 +114,18 @@ function registerParticleTimeline(): MotionTimelineRegistration {
 }
 
 const registrations = [registerFiniteTimeline(), registerParticleTimeline()];
-let editor = new MotionDevtoolsEditor();
+
+function createFixtureEditor(): MotionDevtoolsEditor {
+  const fixtureEditor = new MotionDevtoolsEditor({
+    // theme: "light",
+  });
+  const parameters = new URLSearchParams(location.search);
+  const theme = parameters.get("theme");
+  if (theme) fixtureEditor.domElement.setAttribute("theme", theme);
+  return fixtureEditor;
+}
+
+let editor = createFixtureEditor();
 
 const harness = {
   get editorRoot() {
@@ -146,7 +157,7 @@ const harness = {
     editor.destroy();
   },
   remount() {
-    if (!editor.domElement.isConnected) editor = new MotionDevtoolsEditor();
+    if (!editor.domElement.isConnected) editor = createFixtureEditor();
   },
 };
 
