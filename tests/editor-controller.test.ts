@@ -384,9 +384,12 @@ describe("headless editor controller", () => {
     expect(editor.selectTrack("animation:0")).toBe(true);
     expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
     expect(editor.setReversed(true)).toBe(true);
+    expect(editor.setTimeScale(0.5)).toBe(true);
     expect(editor.replay()).toBe(true);
     expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
     expect(editor.getSnapshot().view.transport.reversed).toBe(true);
+    expect(editor.getSnapshot().view.transport.timeScale).toBe(0.5);
+    expect(Math.abs(registration.timeline.timeScale())).toBe(0.5);
 
     expect(editor.setReversed(false)).toBe(true);
 

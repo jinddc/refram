@@ -420,6 +420,20 @@ describe("DevTools editor UI v2", () => {
     expect([...container.querySelectorAll("[data-action='play'] [data-icon]")].map((icon) => (
       icon.getAttribute("data-icon")
     ))).toEqual(["play", "pause"]);
+    const timelineToggleIcon = container.querySelector(
+      "[data-action='toggle-timelines'] [data-icon='previous']",
+    );
+    const inspectorCloseIcon = container.querySelector(
+      "[data-action='close-inspector'] [data-icon='close']",
+    );
+    for (const icon of [timelineToggleIcon, inspectorCloseIcon]) {
+      expect(icon?.getAttribute("aria-hidden")).toBe("true");
+      expect(icon?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+    }
+    expect(container.querySelector("[data-action='close-inspector']")?.getAttribute("aria-label"))
+      .toBe("Close inspector");
+    expect(container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.title)
+      .toBe("Close inspector");
     expect(container.querySelector(".devtools-editor__timeline-item-id")).toBeNull();
     expect(container.querySelector("[data-timeline-id='first']")?.textContent)
       .toBe("First sequence");
@@ -477,8 +491,12 @@ describe("DevTools editor UI v2", () => {
     expect(root.dataset.timelinesVisible).toBe("false");
     expect(timelineListToggle.getAttribute("aria-expanded")).toBe("false");
     expect(timelineListToggle.getAttribute("aria-label")).toBe("Show timelines pane");
+    expect(timelineListToggle.title).toBe("Show timelines pane");
+    expect(timelineListToggle.querySelector("[data-icon='previous']")).toBe(timelineToggleIcon);
     timelineListToggle.click();
     expect(root.dataset.timelinesVisible).toBe("true");
+    expect(timelineListToggle.getAttribute("aria-label")).toBe("Hide timelines pane");
+    expect(timelineListToggle.title).toBe("Hide timelines pane");
 
     const speed = container.querySelector<HTMLSelectElement>("[data-action='set-speed']")!;
     speed.value = "0.5";
@@ -1023,7 +1041,7 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
-  it("preserves the Reverse visual when Replay rebuilds the runtime", () => {
+  it("preserves Reverse and playback speed visuals when Replay rebuilds the runtime", () => {
     const registry = createTimelineRegistry();
     const root = document.createElement("section");
     const target = document.createElement("div");
@@ -1041,12 +1059,19 @@ describe("DevTools editor UI v2", () => {
     document.body.append(container, root);
     const handle = mountEditorUi(container, { registry });
     const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
+    const speed = container.querySelector<HTMLSelectElement>("[data-action='set-speed']")!;
 
+    speed.value = "0.5";
+    speed.dispatchEvent(new Event("change", { bubbles: true }));
     reverse.click();
     expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(speed.value).toBe("0.5");
     container.querySelector<HTMLButtonElement>("[data-action='replay']")?.click();
     expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(speed.value).toBe("0.5");
     expect(handle.controller.getSnapshot().view.transport.reversed).toBe(true);
+    expect(handle.controller.getSnapshot().view.transport.timeScale).toBe(0.5);
+    expect(Math.abs(registration.timeline.timeScale())).toBe(0.5);
 
     handle.destroy();
     registration.destroy();

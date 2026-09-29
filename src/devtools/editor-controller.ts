@@ -71,6 +71,7 @@ export function createEditorController(
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
   let replayDirection: boolean | undefined;
+  let replayTimeScale: number | undefined;
   let looping = false;
   let destroyed = false;
   let generation = 0;
@@ -147,6 +148,7 @@ export function createEditorController(
     detach();
     active = registration;
     replayDirection = undefined;
+    replayTimeScale = undefined;
     trackKey = undefined;
     animation = undefined;
     error = undefined;
@@ -285,16 +287,24 @@ export function createEditorController(
     replay() {
       if (destroyed || !active) return false;
       if (active.replayState === "blocked") return false;
-      if (inspection) replayDirection = inspection.reversed;
+      if (inspection) {
+        replayDirection = inspection.reversed;
+        replayTimeScale = inspection.timeScale;
+      }
       try {
         active.replay();
         if (!attachment) attach(active);
+        if (attachment && replayTimeScale !== undefined
+          && attachment.read().timeScale !== replayTimeScale) {
+          attachment.setTimeScale(replayTimeScale);
+        }
         if (attachment && replayDirection !== undefined
           && attachment.read().reversed !== replayDirection) {
           attachment.setReversed(replayDirection);
         }
         if (attachment) inspection = attachment.read();
         replayDirection = undefined;
+        replayTimeScale = undefined;
         error = undefined;
         publish();
         return true;

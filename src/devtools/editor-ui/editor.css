@@ -66,14 +66,14 @@
   --editor-surface-hover: #ffffff0f;
   --editor-button-hover: #ffffff1a;
   --editor-text: #d8dde2;
-  --editor-text-muted: #77808a;
+  --editor-text-muted: #808080;
   --editor-border: #ffffff0d;
   --editor-divider: #24282e;
   --editor-accent: #55adff;
   --editor-accent-soft: rgb(85 173 255 / 14%);
   --editor-on-accent: #071316;
   --editor-track-lane: #ffffff08;
-  --editor-track-block: #37393c;
+  --editor-track-block: #3b3b3b;
   --editor-post-duration: rgb(0 0 0 / 16%);
   --editor-focus: #55adff;
 
@@ -367,6 +367,22 @@
   width: 16px;
   height: 16px;
   margin: 0 auto;
+}
+
+.devtools-editor__timeline-list-toggle .devtools-editor__transport-icon,
+.devtools-editor__inspector-close .devtools-editor__transport-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.devtools-editor__timeline-list-toggle .devtools-editor__transport-icon {
+  transition: transform 120ms ease;
+}
+
+.devtools-editor[data-timelines-visible="false"]
+  .devtools-editor__timeline-list-toggle
+  .devtools-editor__transport-icon {
+  transform: rotate(180deg);
 }
 
 .devtools-editor__transport-icon[hidden] {
@@ -738,7 +754,7 @@
 
 .devtools-editor__inspector-close {
   min-width: 0;
-  height: 24px;
+  aspect-ratio: 1;
   padding: 0 8px;
 }
 

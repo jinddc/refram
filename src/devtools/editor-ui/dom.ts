@@ -54,7 +54,7 @@ function action(label: string, name: string): HTMLButtonElement {
 }
 
 function createTransportIcon(
-  name: "play" | "pause" | "loop" | "reverse" | "replay",
+  name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close",
   pathData: string | readonly string[],
 ): SVGSVGElement {
   const namespace = "http://www.w3.org/2000/svg";
@@ -163,7 +163,7 @@ export function createEditorUiElements(): EditorUiElements {
   configurePane(timelineListPane, "timelines");
   const timelineListHeading = element("header", "devtools-editor__pane-heading");
   timelineListHeading.append(element("span", "devtools-editor__pane-heading-label", "Timelines"));
-  const timelineListToggle = action("‹", "toggle-timelines");
+  const timelineListToggle = action("", "toggle-timelines");
   timelineListToggle.classList.add(
     "devtools-editor__timeline-list-toggle",
     "devtools-editor__action--compact",
@@ -171,6 +171,11 @@ export function createEditorUiElements(): EditorUiElements {
   timelineListToggle.setAttribute("aria-controls", "devtools-editor-pane-timelines");
   timelineListToggle.setAttribute("aria-expanded", "true");
   timelineListToggle.setAttribute("aria-label", "Hide timelines pane");
+  timelineListToggle.title = "Hide timelines pane";
+  timelineListToggle.append(createTransportIcon(
+    "previous",
+    "m 12 2 c 0 -0.265625 -0.105469 -0.519531 -0.292969 -0.707031 c -0.390625 -0.390625 -1.023437 -0.390625 -1.414062 0 l -6 6 c -0.1875 0.1875 -0.292969 0.441406 -0.292969 0.707031 s 0.105469 0.519531 0.292969 0.707031 l 6 6 c 0.390625 0.390625 1.023437 0.390625 1.414062 0 c 0.1875 -0.1875 0.292969 -0.441406 0.292969 -0.707031 s -0.105469 -0.519531 -0.292969 -0.707031 l -5.292969 -5.292969 l 5.292969 -5.292969 c 0.1875 -0.1875 0.292969 -0.441406 0.292969 -0.707031 z m 0 0",
+  ));
   timelineListHeading.append(timelineListToggle);
   const timelineList = element("div", "devtools-editor__timeline-list");
   timelineList.dataset.role = "timeline-list";
@@ -306,8 +311,14 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorPane.hidden = true;
   const inspectorHeading = element("header", "devtools-editor__pane-heading");
   inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Properties"));
-  const inspectorCloseButton = action("Close", "close-inspector");
+  const inspectorCloseButton = action("", "close-inspector");
   inspectorCloseButton.classList.add("devtools-editor__inspector-close");
+  inspectorCloseButton.setAttribute("aria-label", "Close inspector");
+  inspectorCloseButton.title = "Close inspector";
+  inspectorCloseButton.append(createTransportIcon(
+    "close",
+    "m 3 2 c -0.265625 0 -0.519531 0.105469 -0.707031 0.292969 c -0.390625 0.390625 -0.390625 1.023437 0 1.414062 l 4.292969 4.292969 l -4.292969 4.292969 c -0.390625 0.390625 -0.390625 1.023437 0 1.414062 s 1.023437 0.390625 1.414062 0 l 4.292969 -4.292969 l 4.292969 4.292969 c 0.390625 0.390625 1.023437 0.390625 1.414062 0 s 0.390625 -1.023437 0 -1.414062 l -4.292969 -4.292969 l 4.292969 -4.292969 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 c -0.1875 -0.1875 -0.441406 -0.292969 -0.707031 -0.292969 s -0.519531 0.105469 -0.707031 0.292969 l -4.292969 4.292969 l -4.292969 -4.292969 c -0.1875 -0.1875 -0.441406 -0.292969 -0.707031 -0.292969 z m 0 0",
+  ));
   inspectorHeading.append(inspectorCloseButton);
   const inspectorEmpty = element(
     "p",

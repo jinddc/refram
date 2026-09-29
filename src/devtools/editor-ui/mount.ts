@@ -64,12 +64,10 @@ export function mountEditorUi(
   const setTimelineListVisible = (visible: boolean): void => {
     timelineListVisible = visible;
     elements.root.dataset.timelinesVisible = String(visible);
-    elements.timelineListToggle.textContent = visible ? "‹" : "›";
     elements.timelineListToggle.setAttribute("aria-expanded", String(visible));
-    elements.timelineListToggle.setAttribute(
-      "aria-label",
-      visible ? "Hide timelines pane" : "Show timelines pane",
-    );
+    const label = visible ? "Hide timelines pane" : "Show timelines pane";
+    elements.timelineListToggle.setAttribute("aria-label", label);
+    elements.timelineListToggle.title = label;
   };
 
   const setActivePane = (pane: EditorPane, focus = false): void => {
