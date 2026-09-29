@@ -264,13 +264,13 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
       playState,
       timeScale: inspection?.timeScale,
       reversed: inspection?.reversed ?? false,
-      looping: input.looping ?? false,
+      looping: (input.looping ?? false) && input.timeWindow?.repeating !== true,
       canPlay: canControl && playState !== "running",
       canPause: canControl && playState === "running",
       canSeek: canControl && input.timeWindow !== undefined,
       canSetTimeScale: canControl,
       canSetDirection: canControl,
-      canLoop: canControl,
+      canLoop: canControl && input.timeWindow !== undefined && !input.timeWindow.repeating,
       canReplay: input.activeTimelineId !== undefined
         && input.replayState === "ready"
         && inspection !== undefined,

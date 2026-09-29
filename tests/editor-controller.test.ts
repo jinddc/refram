@@ -132,6 +132,7 @@ describe("headless editor controller", () => {
 
     expect(editor.setReversed(true)).toBe(true);
     expect(editor.getSnapshot().view.transport.reversed).toBe(true);
+    expect(editor.getSnapshot().view.transport.timeScale).toBe(1);
     expect(timeline.totalProgress()).toBe(0);
     expect(editor.play()).toBe(true);
     expect(timeline.totalProgress()).toBe(1);
@@ -150,6 +151,60 @@ describe("headless editor controller", () => {
     frame?.(16);
     expect(timeline.totalProgress()).toBe(0);
     expect(timeline.paused()).toBe(false);
+
+    expect(editor.setReversed(true)).toBe(true);
+    expect(editor.setTimeScale(0.5)).toBe(true);
+    expect(editor.getSnapshot().view.transport.reversed).toBe(true);
+    expect(editor.getSnapshot().view.transport.timeScale).toBe(0.5);
+    timeline.totalProgress(0, true).pause();
+    frame?.(32);
+    expect(timeline.totalProgress()).toBe(1);
+    expect(timeline.reversed()).toBe(true);
+    expect(timeline.paused()).toBe(false);
+
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("keeps playback running when reverse is toggled at the forward start boundary", () => {
+    const registry = createTimelineRegistry();
+    const { root, timeline } = directTimeline("reverse-at-start");
+    const registration = registry.register({ id: "reverse-at-start", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.play()).toBe(true);
+    expect(editor.getSnapshot().view.time?.progress).toBe(0);
+    expect(editor.getSnapshot().view.transport.canPause).toBe(true);
+
+    expect(editor.setReversed(true)).toBe(true);
+    expect(timeline.totalProgress()).toBe(1);
+    expect(timeline.reversed()).toBe(true);
+    expect(timeline.paused()).toBe(false);
+    expect(editor.getSnapshot().view.transport.canPause).toBe(true);
+    expect(editor.getSnapshot().view.transport.canPlay).toBe(false);
+
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("reports reverse completion at zero as idle when looping is off", () => {
+    const registry = createTimelineRegistry();
+    const { root, timeline } = directTimeline("reverse-complete");
+    const registration = registry.register({ id: "reverse-complete", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.setReversed(true)).toBe(true);
+    expect(editor.play()).toBe(true);
+    timeline.totalProgress(0, true);
+    expect(timeline.paused()).toBe(false);
+    expect(timeline.isActive()).toBe(false);
+    expect(editor.setTimeScale(1)).toBe(true);
+
+    expect(editor.getSnapshot().inspection?.playState).toBe("idle");
+    expect(editor.getSnapshot().view.transport.canPlay).toBe(true);
+    expect(editor.getSnapshot().view.transport.canPause).toBe(false);
 
     editor.destroy();
     registration.destroy();
@@ -328,8 +383,12 @@ describe("headless editor controller", () => {
 
     expect(editor.selectTrack("animation:0")).toBe(true);
     expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
+    expect(editor.setReversed(true)).toBe(true);
     expect(editor.replay()).toBe(true);
     expect(editor.getSnapshot().view.inspector?.trackKey).toBe("animation:0");
+    expect(editor.getSnapshot().view.transport.reversed).toBe(true);
+
+    expect(editor.setReversed(false)).toBe(true);
 
     expect(editor.play()).toBe(true);
     expect(editor.seek(1)).toBe(true);
@@ -360,6 +419,7 @@ describe("headless editor controller", () => {
       },
     });
     const editor = createEditorController({ registry });
+    expect(editor.setReversed(true)).toBe(true);
     expect(editor.replay()).toBe(false);
     expect(editor.getSnapshot().error).toBeInstanceOf(Error);
     expect(editor.getSnapshot().inspection).toBeUndefined();
@@ -374,6 +434,7 @@ describe("headless editor controller", () => {
     expect(editor.getSnapshot().replayState).toBe("ready");
     expect(editor.getSnapshot().view.status).toBe("ready");
     expect(editor.getSnapshot().view.transport.canRetryReplay).toBe(false);
+    expect(editor.getSnapshot().view.transport.reversed).toBe(true);
     expect(editor.getSnapshot().inspection?.readiness).toBe("ready");
     expect(attempts).toBe(3);
     expect(disposed).toBe(1);
@@ -529,6 +590,8 @@ describe("headless editor controller", () => {
     expect(initial?.start).toBeCloseTo(99);
     expect(initial?.sourceDuration).toBe(5);
     expect(initial?.repeating).toBe(true);
+    expect(editor.getSnapshot().view.transport.canLoop).toBe(false);
+    expect(editor.setLooping(true)).toBe(false);
     expect(initial?.progress).toBeCloseTo(0);
     expect(initial?.trackTimings[0]).toMatchObject({ start: 0, duration: 5, end: 5 });
     expect(initial?.tracks).toHaveLength(1);
@@ -598,6 +661,8 @@ describe("headless editor controller", () => {
     const registration = registry.register(repeating);
     const editor = createEditorController({ registry });
     expect(editor.getSnapshot().timeWindow?.duration).toBe(DEFAULT_FINITE_TIMELINE_DURATION);
+    expect(editor.getSnapshot().view.transport.canLoop).toBe(false);
+    expect(editor.setLooping(true)).toBe(false);
     expect(editor.seek(0.5)).toBe(true);
     expect(repeating.timeline.totalTime()).toBeCloseTo(1);
     repeating.timeline.totalTime(1.25);
@@ -608,9 +673,12 @@ describe("headless editor controller", () => {
     registration.destroy();
 
     const root = document.createElement("section");
+    const firstTarget = document.createElement("div");
+    const secondTarget = document.createElement("div");
+    root.append(firstTarget, secondTarget);
     const timeline = gsap.timeline({ paused: true });
-    const first = gsap.to({ x: 0 }, { x: 1, duration: 2, repeat: -1, paused: true });
-    const second = gsap.to({ x: 0 }, { x: 1, duration: 3, repeat: -1, paused: true });
+    const first = gsap.to(firstTarget, { x: 1, duration: 2, repeat: -1 });
+    const second = gsap.to(secondTarget, { x: 1, duration: 3, repeat: -1 });
     timeline.add(first, 0).add(second, 0);
     const ambiguous = registry.register({
       id: "ambiguous",
@@ -624,7 +692,9 @@ describe("headless editor controller", () => {
     const secondEditor = createEditorController({ registry });
     expect(secondEditor.getSnapshot().timeWindow).toBeUndefined();
     expect(secondEditor.getSnapshot().view.transport.canSeek).toBe(false);
+    expect(secondEditor.getSnapshot().view.transport.canLoop).toBe(false);
     expect(secondEditor.seek(0.5)).toBe(false);
+    expect(secondEditor.setLooping(true)).toBe(false);
     secondEditor.destroy();
     ambiguous.destroy();
     registry.destroy();

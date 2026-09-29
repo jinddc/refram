@@ -487,6 +487,7 @@ describe("DevTools editor UI v2", () => {
     const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
     reverse.click();
     expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(speed.value).toBe("0.5");
     const loop = container.querySelector<HTMLButtonElement>("[data-action='toggle-loop']")!;
     loop.click();
     expect(loop.getAttribute("aria-pressed")).toBe("true");
@@ -768,7 +769,7 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
-  it("clamps repeat playhead drags to a discovered non-five-second cycle", async () => {
+  it("clamps repeat clicks and playhead drags to a discovered non-five-second cycle", async () => {
     const registry = createTimelineRegistry();
     const container = document.createElement("div");
     const root = document.createElement("section");
@@ -785,6 +786,9 @@ describe("DevTools editor UI v2", () => {
       duration: DEFAULT_FINITE_TIMELINE_DURATION,
       sourceDuration: 3,
     });
+    const loop = container.querySelector<HTMLButtonElement>("[data-action='toggle-loop']")!;
+    expect(loop.disabled).toBe(true);
+    expect(loop.getAttribute("aria-pressed")).toBe("false");
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
     const endMarker = container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")!;
@@ -795,6 +799,15 @@ describe("DevTools editor UI v2", () => {
     expect(postDuration.hidden).toBe(false);
     expect(postDuration.style.left).toBe(endMarker.style.left);
     vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 1200, 400));
+
+    content.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 698,
+      clientY: 100,
+    }));
+    expect(handle.controller.getSnapshot().timeWindow?.progress).toBeCloseTo(3 / 12);
+    expect(container.querySelector("[data-role='current-time']")?.textContent).toBe("00:03.000");
 
     playhead.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true,
@@ -929,6 +942,51 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
+  it("keeps the Pause visual when reverse is toggled during playback at zero", () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("reverse-at-zero", "Reverse at zero");
+    const timelineRegistration = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(fixture.root, container);
+    const handle = mountEditorUi(container, { registry });
+
+    container.querySelector<HTMLButtonElement>("[data-action='play']")?.click();
+    expect(handle.controller.getSnapshot().view.time?.progress).toBe(0);
+    container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")?.click();
+
+    expect(fixture.timeline.totalProgress()).toBe(1);
+    const pause = container.querySelector<HTMLButtonElement>("[data-action='pause']");
+    expect(pause?.getAttribute("aria-label")).toBe("Pause");
+    expect(pause?.disabled).toBe(false);
+
+    handle.destroy();
+    timelineRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("shows the Play visual after reverse finishes at zero without looping", () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("reverse-complete", "Reverse complete");
+    const timelineRegistration = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(fixture.root, container);
+    const handle = mountEditorUi(container, { registry });
+
+    expect(handle.controller.setReversed(true)).toBe(true);
+    expect(handle.controller.play()).toBe(true);
+    fixture.timeline.totalProgress(0, true);
+    expect(fixture.timeline.isActive()).toBe(false);
+    expect(handle.controller.setTimeScale(1)).toBe(true);
+
+    const play = container.querySelector<HTMLButtonElement>("[data-action='play']");
+    expect(play?.getAttribute("aria-label")).toBe("Play");
+    expect(play?.disabled).toBe(false);
+
+    handle.destroy();
+    timelineRegistration.destroy();
+    registry.destroy();
+  });
+
   it("presents a retryable Replay failure and recovers through the same action", () => {
     const registry = createTimelineRegistry();
     const root = document.createElement("section");
@@ -960,6 +1018,36 @@ describe("DevTools editor UI v2", () => {
     expect(handle.controller.getSnapshot().view.status).toBe("ready");
     expect(replay.getAttribute("aria-label")).toBe("Replay");
     expect(attempts).toBe(3);
+    handle.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("preserves the Reverse visual when Replay rebuilds the runtime", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    const registration = registry.register({
+      id: "replay-direction",
+      root,
+      create() {
+        const timeline = gsap.timeline({ paused: true });
+        timeline.to(target, { x: 20, duration: 1 });
+        return { timeline, dispose: () => timeline.kill() };
+      },
+    });
+    const container = document.createElement("div");
+    document.body.append(container, root);
+    const handle = mountEditorUi(container, { registry });
+    const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
+
+    reverse.click();
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    container.querySelector<HTMLButtonElement>("[data-action='replay']")?.click();
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(handle.controller.getSnapshot().view.transport.reversed).toBe(true);
+
     handle.destroy();
     registration.destroy();
     registry.destroy();

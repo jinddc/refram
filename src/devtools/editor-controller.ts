@@ -70,6 +70,7 @@ export function createEditorController(
   let trackKey: string | undefined;
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
+  let replayDirection: boolean | undefined;
   let looping = false;
   let destroyed = false;
   let generation = 0;
@@ -145,6 +146,7 @@ export function createEditorController(
     if (active === registration) return;
     detach();
     active = registration;
+    replayDirection = undefined;
     trackKey = undefined;
     animation = undefined;
     error = undefined;
@@ -208,6 +210,15 @@ export function createEditorController(
       && inspection.readiness === "ready" && error === undefined,
   );
 
+  const playInReverseFromStart = (): void => {
+    const window = current.timeWindow;
+    active?.timeline.totalTime(
+      window ? window.start + window.sourceDuration : active.timeline.totalDuration(),
+      true,
+    );
+    active?.timeline.reverse();
+  };
+
   return {
     getSnapshot: () => current,
     subscribe(listener) {
@@ -252,13 +263,10 @@ export function createEditorController(
       if (!canControl()) return false;
       if (inspection?.reversed) {
         if ((current.view.time?.progress ?? 0) <= 0) {
-          const window = current.timeWindow;
-          active?.timeline.totalTime(
-            window ? window.start + window.sourceDuration : active.timeline.totalDuration(),
-            true,
-          );
+          playInReverseFromStart();
+        } else {
+          active?.timeline.reverse();
         }
-        active?.timeline.reverse();
       } else {
         if (inspection?.playState === "finished" && !this.replay()) return false;
         active?.timeline.play();
@@ -277,10 +285,16 @@ export function createEditorController(
     replay() {
       if (destroyed || !active) return false;
       if (active.replayState === "blocked") return false;
+      if (inspection) replayDirection = inspection.reversed;
       try {
         active.replay();
         if (!attachment) attach(active);
+        if (attachment && replayDirection !== undefined
+          && attachment.read().reversed !== replayDirection) {
+          attachment.setReversed(replayDirection);
+        }
         if (attachment) inspection = attachment.read();
+        replayDirection = undefined;
         error = undefined;
         publish();
         return true;
@@ -322,10 +336,20 @@ export function createEditorController(
     },
     setReversed(value) {
       if (!canControl()) return false;
+      if (value && inspection?.playState === "running"
+        && current.timeWindow !== undefined
+        && current.timeWindow.time <= current.timeWindow.start) {
+        playInReverseFromStart();
+        inspection = attachment!.read();
+        publish();
+        return true;
+      }
       return attachment!.setReversed(value);
     },
     setLooping(value) {
-      if (!canControl()) return false;
+      if (!canControl() || current.timeWindow === undefined || current.timeWindow.repeating) {
+        return false;
+      }
       if (looping === value) return true;
       looping = value;
       publish();

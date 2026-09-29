@@ -250,7 +250,7 @@ export function mountEditorUi(
       return;
     }
     if (event.target instanceof Element && event.target.closest("[data-track-key]")) return;
-    seekFromPointer(event, false);
+    seekFromPointer(event, true);
   };
   const onPlayheadPointerMove = (event: PointerEvent): void => {
     if (event.pointerId === dragPointerId) seekFromPointer(event, true);

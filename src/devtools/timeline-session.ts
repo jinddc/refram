@@ -140,6 +140,7 @@ function readItems(
 function playState(timeline: gsap.core.Timeline): TimelinePlayState {
   const progress = timeline.totalProgress();
   if (progress >= 1 && !timeline.reversed()) return "finished";
+  if (progress <= 0 && timeline.reversed()) return "idle";
   if (!timeline.paused()) return "running";
   return progress > 0 ? "paused" : "idle";
 }
@@ -177,7 +178,7 @@ export function attachGsapTimelineSession(
       readiness: items.length > 0 && duration > 0 ? "ready" : "empty",
       playState: playState(timeline),
       progress: clamp(timeline.totalProgress()),
-      timeScale: timeline.timeScale(),
+      timeScale: Math.abs(timeline.timeScale()),
       reversed: timeline.reversed(),
       totalDuration: Number.isFinite(duration) ? duration : 0,
       items,
@@ -225,7 +226,9 @@ export function attachGsapTimelineSession(
     setTimeScale(value) {
       requireActive();
       if (isScrollOwned(timeline) || !Number.isFinite(value) || value <= 0) return false;
+      const reversed = timeline.reversed();
       timeline.timeScale(value);
+      if (reversed) timeline.reversed(true);
       deliver();
       return true;
     },
