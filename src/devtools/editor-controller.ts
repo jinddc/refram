@@ -36,6 +36,8 @@ export interface EditorController {
   replay(): boolean;
   seek(progress: number): boolean;
   setTimeScale(value: number): boolean;
+  setReversed(value: boolean): boolean;
+  setLooping(value: boolean): boolean;
   destroy(): void;
 }
 
@@ -68,6 +70,7 @@ export function createEditorController(
   let trackKey: string | undefined;
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
+  let looping = false;
   let destroyed = false;
   let generation = 0;
   let current: EditorSnapshot;
@@ -85,6 +88,7 @@ export function createEditorController(
         : undefined,
       selectedItem: selectedItem(inspection, trackKey, animation),
       error,
+      looping,
     } satisfies EditorViewInput & Pick<EditorSnapshot, "previewRoot">;
     return Object.freeze({ ...base, view: buildEditorViewState(base) });
   };
@@ -111,7 +115,16 @@ export function createEditorController(
       registration.timeline,
       (snapshot) => {
         if (destroyed || active !== registration || token !== generation) return;
+        const wasRunning = inspection?.playState === "running";
         inspection = snapshot;
+        const reachedLoopBoundary = wasRunning && looping && snapshot.playState !== "running"
+          && (snapshot.reversed ? snapshot.progress <= 0 : snapshot.playState === "finished");
+        if (reachedLoopBoundary) {
+          registration.timeline.totalProgress(snapshot.reversed ? 1 : 0, true);
+          if (snapshot.reversed) registration.timeline.reverse();
+          else registration.timeline.play();
+          if (attachment) inspection = attachment.read();
+        }
         const item = selectedItem(snapshot, trackKey, animation);
         if (item) {
           trackKey = editorTrackKey(item);
@@ -237,8 +250,19 @@ export function createEditorController(
     },
     play() {
       if (!canControl()) return false;
-      if (inspection?.playState === "finished" && !this.replay()) return false;
-      active?.timeline.play();
+      if (inspection?.reversed) {
+        if ((current.view.time?.progress ?? 0) <= 0) {
+          const window = current.timeWindow;
+          active?.timeline.totalTime(
+            window ? window.start + window.sourceDuration : active.timeline.totalDuration(),
+            true,
+          );
+        }
+        active?.timeline.reverse();
+      } else {
+        if (inspection?.playState === "finished" && !this.replay()) return false;
+        active?.timeline.play();
+      }
       if (attachment) inspection = attachment.read();
       publish();
       return true;
@@ -295,6 +319,17 @@ export function createEditorController(
     setTimeScale(value) {
       if (!canControl()) return false;
       return attachment!.setTimeScale(value);
+    },
+    setReversed(value) {
+      if (!canControl()) return false;
+      return attachment!.setReversed(value);
+    },
+    setLooping(value) {
+      if (!canControl()) return false;
+      if (looping === value) return true;
+      looping = value;
+      publish();
+      return true;
     },
     destroy() {
       if (destroyed) return;

@@ -25,6 +25,8 @@ type EditorPane = "timelines" | "timeline";
 
 const EDITOR_PANES = ["timelines", "timeline"] as const;
 const EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS = 1;
+const EDITOR_MIN_ZOOM = 0.5;
+const EDITOR_MAX_ZOOM = 4;
 
 export function mountEditorUi(
   container: HTMLElement,
@@ -41,6 +43,8 @@ export function mountEditorUi(
   let inspectorTriggerKey: string | undefined;
   let inspectorTriggerClass: string | undefined;
   let timelineListVisible = true;
+  let timelineZoom = 1;
+  let timelineFit = false;
 
   const setInspectorOpen = (open: boolean): void => {
     elements.root.dataset.inspectorOpen = String(open);
@@ -60,8 +64,12 @@ export function mountEditorUi(
   const setTimelineListVisible = (visible: boolean): void => {
     timelineListVisible = visible;
     elements.root.dataset.timelinesVisible = String(visible);
-    elements.timelineListToggle.textContent = visible ? "Hide timelines" : "Show timelines";
+    elements.timelineListToggle.textContent = visible ? "‹" : "›";
     elements.timelineListToggle.setAttribute("aria-expanded", String(visible));
+    elements.timelineListToggle.setAttribute(
+      "aria-label",
+      visible ? "Hide timelines pane" : "Show timelines pane",
+    );
   };
 
   const setActivePane = (pane: EditorPane, focus = false): void => {
@@ -87,7 +95,32 @@ export function mountEditorUi(
       snapshot.selectedItem?.sources ?? [],
       snapshot.selectedItem?.label,
     );
-    renderEditorUi(elements, snapshot.view);
+    renderEditorUi(elements, snapshot.view, timelineZoom, timelineFit);
+    elements.zoomLevel.value = timelineFit ? "Fit" : `${Math.round(timelineZoom * 100)}%`;
+    elements.zoomLevel.textContent = elements.zoomLevel.value;
+    elements.fitButton.setAttribute("aria-pressed", String(timelineFit));
+    elements.zoomOutButton.disabled = timelineFit || timelineZoom <= EDITOR_MIN_ZOOM;
+    elements.zoomInButton.disabled = !timelineFit && timelineZoom >= EDITOR_MAX_ZOOM;
+  };
+
+  const setTimelineZoom = (zoom: number): void => {
+    const next = Math.min(EDITOR_MAX_ZOOM, Math.max(EDITOR_MIN_ZOOM, zoom));
+    const progress = controller.getSnapshot().view.time?.progress ?? 0;
+    const oldOffset = progress * elements.timelineContent.scrollWidth
+      - elements.timelineViewport.scrollLeft;
+    timelineZoom = next;
+    timelineFit = false;
+    render(controller.getSnapshot());
+    elements.timelineViewport.scrollLeft = Math.max(
+      0,
+      progress * elements.timelineContent.scrollWidth - oldOffset,
+    );
+  };
+
+  const fitTimeline = (): void => {
+    timelineFit = true;
+    elements.timelineViewport.scrollLeft = 0;
+    render(controller.getSnapshot());
   };
 
   const onClick = (event: Event): void => {
@@ -130,7 +163,29 @@ export function mountEditorUi(
       case "replay":
         controller.replay();
         break;
+      case "toggle-reverse":
+        controller.setReversed(!controller.getSnapshot().view.transport.reversed);
+        break;
+      case "toggle-loop":
+        controller.setLooping(!controller.getSnapshot().view.transport.looping);
+        break;
+      case "fit-timeline":
+        fitTimeline();
+        break;
+      case "zoom-out": {
+        setTimelineZoom(timelineZoom / 1.25);
+        break;
+      }
+      case "zoom-in": {
+        setTimelineZoom(timelineFit ? 1 : timelineZoom * 1.25);
+        break;
+      }
     }
+  };
+
+  const onChange = (event: Event): void => {
+    if (event.target !== elements.speedSelect) return;
+    controller.setTimeScale(Number(elements.speedSelect.value));
   };
 
   const progressAt = (clientX: number): number | undefined => {
@@ -251,8 +306,23 @@ export function mountEditorUi(
         return;
       }
     }
-    if (event.code !== "Space" || event.target instanceof HTMLSelectElement
-      || event.target instanceof HTMLButtonElement) return;
+    const formControl = event.target instanceof HTMLSelectElement
+      || event.target instanceof HTMLButtonElement
+      || event.target instanceof HTMLInputElement;
+    if (!formControl && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (event.code === "KeyL") {
+        event.preventDefault();
+        const transport = controller.getSnapshot().view.transport;
+        controller.setLooping(!transport.looping);
+        return;
+      }
+      if (event.code === "KeyF") {
+        event.preventDefault();
+        fitTimeline();
+        return;
+      }
+    }
+    if (event.code !== "Space" || formControl) return;
     event.preventDefault();
     const transport = controller.getSnapshot().view.transport;
     if (transport.canPause) controller.pause();
@@ -268,6 +338,7 @@ export function mountEditorUi(
     elements.heightSeparator,
   );
   elements.root.addEventListener("click", onClick, listenerOptions);
+  elements.root.addEventListener("change", onChange, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
   elements.timelineViewport.addEventListener(
     "pointerdown",

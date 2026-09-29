@@ -33,6 +33,7 @@ export interface TimelineInspectionSnapshot {
   readonly playState: TimelinePlayState;
   readonly progress: number;
   readonly timeScale: number;
+  readonly reversed: boolean;
   readonly totalDuration: number;
   readonly items: readonly TimelineInspectionItem[];
 }
@@ -41,6 +42,7 @@ export interface TimelineSessionAttachment {
   read(): TimelineInspectionSnapshot;
   seek(progress: number): boolean;
   setTimeScale(value: number): boolean;
+  setReversed(value: boolean): boolean;
   detach(): void;
 }
 
@@ -137,7 +139,7 @@ function readItems(
 
 function playState(timeline: gsap.core.Timeline): TimelinePlayState {
   const progress = timeline.totalProgress();
-  if (progress >= 1) return "finished";
+  if (progress >= 1 && !timeline.reversed()) return "finished";
   if (!timeline.paused()) return "running";
   return progress > 0 ? "paused" : "idle";
 }
@@ -176,6 +178,7 @@ export function attachGsapTimelineSession(
       playState: playState(timeline),
       progress: clamp(timeline.totalProgress()),
       timeScale: timeline.timeScale(),
+      reversed: timeline.reversed(),
       totalDuration: Number.isFinite(duration) ? duration : 0,
       items,
     };
@@ -223,6 +226,13 @@ export function attachGsapTimelineSession(
       requireActive();
       if (isScrollOwned(timeline) || !Number.isFinite(value) || value <= 0) return false;
       timeline.timeScale(value);
+      deliver();
+      return true;
+    },
+    setReversed(value) {
+      requireActive();
+      if (isScrollOwned(timeline)) return false;
+      timeline.reversed(value);
       deliver();
       return true;
     },

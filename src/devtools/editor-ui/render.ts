@@ -6,7 +6,6 @@ import {
 
 const TICK_COUNT = 12;
 const MINOR_TICKS_PER_SECOND = 10;
-const DEFAULT_TIMELINE_CONTENT_WIDTH = 1000;
 
 function timelinePosition(progress: number): string {
   const offset = EDITOR_TIMELINE_EDGE_GUTTER * (1 - progress * 2);
@@ -62,14 +61,25 @@ function renderTimelines(elements: EditorUiElements, view: EditorViewState): voi
 
 function renderTransport(elements: EditorUiElements, view: EditorViewState): void {
   const running = view.transport.playState === "running";
-  elements.playButton.textContent = running ? "Pause" : "Play";
+  elements.playIcon.toggleAttribute("hidden", running);
+  elements.pauseIcon.toggleAttribute("hidden", !running);
+  elements.playButton.setAttribute("aria-label", running ? "Pause" : "Play");
+  elements.playButton.title = running ? "Pause" : "Play";
   elements.playButton.dataset.action = running ? "pause" : "play";
   elements.playButton.disabled = running
     ? !view.transport.canPause
     : !view.transport.canPlay;
-  elements.replayButton.textContent = view.transport.canRetryReplay ? "Retry" : "Replay";
+  const replayLabel = view.transport.canRetryReplay ? "Retry" : "Replay";
+  elements.replayButton.setAttribute("aria-label", replayLabel);
+  elements.replayButton.title = replayLabel;
   elements.replayButton.disabled = !view.transport.canReplay
     && !view.transport.canRetryReplay;
+  elements.speedSelect.value = String(view.transport.timeScale ?? 1);
+  elements.speedSelect.disabled = !view.transport.canSetTimeScale;
+  elements.reverseButton.disabled = !view.transport.canSetDirection;
+  elements.reverseButton.setAttribute("aria-pressed", String(view.transport.reversed));
+  elements.loopButton.disabled = !view.transport.canLoop;
+  elements.loopButton.setAttribute("aria-pressed", String(view.transport.looping));
   const time = view.time;
   elements.currentTime.value = formatTime(time ? time.progress * time.duration : 0);
   elements.currentTime.textContent = elements.currentTime.value;
@@ -80,14 +90,19 @@ function renderTransport(elements: EditorUiElements, view: EditorViewState): voi
   elements.playhead.setAttribute("aria-valuetext", elements.currentTime.value);
 }
 
-function renderRuler(elements: EditorUiElements, view: EditorViewState): void {
+function renderRuler(
+  elements: EditorUiElements,
+  view: EditorViewState,
+  zoom: number,
+  fit: boolean,
+): void {
   const duration = view.time?.duration ?? 12;
-  const signature = String(duration);
+  const signature = `${duration}:${zoom}:${fit}`;
   if (elements.ruler.dataset.signature === signature) return;
   elements.ruler.dataset.signature = signature;
   const scale = Math.max(1, duration / TICK_COUNT);
-  elements.timelineContent.style.width = `${scale * 100}%`;
-  elements.timelineContent.style.minWidth = `${scale * DEFAULT_TIMELINE_CONTENT_WIDTH}px`;
+  elements.timelineContent.style.width = fit ? "100%" : `${scale * zoom * 100}%`;
+  elements.timelineContent.style.minWidth = fit ? "100%" : `${scale * zoom * 1000}px`;
   const tickCount = Math.max(TICK_COUNT, Math.round(duration));
   const marks = Array.from(
     { length: tickCount * MINOR_TICKS_PER_SECOND + 1 },
@@ -251,10 +266,15 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
   elements.inspectorContent.replaceChildren(identity, details);
 }
 
-export function renderEditorUi(elements: EditorUiElements, view: EditorViewState): void {
+export function renderEditorUi(
+  elements: EditorUiElements,
+  view: EditorViewState,
+  zoom = 1,
+  fit = false,
+): void {
   renderTimelines(elements, view);
   renderTransport(elements, view);
-  renderRuler(elements, view);
+  renderRuler(elements, view, zoom, fit);
   renderFiniteEnd(elements, view);
   renderTracks(elements, view);
   renderInspector(elements, view);

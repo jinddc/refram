@@ -119,6 +119,43 @@ describe("headless editor controller", () => {
     registry.destroy();
   });
 
+  it("changes playback direction in place and loops across both boundaries", () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    }));
+    const registry = createTimelineRegistry();
+    const { root, timeline } = directTimeline("direction");
+    const registration = registry.register({ id: "direction", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.setReversed(true)).toBe(true);
+    expect(editor.getSnapshot().view.transport.reversed).toBe(true);
+    expect(timeline.totalProgress()).toBe(0);
+    expect(editor.play()).toBe(true);
+    expect(timeline.totalProgress()).toBe(1);
+    expect(timeline.reversed()).toBe(true);
+    expect(timeline.paused()).toBe(false);
+
+    timeline.totalProgress(0.5, true);
+    expect(editor.setReversed(false)).toBe(true);
+    expect(timeline.totalProgress()).toBeCloseTo(0.5);
+    expect(timeline.reversed()).toBe(false);
+    expect(timeline.paused()).toBe(false);
+
+    expect(editor.setLooping(true)).toBe(true);
+    expect(editor.getSnapshot().view.transport.looping).toBe(true);
+    timeline.totalProgress(1, true).pause();
+    frame?.(16);
+    expect(timeline.totalProgress()).toBe(0);
+    expect(timeline.paused()).toBe(false);
+
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
   it("distinguishes duplicate automatic tracks and deduplicates animated properties", () => {
     const registry = createTimelineRegistry();
     const root = document.createElement("section");

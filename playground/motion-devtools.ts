@@ -97,6 +97,7 @@ const EMPTY_TIMELINE_SNAPSHOT: TimelineInspectionSnapshot = Object.freeze({
   playState: "idle",
   progress: 0,
   timeScale: 1,
+  reversed: false,
   totalDuration: 0,
   items: Object.freeze([]),
 });

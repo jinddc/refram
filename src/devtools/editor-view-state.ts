@@ -20,6 +20,7 @@ export interface EditorViewInput {
   readonly timeWindow: EditorTimeWindow | undefined;
   readonly selectedItem: TimelineInspectionItem | undefined;
   readonly error: unknown;
+  readonly looping?: boolean;
 }
 
 export interface EditorViewTrackSpan {
@@ -65,10 +66,14 @@ export type EditorViewStatus =
 export interface EditorViewTransport {
   readonly playState: TimelinePlayState | undefined;
   readonly timeScale: number | undefined;
+  readonly reversed: boolean;
+  readonly looping: boolean;
   readonly canPlay: boolean;
   readonly canPause: boolean;
   readonly canSeek: boolean;
   readonly canSetTimeScale: boolean;
+  readonly canSetDirection: boolean;
+  readonly canLoop: boolean;
   readonly canReplay: boolean;
   readonly canRetryReplay: boolean;
 }
@@ -258,10 +263,14 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     transport: Object.freeze({
       playState,
       timeScale: inspection?.timeScale,
+      reversed: inspection?.reversed ?? false,
+      looping: input.looping ?? false,
       canPlay: canControl && playState !== "running",
       canPause: canControl && playState === "running",
       canSeek: canControl && input.timeWindow !== undefined,
       canSetTimeScale: canControl,
+      canSetDirection: canControl,
+      canLoop: canControl,
       canReplay: input.activeTimelineId !== undefined
         && input.replayState === "ready"
         && inspection !== undefined,

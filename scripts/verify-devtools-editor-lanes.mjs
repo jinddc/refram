@@ -16,6 +16,8 @@ function readLaneState(send) {
     const lane = lanes[0];
     const alternateLane = lanes[1];
     const label = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-label");
+    const speed = window.__devtoolsEditorV2Harness.query(".devtools-editor__speed");
+    const speedOption = speed.options[0];
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
     const editor = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
     const marks = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark");
@@ -29,6 +31,8 @@ function readLaneState(send) {
     const alternateLaneStyle = getComputedStyle(alternateLane);
     const labelStyle = getComputedStyle(label);
     const blockStyle = getComputedStyle(block);
+    const speedStyle = getComputedStyle(speed);
+    const speedOptionStyle = getComputedStyle(speedOption);
     return {
       laneBackground: laneStyle.backgroundColor,
       laneShadow: laneStyle.boxShadow,
@@ -58,6 +62,11 @@ function readLaneState(send) {
       selected: block.dataset.selected,
       theme: document.querySelector("motion-devtools-editor").dataset.theme,
       editorBackground: getComputedStyle(editor).backgroundColor,
+      speedWidth: speed.getBoundingClientRect().width,
+      speedColorScheme: speedStyle.colorScheme,
+      speedColor: speedStyle.color,
+      speedOptionColor: speedOptionStyle.color,
+      speedOptionBackground: speedOptionStyle.backgroundColor,
     };
   })()`);
 }
@@ -109,6 +118,10 @@ async function verify({ artifactDirectory, send }) {
   const darkState = await readLaneState(send);
   assert(
     darkState.theme === "dark"
+      && darkState.speedWidth >= 68
+      && darkState.speedColorScheme === "dark"
+      && darkState.speedColor === darkState.speedOptionColor
+      && darkState.speedOptionBackground === darkState.editorBackground
       && darkState.laneBackground === "rgba(255, 255, 255, 0.03)"
       && darkState.laneShadow === "none"
       && darkState.alternateLaneBackground === "rgba(255, 255, 255, 0.03)"
@@ -188,6 +201,10 @@ async function verify({ artifactDirectory, send }) {
   const lightSelectedState = await readLaneState(send);
   assert(
     lightSelectedState.theme === "light"
+      && lightSelectedState.speedWidth >= 68
+      && lightSelectedState.speedColorScheme === "light"
+      && lightSelectedState.speedColor === lightSelectedState.speedOptionColor
+      && lightSelectedState.speedOptionBackground === lightSelectedState.editorBackground
       && lightSelectedState.laneBackground === "rgb(243, 244, 245)"
       && lightSelectedState.alternateLaneBackground === "rgb(243, 244, 245)"
       && lightSelectedState.labelBackground === "rgba(0, 0, 0, 0)"
@@ -218,6 +235,7 @@ async function verify({ artifactDirectory, send }) {
       "keyboard-focus",
       "light-neutral-lanes",
       "runtime-theme-update",
+      "theme-aware-playback-speed",
       "track-and-metadata-typography-hierarchy",
     ],
     screenshots: [

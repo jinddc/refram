@@ -389,6 +389,37 @@ describe("DevTools editor UI v2", () => {
       ?.style.width)
       .toContain("8.333333333333332%");
     expect(container.querySelectorAll("[data-timeline-id]")).toHaveLength(2);
+    const playback = container.querySelector(".devtools-editor__playback")!;
+    expect([...playback.children].map((child) => (
+      (child as HTMLElement).dataset.action ?? (child as HTMLElement).className
+    ))).toEqual([
+      "devtools-editor__playback-actions",
+      "devtools-editor__clock",
+      "set-speed",
+    ]);
+    expect([...playback.querySelector(".devtools-editor__playback-actions")!.children].map((child) => (
+      (child as HTMLElement).dataset.action
+    ))).toEqual(["replay", "play", "toggle-loop", "toggle-reverse"]);
+    expect(container.querySelector("[data-action='set-speed']")?.parentElement)
+      .toBe(playback);
+    expect([...container.querySelectorAll(".devtools-editor__transport-group")].map((group) => ({
+      role: group.getAttribute("role"),
+      label: group.getAttribute("aria-label"),
+    }))).toEqual([
+      { role: "group", label: "Playback controls" },
+      { role: "group", label: "Timeline viewport" },
+    ]);
+    expect(["toggle-reverse", "toggle-loop", "replay"].map((name) => ({
+      name,
+      icon: container.querySelector(`[data-action='${name}'] [data-icon]`)?.getAttribute("data-icon"),
+    }))).toEqual([
+      { name: "toggle-reverse", icon: "reverse" },
+      { name: "toggle-loop", icon: "loop" },
+      { name: "replay", icon: "replay" },
+    ]);
+    expect([...container.querySelectorAll("[data-action='play'] [data-icon]")].map((icon) => (
+      icon.getAttribute("data-icon")
+    ))).toEqual(["play", "pause"]);
     expect(container.querySelector(".devtools-editor__timeline-item-id")).toBeNull();
     expect(container.querySelector("[data-timeline-id='first']")?.textContent)
       .toBe("First sequence");
@@ -445,13 +476,35 @@ describe("DevTools editor UI v2", () => {
     timelineListToggle.click();
     expect(root.dataset.timelinesVisible).toBe("false");
     expect(timelineListToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(timelineListToggle.textContent).toBe("Show timelines");
+    expect(timelineListToggle.getAttribute("aria-label")).toBe("Show timelines pane");
     timelineListToggle.click();
     expect(root.dataset.timelinesVisible).toBe("true");
 
+    const speed = container.querySelector<HTMLSelectElement>("[data-action='set-speed']")!;
+    speed.value = "0.5";
+    speed.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(first.timeline.timeScale()).toBe(0.5);
+    const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
+    reverse.click();
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    const loop = container.querySelector<HTMLButtonElement>("[data-action='toggle-loop']")!;
+    loop.click();
+    expect(loop.getAttribute("aria-pressed")).toBe("true");
+
+    const zoomIn = container.querySelector<HTMLButtonElement>("[data-action='zoom-in']")!;
+    zoomIn.click();
+    expect(container.querySelector("[data-role='zoom-level']")?.textContent).toBe("125%");
+    container.querySelector<HTMLButtonElement>("[data-action='fit-timeline']")?.click();
+    expect(container.querySelector("[data-role='zoom-level']")?.textContent).toBe("Fit");
+    expect(container.querySelector<HTMLElement>("[data-role='timeline-content']")?.style.width)
+      .toBe("100%");
+
     container.querySelector<HTMLButtonElement>("[data-action='play']")?.click();
     expect(first.timeline.paused()).toBe(false);
-    expect(container.querySelector("[data-action='pause']")?.textContent).toBe("Pause");
+    const pauseButton = container.querySelector<HTMLButtonElement>("[data-action='pause']");
+    expect(pauseButton?.getAttribute("aria-label")).toBe("Pause");
+    expect(pauseButton?.querySelector("[data-icon='play']")?.hasAttribute("hidden")).toBe(true);
+    expect(pauseButton?.querySelector("[data-icon='pause']")?.hasAttribute("hidden")).toBe(false);
 
     const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
@@ -900,12 +953,12 @@ describe("DevTools editor UI v2", () => {
 
     replay.click();
     expect(handle.controller.getSnapshot().view.status).toBe("retryable");
-    expect(replay.textContent).toBe("Retry");
+    expect(replay.getAttribute("aria-label")).toBe("Retry");
     expect(replay.disabled).toBe(false);
 
     replay.click();
     expect(handle.controller.getSnapshot().view.status).toBe("ready");
-    expect(replay.textContent).toBe("Replay");
+    expect(replay.getAttribute("aria-label")).toBe("Replay");
     expect(attempts).toBe(3);
     handle.destroy();
     registration.destroy();

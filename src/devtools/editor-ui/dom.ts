@@ -13,7 +13,16 @@ export interface EditorUiElements {
   readonly inspectorContent: HTMLElement;
   readonly inspectorEmpty: HTMLElement;
   readonly playButton: HTMLButtonElement;
+  readonly playIcon: SVGSVGElement;
+  readonly pauseIcon: SVGSVGElement;
   readonly replayButton: HTMLButtonElement;
+  readonly speedSelect: HTMLSelectElement;
+  readonly reverseButton: HTMLButtonElement;
+  readonly loopButton: HTMLButtonElement;
+  readonly fitButton: HTMLButtonElement;
+  readonly zoomOutButton: HTMLButtonElement;
+  readonly zoomInButton: HTMLButtonElement;
+  readonly zoomLevel: HTMLOutputElement;
   readonly currentTime: HTMLOutputElement;
   readonly duration: HTMLOutputElement;
   readonly timelineContent: HTMLElement;
@@ -42,6 +51,31 @@ function action(label: string, name: string): HTMLButtonElement {
   button.type = "button";
   button.dataset.action = name;
   return button;
+}
+
+function createTransportIcon(
+  name: "play" | "pause" | "loop" | "reverse" | "replay",
+  pathData: string | readonly string[],
+): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.classList.add("devtools-editor__transport-icon");
+  svg.dataset.icon = name;
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("role", "presentation");
+  svg.setAttribute("aria-hidden", "true");
+  for (const data of typeof pathData === "string" ? [pathData] : pathData) {
+    const path = document.createElementNS(namespace, "path");
+    path.setAttribute("data-follow-fill", "currentColor");
+    path.setAttribute("d", data);
+    path.setAttribute("fill", "currentColor");
+    svg.append(path);
+  }
+  return svg;
 }
 
 function paneTab(label: string, pane: string, selected = false): HTMLButtonElement {
@@ -127,7 +161,17 @@ export function createEditorUiElements(): EditorUiElements {
     "devtools-editor__pane devtools-editor__timeline-list-pane",
   );
   configurePane(timelineListPane, "timelines");
-  const timelineListHeading = element("header", "devtools-editor__pane-heading", "Timelines");
+  const timelineListHeading = element("header", "devtools-editor__pane-heading");
+  timelineListHeading.append(element("span", "devtools-editor__pane-heading-label", "Timelines"));
+  const timelineListToggle = action("‹", "toggle-timelines");
+  timelineListToggle.classList.add(
+    "devtools-editor__timeline-list-toggle",
+    "devtools-editor__action--compact",
+  );
+  timelineListToggle.setAttribute("aria-controls", "devtools-editor-pane-timelines");
+  timelineListToggle.setAttribute("aria-expanded", "true");
+  timelineListToggle.setAttribute("aria-label", "Hide timelines pane");
+  timelineListHeading.append(timelineListToggle);
   const timelineList = element("div", "devtools-editor__timeline-list");
   timelineList.dataset.role = "timeline-list";
   timelineListPane.append(timelineListHeading, timelineList);
@@ -139,13 +183,61 @@ export function createEditorUiElements(): EditorUiElements {
   configurePane(timeline, "timeline", true);
   timeline.setAttribute("aria-label", "Timeline inspector");
   const transport = element("div", "devtools-editor__transport");
-  const timelineListToggle = action("Hide timelines", "toggle-timelines");
-  timelineListToggle.classList.add("devtools-editor__timeline-list-toggle");
-  timelineListToggle.setAttribute("aria-controls", "devtools-editor-pane-timelines");
-  timelineListToggle.setAttribute("aria-expanded", "true");
-  const playButton = action("Play", "toggle-play");
+  const transportSettings = element("div", "devtools-editor__transport-settings");
+  const speedSelect = element("select", "devtools-editor__speed");
+  speedSelect.dataset.action = "set-speed";
+  speedSelect.setAttribute("aria-label", "Playback speed");
+  for (const speed of [0.1, 0.25, 0.5, 1, 2]) {
+    const option = element("option", "", `${speed}×`);
+    option.value = String(speed);
+    if (speed === 1) option.selected = true;
+    speedSelect.append(option);
+  }
+  const reverseButton = action("", "toggle-reverse");
+  reverseButton.classList.add("devtools-editor__action--icon");
+  reverseButton.setAttribute("aria-label", "Reverse");
+  reverseButton.title = "Reverse";
+  reverseButton.setAttribute("aria-pressed", "false");
+  reverseButton.append(createTransportIcon(
+    "reverse",
+    "m 12 1 c -0.265625 0 -0.519531 0.105469 -0.707031 0.292969 c -0.390625 0.390625 -0.390625 1.023437 0 1.414062 l 1.292969 1.292969 h -7.585938 c -0.550781 0 -1 0.449219 -1 1 s 0.449219 1 1 1 h 7.585938 l -1.292969 1.292969 c -0.390625 0.390625 -0.390625 1.023437 0 1.414062 s 1.023437 0.390625 1.414062 0 l 3 -3 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 l -3 -3 c -0.1875 -0.1875 -0.441406 -0.292969 -0.707031 -0.292969 z m -8 6 c -0.257812 0 -0.511719 0.097656 -0.707031 0.292969 l -3 3 c -0.3906252 0.390625 -0.3906252 1.023437 0 1.414062 l 3 3 c 0.1875 0.1875 0.441406 0.292969 0.707031 0.292969 s 0.519531 -0.105469 0.707031 -0.292969 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 l -1.292969 -1.292969 h 7.585938 c 0.550781 0 1 -0.449219 1 -1 s -0.449219 -1 -1 -1 h -7.585938 l 1.292969 -1.292969 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 c -0.195312 -0.195313 -0.449219 -0.292969 -0.707031 -0.292969 z m 0 0",
+  ));
+  const loopButton = action("", "toggle-loop");
+  loopButton.classList.add("devtools-editor__action--icon");
+  loopButton.setAttribute("aria-label", "Loop");
+  loopButton.title = "Loop";
+  loopButton.setAttribute("aria-pressed", "false");
+  loopButton.append(createTransportIcon(
+    "loop",
+    "m 8 1 v 2 h -4 c -2.199219 0 -4 1.800781 -4 4 v 2 c 0 1.019531 0.386719 1.964844 1.019531 2.671875 c 0.367188 0.410156 1 0.445313 1.410157 0.078125 c 0.414062 -0.367188 0.449218 -1 0.078124 -1.414062 c -0.316406 -0.351563 -0.507812 -0.8125 -0.507812 -1.335938 v -2 c 0 -1.125 0.875 -2 2 -2 h 4 v 2 h 1 v -0.007812 c 0.265625 0.003906 0.519531 -0.101563 0.707031 -0.285157 l 2 -2 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 l -2 -2 c -0.1875 -0.183594 -0.441406 -0.289063 -0.707031 -0.285157 v -0.007812 z m 6.289062 3 c -0.265624 -0.011719 -0.523437 0.078125 -0.71875 0.257812 c -0.414062 0.367188 -0.449218 1 -0.078124 1.410157 c 0.316406 0.355469 0.507812 0.816406 0.507812 1.339843 v 2 c 0 1.125 -0.875 2 -2 2 h -4 v -2.007812 h -1 v 0.007812 c -0.265625 -0.003906 -0.519531 0.101563 -0.707031 0.285157 l -2 2 c -0.390625 0.390625 -0.390625 1.023437 0 1.414062 l 2 2 c 0.1875 0.183594 0.441406 0.289063 0.707031 0.285157 v 0.007812 h 1 v -1.992188 h 4 c 2.199219 0 4 -1.804687 4 -4 v -2 c 0 -1.023437 -0.386719 -1.96875 -1.019531 -2.675781 c -0.175781 -0.199219 -0.425781 -0.316406 -0.691407 -0.332031 z m 0 0",
+  ));
+  const playback = element("div", "devtools-editor__transport-group devtools-editor__playback");
+  playback.setAttribute("role", "group");
+  playback.setAttribute("aria-label", "Playback controls");
+  const playButton = action("", "toggle-play");
   playButton.classList.add("devtools-editor__action--primary");
-  const replayButton = action("Replay", "replay");
+  playButton.setAttribute("aria-label", "Play");
+  const playIcon = createTransportIcon(
+    "play",
+    "m 2 2.5 v 11 c 0 1.5 1.269531 1.492188 1.269531 1.492188 h 0.128907 c 0.246093 0.003906 0.488281 -0.050782 0.699218 -0.171876 l 9.796875 -5.597656 c 0.433594 -0.242187 0.65625 -0.734375 0.65625 -1.226562 c 0 -0.492188 -0.222656 -0.984375 -0.65625 -1.222656 l -9.796875 -5.597657 c -0.210937 -0.121093 -0.453125 -0.175781 -0.699218 -0.175781 h -0.128907 s -1.269531 0 -1.269531 1.5 z m 0 0",
+  );
+  const pauseIcon = createTransportIcon(
+    "pause",
+    [
+      "m 3 1 h 3 c 0.550781 0 1 0.449219 1 1 v 12 c 0 0.550781 -0.449219 1 -1 1 h -3 c -0.550781 0 -1 -0.449219 -1 -1 v -12 c 0 -0.550781 0.449219 -1 1 -1 z m 0 0",
+      "m 10 1 h 3 c 0.550781 0 1 0.449219 1 1 v 12 c 0 0.550781 -0.449219 1 -1 1 h -3 c -0.550781 0 -1 -0.449219 -1 -1 v -12 c 0 -0.550781 0.449219 -1 1 -1 z m 0 0",
+    ],
+  );
+  pauseIcon.setAttribute("hidden", "");
+  playButton.append(playIcon, pauseIcon);
+  const replayButton = action("", "replay");
+  replayButton.classList.add("devtools-editor__action--icon");
+  replayButton.setAttribute("aria-label", "Replay");
+  replayButton.title = "Replay";
+  replayButton.append(createTransportIcon("replay", [
+    "m 15 3 v 10 c 0 1 -1.085938 1 -1.085938 1 h -0.113281 c -0.210937 0 -0.417969 -0.046875 -0.601562 -0.148438 l -8.398438 -4.800781 c -0.375 -0.207031 -0.5625 -0.628906 -0.5625 -1.050781 s 0.1875 -0.84375 0.5625 -1.050781 l 8.398438 -4.800781 c 0.183593 -0.101563 0.390625 -0.148438 0.601562 -0.148438 h 0.113281 s 1.085938 0 1.085938 1 z m 0 0",
+    "m 1.5 2 h 1 c 0.277344 0 0.5 0.222656 0.5 0.5 v 11 c 0 0.277344 -0.222656 0.5 -0.5 0.5 h -1 c -0.277344 0 -0.5 -0.222656 -0.5 -0.5 v -11 c 0 -0.277344 0.222656 -0.5 0.5 -0.5 z m 0 0",
+  ]));
   const clock = element("div", "devtools-editor__clock");
   const currentTime = element("output", "devtools-editor__time", "00:00.000");
   currentTime.dataset.role = "current-time";
@@ -153,7 +245,24 @@ export function createEditorUiElements(): EditorUiElements {
   const duration = element("output", "devtools-editor__duration", "00:00.000");
   duration.dataset.role = "duration";
   clock.append(currentTime, separator, duration);
-  transport.append(timelineListToggle, playButton, replayButton, clock);
+  const playbackActions = element("div", "devtools-editor__playback-actions");
+  playbackActions.append(replayButton, playButton, loopButton, reverseButton);
+  playback.append(playbackActions, clock, speedSelect);
+  const viewportControls = element("div", "devtools-editor__transport-group devtools-editor__viewport-controls");
+  viewportControls.setAttribute("role", "group");
+  viewportControls.setAttribute("aria-label", "Timeline viewport");
+  const fitButton = action("Fit", "fit-timeline");
+  fitButton.setAttribute("aria-pressed", "false");
+  const zoomOutButton = action("−", "zoom-out");
+  zoomOutButton.classList.add("devtools-editor__action--compact");
+  zoomOutButton.setAttribute("aria-label", "Zoom out timeline");
+  const zoomLevel = element("output", "devtools-editor__zoom-level", "100%");
+  zoomLevel.dataset.role = "zoom-level";
+  const zoomInButton = action("+", "zoom-in");
+  zoomInButton.classList.add("devtools-editor__action--compact");
+  zoomInButton.setAttribute("aria-label", "Zoom in timeline");
+  viewportControls.append(fitButton, zoomOutButton, zoomLevel, zoomInButton);
+  transport.append(transportSettings, playback, viewportControls);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
   const trackLabels = element("div", "devtools-editor__track-labels");
@@ -227,7 +336,16 @@ export function createEditorUiElements(): EditorUiElements {
     inspectorContent,
     inspectorEmpty,
     playButton,
+    playIcon,
+    pauseIcon,
     replayButton,
+    speedSelect,
+    reverseButton,
+    loopButton,
+    fitButton,
+    zoomOutButton,
+    zoomInButton,
+    zoomLevel,
     currentTime,
     duration,
     timelineContent,

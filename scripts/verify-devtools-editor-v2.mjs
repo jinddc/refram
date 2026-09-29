@@ -70,6 +70,50 @@ async function verify({ artifactDirectory, send }) {
     inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
     timelinesVisible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
     hasHeader: Boolean(window.__devtoolsEditorV2Harness.query(".devtools-editor__header")),
+    transportGroups: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__transport-group")].map((group) => {
+      const style = getComputedStyle(group);
+      const bounds = group.getBoundingClientRect();
+      return {
+        role: group.getAttribute("role"),
+        label: group.getAttribute("aria-label"),
+        height: bounds.height,
+        borderWidth: style.borderTopWidth,
+        backgroundColor: style.backgroundColor,
+      };
+    }),
+    speedParent: window.__devtoolsEditorV2Harness.query("[data-action='set-speed']").parentElement?.className,
+    playbackOrder: [...window.__devtoolsEditorV2Harness.query(".devtools-editor__playback").children].map((child) => child.dataset.action || child.className),
+    playbackActionOrder: [...window.__devtoolsEditorV2Harness.query(".devtools-editor__playback-actions").children].map((child) => child.dataset.action),
+    playbackCenterOffset: (() => {
+      const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect();
+      const playback = window.__devtoolsEditorV2Harness.query(".devtools-editor__playback").getBoundingClientRect();
+      return Math.abs((transport.left + transport.width / 2) - (playback.left + playback.width / 2));
+    })(),
+    playBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__action--primary")).backgroundColor,
+    playButtonGeometry: (() => {
+      const button = window.__devtoolsEditorV2Harness.query(".devtools-editor__action--primary");
+      const bounds = button.getBoundingClientRect();
+      return {
+        width: bounds.width,
+        height: bounds.height,
+        radius: getComputedStyle(button).borderRadius,
+        label: button.getAttribute("aria-label"),
+        playIconHidden: button.querySelector("[data-icon='play']").hasAttribute("hidden"),
+        pauseIconHidden: button.querySelector("[data-icon='pause']").hasAttribute("hidden"),
+        playIconDisplay: getComputedStyle(button.querySelector("[data-icon='play']")).display,
+        pauseIconDisplay: getComputedStyle(button.querySelector("[data-icon='pause']")).display,
+      };
+    })(),
+    transportIconActions: ["toggle-reverse", "toggle-loop", "replay", "play"].map((action) => {
+      const button = window.__devtoolsEditorV2Harness.query("[data-action='" + action + "']");
+      return {
+        action,
+        label: button.getAttribute("aria-label"),
+        icons: [...button.querySelectorAll(".devtools-editor__transport-icon")].map((icon) => icon.dataset.icon),
+      };
+    }),
+    replayBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).backgroundColor,
+    replayBorderWidth: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).borderTopWidth,
     editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
     workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
@@ -106,6 +150,38 @@ async function verify({ artifactDirectory, send }) {
   );
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
+    desktopState.transportGroups.length === 2
+      && desktopState.transportGroups.every(({ role, label, height, borderWidth, backgroundColor }) => (
+        role === "group"
+          && Boolean(label)
+          && Math.abs(height - 28) <= 1
+          && borderWidth === "0px"
+          && backgroundColor === "rgba(0, 0, 0, 0)"
+      ))
+      && desktopState.speedParent.includes("devtools-editor__playback")
+      && desktopState.playbackOrder.join("|") === "devtools-editor__playback-actions|devtools-editor__clock|set-speed"
+      && desktopState.playbackActionOrder.join("|") === "replay|play|toggle-loop|toggle-reverse"
+      && desktopState.playbackCenterOffset <= 1
+      && desktopState.playButtonGeometry.width === 28
+      && desktopState.playButtonGeometry.height === 28
+      && desktopState.playButtonGeometry.radius === "50%"
+      && desktopState.playButtonGeometry.label === "Play"
+      && desktopState.playButtonGeometry.playIconHidden === false
+      && desktopState.playButtonGeometry.pauseIconHidden === true
+      && desktopState.playButtonGeometry.playIconDisplay === "block"
+      && desktopState.playButtonGeometry.pauseIconDisplay === "none"
+      && JSON.stringify(desktopState.transportIconActions) === JSON.stringify([
+        { action: "toggle-reverse", label: "Reverse", icons: ["reverse"] },
+        { action: "toggle-loop", label: "Loop", icons: ["loop"] },
+        { action: "replay", label: "Replay", icons: ["replay"] },
+        { action: "play", label: "Play", icons: ["play", "pause"] },
+      ])
+      && desktopState.playBackground === "rgb(255, 255, 255)"
+      && desktopState.playBackground !== desktopState.replayBackground
+      && desktopState.replayBorderWidth === "0px",
+    `The transport hierarchy or grouping is incorrect: ${JSON.stringify(desktopState)}`,
+  );
+  assert(
     desktopState.activeTimeline === "playground/v2/finite"
       && desktopState.paneDisplays.length === 2
       && desktopState.paneDisplays.every((display) => display !== "none")
@@ -125,15 +201,20 @@ async function verify({ artifactDirectory, send }) {
   const collapsedTimelineList = await evaluate(send, `(() => ({
     visible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
     listDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-pane='timelines']")).display,
+    listWidth: window.__devtoolsEditorV2Harness.query("[data-pane='timelines']").getBoundingClientRect().width,
     expanded: window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").getAttribute("aria-expanded"),
     timelineWidth: window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect().width,
     workspaceWidth: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().width,
   }))()`);
   assert(
     collapsedTimelineList.visible === "false"
-      && collapsedTimelineList.listDisplay === "none"
+      && collapsedTimelineList.listDisplay === "flex"
+      && Math.abs(collapsedTimelineList.listWidth - 40) <= 1
       && collapsedTimelineList.expanded === "false"
-      && Math.abs(collapsedTimelineList.timelineWidth - collapsedTimelineList.workspaceWidth) <= 1,
+      && Math.abs(
+        collapsedTimelineList.timelineWidth + collapsedTimelineList.listWidth
+          - collapsedTimelineList.workspaceWidth,
+      ) <= 1,
     `The desktop timeline-list toggle did not collapse the pane: ${JSON.stringify(collapsedTimelineList)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
@@ -369,11 +450,13 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   const collapsedWithInspector = await evaluate(send, `(() => {
     const workspace = window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect();
+    const list = window.__devtoolsEditorV2Harness.query("[data-pane='timelines']").getBoundingClientRect();
     const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
     const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector']").getBoundingClientRect();
     return {
       workspaceLeft: workspace.left,
       workspaceRight: workspace.right,
+      listRight: list.right,
       timelineLeft: timeline.left,
       timelineRight: timeline.right,
       inspectorLeft: inspector.left,
@@ -381,7 +464,7 @@ async function verify({ artifactDirectory, send }) {
     };
   })()`);
   assert(
-    Math.abs(collapsedWithInspector.timelineLeft - collapsedWithInspector.workspaceLeft) <= 1
+    Math.abs(collapsedWithInspector.timelineLeft - collapsedWithInspector.listRight) <= 1
       && Math.abs(collapsedWithInspector.timelineRight - collapsedWithInspector.inspectorLeft) <= 1
       && Math.abs(collapsedWithInspector.inspectorRight - collapsedWithInspector.workspaceRight) <= 1,
     `Hiding timelines with the inspector open left a grid gap: ${JSON.stringify(collapsedWithInspector)}`,
@@ -395,7 +478,7 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.textContent === "Pause"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.getAttribute("aria-label") === "Pause" && window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='play']").hasAttribute("hidden") && !window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='pause']").hasAttribute("hidden") && getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='play']")).display === "none" && getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='pause']")).display === "block"`),
     "finite timeline playback",
   );
   assert(
@@ -941,6 +1024,7 @@ async function verify({ artifactDirectory, send }) {
       "playhead-drag-states",
       "application-root-ownership",
       "stable-track-selection",
+      "transport-visual-hierarchy",
       "transport",
       "replay",
       "replay-preserves-inspector-detail",
