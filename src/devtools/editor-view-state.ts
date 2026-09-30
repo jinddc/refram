@@ -16,6 +16,7 @@ export interface EditorViewInput {
   readonly timelines: readonly EditorViewTimeline[];
   readonly activeTimelineId: string | undefined;
   readonly replayState: MotionTimelineReplayState | undefined;
+  readonly rebuilding?: boolean;
   readonly inspection: TimelineInspectionSnapshot | undefined;
   readonly timeWindow: EditorTimeWindow | undefined;
   readonly selectedItem: TimelineInspectionItem | undefined;
@@ -57,6 +58,7 @@ export interface EditorViewInspector {
 export type EditorViewStatus =
   | "empty"
   | "connecting"
+  | "rebuilding"
   | "ready"
   | "not-ready"
   | "retryable"
@@ -76,6 +78,7 @@ export interface EditorViewTransport {
   readonly canLoop: boolean;
   readonly canReplay: boolean;
   readonly canRetryReplay: boolean;
+  readonly rebuilding: boolean;
 }
 
 export interface EditorViewState {
@@ -189,6 +192,7 @@ function animatedProperties(item: TimelineInspectionItem): readonly string[] {
 
 function status(input: EditorViewInput): EditorViewStatus {
   if (!input.activeTimelineId) return "empty";
+  if (input.rebuilding) return "rebuilding";
   if (input.replayState === "blocked") return "blocked";
   if (input.replayState === "retryable") return "retryable";
   if (input.error !== undefined) return "error";
@@ -275,6 +279,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
         && input.replayState === "ready"
         && inspection !== undefined,
       canRetryReplay: input.activeTimelineId !== undefined && input.replayState === "retryable",
+      rebuilding: input.rebuilding ?? false,
     }),
     error: input.error,
   });

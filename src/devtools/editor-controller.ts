@@ -73,6 +73,8 @@ export function createEditorController(
   let replayDirection: boolean | undefined;
   let replayTimeScale: number | undefined;
   let looping = false;
+  let rebuilding = false;
+  let replayInProgress = false;
   let destroyed = false;
   let generation = 0;
   let current: EditorSnapshot;
@@ -83,6 +85,7 @@ export function createEditorController(
         Object.freeze({ id, label }))),
       activeTimelineId: active?.id,
       replayState: active?.replayState,
+      rebuilding,
       previewRoot: active?.root,
       inspection,
       timeWindow: active && inspection
@@ -149,6 +152,7 @@ export function createEditorController(
     active = registration;
     replayDirection = undefined;
     replayTimeScale = undefined;
+    rebuilding = false;
     trackKey = undefined;
     animation = undefined;
     error = undefined;
@@ -158,20 +162,24 @@ export function createEditorController(
         if (destroyed || active !== registration) return;
         switch (event.type) {
           case "replay-start":
+            rebuilding = true;
             attachment?.detach();
             attachment = undefined;
             inspection = undefined;
             publish();
             break;
           case "timeline":
+            rebuilding = false;
             error = undefined;
             attach(registration);
             break;
           case "error":
+            rebuilding = false;
             error = event.error;
             publish();
             break;
           case "destroy":
+            rebuilding = false;
             attachment?.detach();
             attachment = undefined;
             inspection = undefined;
@@ -285,8 +293,9 @@ export function createEditorController(
       return true;
     },
     replay() {
-      if (destroyed || !active) return false;
+      if (destroyed || !active || replayInProgress) return false;
       if (active.replayState === "blocked") return false;
+      replayInProgress = true;
       if (inspection) {
         replayDirection = inspection.reversed;
         replayTimeScale = inspection.timeScale;
@@ -312,6 +321,8 @@ export function createEditorController(
         error = cause;
         publish();
         return false;
+      } finally {
+        replayInProgress = false;
       }
     },
     seek(progress) {

@@ -29,11 +29,20 @@ const EDITOR_MIN_ZOOM = 0.5;
 const EDITOR_MAX_ZOOM = 4;
 const EDITOR_BASE_ZOOM = 1;
 const EDITOR_ZOOM_STEP = 0.05;
+const EDITOR_FORWARD_FOLLOW_CONTEXT = 0.25;
+const EDITOR_REVERSE_FOLLOW_CONTEXT = 0.75;
 
 function normalizeTimelineZoom(zoom: number): number {
   const clamped = Math.min(EDITOR_MAX_ZOOM, Math.max(EDITOR_MIN_ZOOM, zoom));
   const step = Math.round((clamped - EDITOR_MIN_ZOOM) / EDITOR_ZOOM_STEP);
   return Number((EDITOR_MIN_ZOOM + step * EDITOR_ZOOM_STEP).toFixed(2));
+}
+
+function ownsNativeKeyboardBehavior(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return target.closest(
+    "button, input, select, textarea, option, [contenteditable]:not([contenteditable='false']), [role='textbox'], [role='combobox'], [role='spinbutton'], [role='slider']",
+  ) !== null;
 }
 
 export function mountEditorUi(
@@ -56,6 +65,50 @@ export function mountEditorUi(
   let timelineZoom = EDITOR_BASE_ZOOM;
   let pendingTimelineZoom: number | undefined;
   let timelineZoomFrame: number | undefined;
+  let playheadFollowFrame: number | undefined;
+  let playheadWasVisible: boolean | undefined;
+  let manualViewportChangePending = false;
+
+  const schedulePlayheadFollow = (manualViewportChange = false): void => {
+    manualViewportChangePending ||= manualViewportChange;
+    if (playheadFollowFrame !== undefined) return;
+    playheadFollowFrame = requestAnimationFrame(() => {
+      playheadFollowFrame = undefined;
+      if (destroyed) return;
+      const viewportBounds = elements.timelineViewport.getBoundingClientRect();
+      const playheadBounds = elements.playhead.getBoundingClientRect();
+      const playheadCenter = playheadBounds.left + playheadBounds.width / 2;
+      const visible = playheadCenter >= viewportBounds.left
+        && playheadCenter <= viewportBounds.right;
+      const snapshot = controller.getSnapshot();
+      const running = snapshot.view.transport.playState === "running";
+      const shouldFollow = !manualViewportChangePending
+        && dragPointerId === undefined
+        && running
+        && playheadWasVisible === true
+        && !visible;
+      manualViewportChangePending = false;
+      if (!shouldFollow) {
+        playheadWasVisible = visible;
+        return;
+      }
+      const viewportWidth = elements.timelineViewport.clientWidth;
+      const playheadContentX = playheadCenter - viewportBounds.left
+        + elements.timelineViewport.scrollLeft;
+      const context = snapshot.view.transport.reversed
+        ? EDITOR_REVERSE_FOLLOW_CONTEXT
+        : EDITOR_FORWARD_FOLLOW_CONTEXT;
+      const maxScroll = Math.max(
+        0,
+        elements.timelineViewport.scrollWidth - viewportWidth,
+      );
+      elements.timelineViewport.scrollLeft = Math.min(
+        maxScroll,
+        Math.max(0, playheadContentX - viewportWidth * context),
+      );
+      playheadWasVisible = true;
+    });
+  };
 
   const setInspectorOpen = (open: boolean): void => {
     elements.root.dataset.inspectorOpen = String(open);
@@ -115,6 +168,7 @@ export function mountEditorUi(
     );
     renderEditorUi(elements, snapshot.view, timelineZoom);
     renderZoomControls();
+    if (snapshot.view.transport.playState === "running") schedulePlayheadFollow();
   };
 
   const setTimelineZoom = (zoom: number): void => {
@@ -153,7 +207,6 @@ export function mountEditorUi(
   };
 
   const scheduleTimelineZoom = (zoom: number): void => {
-    console.log(zoom)
     const next = normalizeTimelineZoom(zoom);
     if (next === EDITOR_BASE_ZOOM) {
       cancelPendingTimelineZoom();
@@ -300,6 +353,7 @@ export function mountEditorUi(
     const progress = clampToCycle && time?.repeating
       ? Math.min(pointerProgress, time.sourceDuration / time.duration)
       : pointerProgress;
+    playheadWasVisible = undefined;
     controller.seek(progress);
   };
 
@@ -381,22 +435,27 @@ export function mountEditorUi(
         return;
       }
     }
-    const formControl = event.target instanceof HTMLSelectElement
-      || event.target instanceof HTMLButtonElement
-      || event.target instanceof HTMLInputElement;
-    if (!formControl && !event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (event.code === "KeyL") {
-        event.preventDefault();
-        const transport = controller.getSnapshot().view.transport;
-        controller.setLooping(!transport.looping);
-        return;
-      }
-    }
-    if (event.code !== "Space" || formControl) return;
-    event.preventDefault();
+    if (ownsNativeKeyboardBehavior(event.target)
+      || event.altKey || event.ctrlKey || event.metaKey) return;
     const transport = controller.getSnapshot().view.transport;
-    if (transport.canPause) controller.pause();
-    else if (transport.canPlay) controller.play();
+    const shortcut = event.code === "Space"
+      || event.code === "KeyR"
+      || event.code === "KeyL"
+      || event.code === "KeyF";
+    if (!shortcut) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (event.code === "KeyR") {
+      controller.setReversed(!transport.reversed);
+    } else if (event.code === "KeyL") {
+      controller.setLooping(!transport.looping);
+    } else if (event.code === "KeyF") {
+      resetTimelineZoom();
+    } else if (transport.canPause) {
+      controller.pause();
+    } else if (transport.canPlay) {
+      controller.play();
+    }
   };
 
   setTimelineListVisible(true);
@@ -411,6 +470,11 @@ export function mountEditorUi(
   elements.root.addEventListener("change", onChange, listenerOptions);
   elements.root.addEventListener("input", onInput, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
+  elements.timelineViewport.addEventListener(
+    "scroll",
+    () => schedulePlayheadFollow(true),
+    listenerOptions,
+  );
   elements.timelineViewport.addEventListener(
     "pointerdown",
     onTimelinePointerDown,
@@ -437,6 +501,8 @@ export function mountEditorUi(
       }
       dragPointerId = undefined;
       cancelPendingTimelineZoom();
+      if (playheadFollowFrame !== undefined) cancelAnimationFrame(playheadFollowFrame);
+      playheadFollowFrame = undefined;
       eventController.abort();
       unsubscribe();
       heightResize.destroy();

@@ -154,7 +154,7 @@ async function verify({ artifactDirectory, send }) {
       && desktopState.transportGroups.every(({ role, label, height, borderWidth, backgroundColor }) => (
         role === "group"
           && Boolean(label)
-          && Math.abs(height - 28) <= 1
+          && Math.abs(height - (label === "Playback controls" ? 32 : 28)) <= 1
           && borderWidth === "0px"
           && backgroundColor === "rgba(0, 0, 0, 0)"
       ))
@@ -162,8 +162,8 @@ async function verify({ artifactDirectory, send }) {
       && desktopState.playbackOrder.join("|") === "devtools-editor__playback-actions|devtools-editor__clock|set-speed"
       && desktopState.playbackActionOrder.join("|") === "replay|play|toggle-loop|toggle-reverse"
       && desktopState.playbackCenterOffset <= 1
-      && desktopState.playButtonGeometry.width === 28
-      && desktopState.playButtonGeometry.height === 28
+      && desktopState.playButtonGeometry.width === 32
+      && desktopState.playButtonGeometry.height === 32
       && desktopState.playButtonGeometry.radius === "50%"
       && desktopState.playButtonGeometry.label === "Play"
       && desktopState.playButtonGeometry.playIconHidden === false
@@ -380,6 +380,15 @@ async function verify({ artifactDirectory, send }) {
       && highlightState.pressed === "true",
     `Track selection overlay did not synchronize with the preview: ${JSON.stringify(highlightState)}`,
   );
+  await evaluate(send, `(() => {
+    const range = window.__devtoolsEditorV2Harness.query("[data-role='zoom-range']");
+    range.value = "2";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+  })()`);
+  await waitFor(
+    () => evaluate(send, `Number(window.__devtoolsEditorV2Harness.query("[data-role='ruler']").dataset.visibleDuration) < 12`),
+    "timeline zoom before sticky-label inspection",
+  );
   const inspectorState = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
     const labels = window.__devtoolsEditorV2Harness.query("[data-role='track-labels']");
@@ -447,6 +456,7 @@ async function verify({ artifactDirectory, send }) {
       && inspectorState.termColor !== inspectorState.valueColor,
     `Track inspector did not render without changing panes: ${JSON.stringify(inspectorState)}`,
   );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']").click()`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   const collapsedWithInspector = await evaluate(send, `(() => {
     const workspace = window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect();

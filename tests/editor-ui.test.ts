@@ -682,6 +682,7 @@ describe("DevTools editor UI v2", () => {
     expect(range.getAttribute("aria-valuetext")).toBe("100%");
     expect(reset.textContent).toBe("Reset");
     expect(reset.getAttribute("aria-label")).toBe("Reset timeline zoom");
+    expect(reset.title).toBe("Fit timeline (F)");
     expect(reset.hasAttribute("aria-pressed")).toBe(false);
     expect(container.querySelector("[data-action='fit-timeline']")).toBeNull();
     expect([zoomOut, zoomIn].map((button) => ({
@@ -822,16 +823,16 @@ describe("DevTools editor UI v2", () => {
       "Timeline ruler: 14 frames visible (approximately 233 milliseconds), major ticks every 2 frames (approximately 33 milliseconds)",
     );
 
-    const removedFitShortcut = new KeyboardEvent("keydown", {
+    const fitShortcut = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
       code: "KeyF",
     });
     container.querySelector<HTMLElement>("[data-devtools-editor]")!
-      .dispatchEvent(removedFitShortcut);
-    expect(removedFitShortcut.defaultPrevented).toBe(false);
-    expect(range.value).toBe("4");
-    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(14 / 60);
+      .dispatchEvent(fitShortcut);
+    expect(fitShortcut.defaultPrevented).toBe(true);
+    expect(range.value).toBe("1");
+    expect(Number(ruler.dataset.visibleDuration)).toBe(12);
 
     viewport.scrollLeft = 321;
     reset.click();
@@ -880,6 +881,128 @@ describe("DevTools editor UI v2", () => {
     expect(range.getAttribute("aria-valuetext")).toBe("150%");
     await flush();
     expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(oneFiftyVisibleDuration);
+
+    handle.destroy();
+    registrationHandle.destroy();
+    registry.destroy();
+  });
+
+  it("owns playback shortcuts only inside the editor and leaves form editing alone", () => {
+    const registry = createTimelineRegistry();
+    const registered = registration("shortcuts", "Shortcut sequence");
+    const registrationHandle = registry.register(registered.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, registered.root);
+    const handle = mountEditorUi(container, { registry });
+    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
+    const loop = container.querySelector<HTMLButtonElement>("[data-action='toggle-loop']")!;
+    const play = container.querySelector<HTMLButtonElement>("[data-action='play']")!;
+
+    expect(reverse.title).toBe("Reverse (R)");
+    expect(loop.title).toBe("Loop (L)");
+    expect(play.title).toBe("Play (Space)");
+
+    const press = (target: Element, code: string, repeat = false): KeyboardEvent => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        code,
+        repeat,
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+
+    expect(press(root, "Space").defaultPrevented).toBe(true);
+    expect(registered.timeline.paused()).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>("[data-action='pause']")?.title)
+      .toBe("Pause (Space)");
+    expect(press(root, "Space").defaultPrevented).toBe(true);
+    expect(registered.timeline.paused()).toBe(true);
+
+    expect(press(root, "KeyR").defaultPrevented).toBe(true);
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(press(root, "KeyR", true).defaultPrevented).toBe(true);
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+    expect(press(root, "KeyL").defaultPrevented).toBe(true);
+    expect(loop.getAttribute("aria-pressed")).toBe("true");
+
+    const textarea = document.createElement("textarea");
+    const editable = document.createElement("div");
+    editable.contentEditable = "true";
+    root.append(textarea, editable);
+    expect(press(textarea, "Space").defaultPrevented).toBe(false);
+    expect(press(editable, "KeyR").defaultPrevented).toBe(false);
+    expect(reverse.getAttribute("aria-pressed")).toBe("true");
+
+    expect(press(document.body, "KeyL").defaultPrevented).toBe(false);
+    expect(loop.getAttribute("aria-pressed")).toBe("true");
+
+    handle.destroy();
+    registrationHandle.destroy();
+    registry.destroy();
+  });
+
+  it("auto-follows only when an actively playing playhead exits the viewport", async () => {
+    const registry = createTimelineRegistry();
+    const registered = registration("auto-follow", "Auto-follow sequence");
+    const registrationHandle = registry.register(registered.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, registered.root);
+    const handle = mountEditorUi(container, { registry });
+    const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 800 },
+    });
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 200, 180));
+    vi.spyOn(playhead, "getBoundingClientRect").mockImplementation(() => {
+      const progress = registered.timeline.totalProgress();
+      return bounds(progress * 800 - viewport.scrollLeft, 0, 0, 180);
+    });
+    const sampleAndFollow = async (): Promise<void> => {
+      await flush();
+      await flush();
+    };
+
+    expect(handle.controller.play()).toBe(true);
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBe(0);
+
+    registered.timeline.totalProgress(0.3, false);
+    registered.timeline.play();
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBeCloseTo(190);
+
+    viewport.scrollLeft = 500;
+    viewport.dispatchEvent(new Event("scroll"));
+    await flush();
+    registered.timeline.totalProgress(0.4, false);
+    registered.timeline.play();
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBe(500);
+
+    registered.timeline.totalProgress(0.8, false);
+    registered.timeline.play();
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBe(500);
+    registered.timeline.totalProgress(0.9, false);
+    registered.timeline.play();
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBe(600);
+
+    viewport.scrollLeft = 600;
+    viewport.dispatchEvent(new Event("scroll"));
+    expect(handle.controller.setReversed(true)).toBe(true);
+    registered.timeline.totalProgress(0.8, false);
+    registered.timeline.reverse();
+    await sampleAndFollow();
+    registered.timeline.totalProgress(0.7, false);
+    registered.timeline.reverse();
+    await sampleAndFollow();
+    expect(viewport.scrollLeft).toBeCloseTo(410);
 
     handle.destroy();
     registrationHandle.destroy();
@@ -1391,6 +1514,56 @@ describe("DevTools editor UI v2", () => {
 
     handle.destroy();
     timelineRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("exposes and guards the transient rebuild state", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const target = document.createElement("div");
+    root.append(target);
+    const observed: Array<{ disabled: boolean; label: string | null; nested: boolean }> = [];
+    let creates = 0;
+    let handle: ReturnType<typeof mountEditorUi>;
+    const registrationHandle = registry.register({
+      id: "rebuild-feedback",
+      root,
+      reset() {
+        const replay = root.nextElementSibling?.querySelector<HTMLButtonElement>(
+          "[data-action='replay']",
+        );
+        if (!replay) throw new Error("Replay control was not mounted.");
+        replay.click();
+        observed.push({
+          disabled: replay.disabled,
+          label: replay.getAttribute("aria-label"),
+          nested: handle.controller.replay(),
+        });
+      },
+      create() {
+        creates += 1;
+        const timeline = gsap.timeline({ paused: true });
+        timeline.to(target, { x: 20, duration: 1 });
+        return { timeline, dispose: () => timeline.kill() };
+      },
+    });
+    const container = document.createElement("div");
+    document.body.append(root, container);
+    handle = mountEditorUi(container, { registry });
+
+    container.querySelector<HTMLButtonElement>("[data-action='replay']")?.click();
+
+    expect(observed).toEqual([{
+      disabled: true,
+      label: "Rebuilding…",
+      nested: false,
+    }]);
+    expect(creates).toBe(2);
+    expect(handle.controller.getSnapshot().view.status).toBe("ready");
+    expect(handle.controller.getSnapshot().view.transport.rebuilding).toBe(false);
+
+    handle.destroy();
+    registrationHandle.destroy();
     registry.destroy();
   });
 

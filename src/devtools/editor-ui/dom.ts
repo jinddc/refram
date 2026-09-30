@@ -203,7 +203,7 @@ export function createEditorUiElements(): EditorUiElements {
   const reverseButton = action("", "toggle-reverse");
   reverseButton.classList.add("devtools-editor__action--icon");
   reverseButton.setAttribute("aria-label", "Reverse");
-  reverseButton.title = "Reverse";
+  reverseButton.title = "Reverse (R)";
   reverseButton.setAttribute("aria-pressed", "false");
   reverseButton.append(createTransportIcon(
     "reverse",
@@ -212,7 +212,7 @@ export function createEditorUiElements(): EditorUiElements {
   const loopButton = action("", "toggle-loop");
   loopButton.classList.add("devtools-editor__action--icon");
   loopButton.setAttribute("aria-label", "Loop");
-  loopButton.title = "Loop";
+  loopButton.title = "Loop (L)";
   loopButton.setAttribute("aria-pressed", "false");
   loopButton.append(createTransportIcon(
     "loop",
@@ -260,6 +260,7 @@ export function createEditorUiElements(): EditorUiElements {
   viewportControls.setAttribute("aria-label", "Timeline viewport");
   const resetButton = action("Reset", "reset-timeline-zoom");
   resetButton.setAttribute("aria-label", "Reset timeline zoom");
+  resetButton.title = "Fit timeline (F)";
   const zoomOutButton = action("", "zoom-out");
   zoomOutButton.classList.add("devtools-editor__action--icon");
   zoomOutButton.setAttribute("aria-label", "Zoom out timeline");

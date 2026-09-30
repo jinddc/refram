@@ -170,12 +170,16 @@ function renderTransport(
   elements.playIcon.toggleAttribute("hidden", running);
   elements.pauseIcon.toggleAttribute("hidden", !running);
   elements.playButton.setAttribute("aria-label", running ? "Pause" : "Play");
-  elements.playButton.title = running ? "Pause" : "Play";
+  elements.playButton.title = running ? "Pause (Space)" : "Play (Space)";
   elements.playButton.dataset.action = running ? "pause" : "play";
   elements.playButton.disabled = running
     ? !view.transport.canPause
     : !view.transport.canPlay;
-  const replayLabel = view.transport.canRetryReplay ? "Retry" : "Replay";
+  const replayLabel = view.transport.rebuilding
+    ? "Rebuilding…"
+    : view.transport.canRetryReplay
+      ? "Retry"
+      : "Replay";
   elements.replayButton.setAttribute("aria-label", replayLabel);
   elements.replayButton.title = replayLabel;
   elements.replayButton.disabled = !view.transport.canReplay
