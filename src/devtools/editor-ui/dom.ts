@@ -54,8 +54,10 @@ function action(label: string, name: string): HTMLButtonElement {
 }
 
 function createTransportIcon(
-  name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close",
+  name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close"
+    | "zoom-out" | "zoom-in",
   pathData: string | readonly string[],
+  viewBox = "0 0 16 16",
 ): SVGSVGElement {
   const namespace = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(namespace, "svg");
@@ -63,7 +65,7 @@ function createTransportIcon(
   svg.dataset.icon = name;
   svg.setAttribute("width", "16");
   svg.setAttribute("height", "16");
-  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("viewBox", viewBox);
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("fill", "none");
   svg.setAttribute("role", "presentation");
@@ -258,18 +260,28 @@ export function createEditorUiElements(): EditorUiElements {
   viewportControls.setAttribute("aria-label", "Timeline viewport");
   const resetButton = action("Reset", "reset-timeline-zoom");
   resetButton.setAttribute("aria-label", "Reset timeline zoom");
-  const zoomOutButton = action("−", "zoom-out");
-  zoomOutButton.classList.add("devtools-editor__zoom-button");
+  const zoomOutButton = action("", "zoom-out");
+  zoomOutButton.classList.add("devtools-editor__action--icon");
   zoomOutButton.setAttribute("aria-label", "Zoom out timeline");
+  zoomOutButton.title = "Zoom out timeline";
+  zoomOutButton.append(createTransportIcon("zoom-out", [
+    "M4 11C4 7.13401 7.13401 4 11 4C14.866 4 18 7.13401 18 11C18 14.866 14.866 18 11 18C7.13401 18 4 14.866 4 11ZM11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C13.125 20 15.078 19.2635 16.6177 18.0319L20.2929 21.7071C20.6834 22.0976 21.3166 22.0976 21.7071 21.7071C22.0976 21.3166 22.0976 20.6834 21.7071 20.2929L18.0319 16.6177C19.2635 15.078 20 13.125 20 11C20 6.02944 15.9706 2 11 2Z",
+    "M7 11C7 10.4477 7.44772 10 8 10H14C14.5523 10 15 10.4477 15 11C15 11.5523 14.5523 12 14 12H8C7.44772 12 7 11.5523 7 11Z",
+  ], "0 0 24 24"));
   const zoomRange = element("input", "devtools-editor__zoom-range");
   zoomRange.type = "range";
   zoomRange.step = "0.05";
   zoomRange.value = "1";
   zoomRange.dataset.role = "zoom-range";
   zoomRange.setAttribute("aria-label", "Timeline zoom");
-  const zoomInButton = action("+", "zoom-in");
-  zoomInButton.classList.add("devtools-editor__zoom-button");
+  const zoomInButton = action("", "zoom-in");
+  zoomInButton.classList.add("devtools-editor__action--icon");
   zoomInButton.setAttribute("aria-label", "Zoom in timeline");
+  zoomInButton.title = "Zoom in timeline";
+  zoomInButton.append(createTransportIcon("zoom-in", [
+    "M4 11C4 7.13401 7.13401 4 11 4C14.866 4 18 7.13401 18 11C18 14.866 14.866 18 11 18C7.13401 18 4 14.866 4 11ZM11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C13.125 20 15.078 19.2635 16.6177 18.0319L20.2929 21.7071C20.6834 22.0976 21.3166 22.0976 21.7071 21.7071C22.0976 21.3166 22.0976 20.6834 21.7071 20.2929L18.0319 16.6177C19.2635 15.078 20 13.125 20 11C20 6.02944 15.9706 2 11 2Z",
+    "M10 14C10 14.5523 10.4477 15 11 15C11.5523 15 12 14.5523 12 14V12H14C14.5523 12 15 11.5523 15 11C15 10.4477 14.5523 10 14 10H12V8C12 7.44772 11.5523 7 11 7C10.4477 7 10 7.44772 10 8V10H8C7.44772 10 7 10.4477 7 11C7 11.5523 7.44772 12 8 12H10V14Z",
+  ], "0 0 24 24"));
   const zoomControl = element("div", "devtools-editor__zoom-control");
   zoomControl.append(zoomOutButton, zoomRange, zoomInButton);
   viewportControls.append(resetButton, zoomControl);

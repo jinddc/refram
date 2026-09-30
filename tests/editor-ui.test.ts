@@ -684,6 +684,49 @@ describe("DevTools editor UI v2", () => {
     expect(reset.getAttribute("aria-label")).toBe("Reset timeline zoom");
     expect(reset.hasAttribute("aria-pressed")).toBe(false);
     expect(container.querySelector("[data-action='fit-timeline']")).toBeNull();
+    expect([zoomOut, zoomIn].map((button) => ({
+      action: button.dataset.action,
+      className: button.className,
+      label: button.getAttribute("aria-label"),
+      title: button.title,
+      text: button.textContent,
+      icon: button.querySelector("svg")?.dataset.icon,
+      width: button.querySelector("svg")?.getAttribute("width"),
+      height: button.querySelector("svg")?.getAttribute("height"),
+      viewBox: button.querySelector("svg")?.getAttribute("viewBox"),
+      role: button.querySelector("svg")?.getAttribute("role"),
+      hidden: button.querySelector("svg")?.getAttribute("aria-hidden"),
+      fills: [...button.querySelectorAll("path")].map((path) => path.getAttribute("fill")),
+    }))).toEqual([
+      {
+        action: "zoom-out",
+        className: "devtools-editor__action devtools-editor__action--icon",
+        label: "Zoom out timeline",
+        title: "Zoom out timeline",
+        text: "",
+        icon: "zoom-out",
+        width: "16",
+        height: "16",
+        viewBox: "0 0 24 24",
+        role: "presentation",
+        hidden: "true",
+        fills: ["currentColor", "currentColor"],
+      },
+      {
+        action: "zoom-in",
+        className: "devtools-editor__action devtools-editor__action--icon",
+        label: "Zoom in timeline",
+        title: "Zoom in timeline",
+        text: "",
+        icon: "zoom-in",
+        width: "16",
+        height: "16",
+        viewBox: "0 0 24 24",
+        role: "presentation",
+        hidden: "true",
+        fills: ["currentColor", "currentColor"],
+      },
+    ]);
 
     Object.defineProperty(content, "scrollWidth", {
       configurable: true,
