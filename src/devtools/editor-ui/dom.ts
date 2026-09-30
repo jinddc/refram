@@ -19,10 +19,10 @@ export interface EditorUiElements {
   readonly speedSelect: HTMLSelectElement;
   readonly reverseButton: HTMLButtonElement;
   readonly loopButton: HTMLButtonElement;
-  readonly fitButton: HTMLButtonElement;
+  readonly resetButton: HTMLButtonElement;
   readonly zoomOutButton: HTMLButtonElement;
   readonly zoomInButton: HTMLButtonElement;
-  readonly zoomLevel: HTMLOutputElement;
+  readonly zoomRange: HTMLInputElement;
   readonly currentTime: HTMLOutputElement;
   readonly duration: HTMLOutputElement;
   readonly timelineContent: HTMLElement;
@@ -256,17 +256,23 @@ export function createEditorUiElements(): EditorUiElements {
   const viewportControls = element("div", "devtools-editor__transport-group devtools-editor__viewport-controls");
   viewportControls.setAttribute("role", "group");
   viewportControls.setAttribute("aria-label", "Timeline viewport");
-  const fitButton = action("Fit", "fit-timeline");
-  fitButton.setAttribute("aria-pressed", "false");
+  const resetButton = action("Reset", "reset-timeline-zoom");
+  resetButton.setAttribute("aria-label", "Reset timeline zoom");
   const zoomOutButton = action("−", "zoom-out");
-  zoomOutButton.classList.add("devtools-editor__action--compact");
+  zoomOutButton.classList.add("devtools-editor__zoom-button");
   zoomOutButton.setAttribute("aria-label", "Zoom out timeline");
-  const zoomLevel = element("output", "devtools-editor__zoom-level", "100%");
-  zoomLevel.dataset.role = "zoom-level";
+  const zoomRange = element("input", "devtools-editor__zoom-range");
+  zoomRange.type = "range";
+  zoomRange.step = "0.05";
+  zoomRange.value = "1";
+  zoomRange.dataset.role = "zoom-range";
+  zoomRange.setAttribute("aria-label", "Timeline zoom");
   const zoomInButton = action("+", "zoom-in");
-  zoomInButton.classList.add("devtools-editor__action--compact");
+  zoomInButton.classList.add("devtools-editor__zoom-button");
   zoomInButton.setAttribute("aria-label", "Zoom in timeline");
-  viewportControls.append(fitButton, zoomOutButton, zoomLevel, zoomInButton);
+  const zoomControl = element("div", "devtools-editor__zoom-control");
+  zoomControl.append(zoomOutButton, zoomRange, zoomInButton);
+  viewportControls.append(resetButton, zoomControl);
   transport.append(transportSettings, playback, viewportControls);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
@@ -278,6 +284,7 @@ export function createEditorUiElements(): EditorUiElements {
   timelineContent.dataset.role = "timeline-content";
   const ruler = element("div", "devtools-editor__ruler");
   ruler.dataset.role = "ruler";
+  ruler.setAttribute("role", "img");
   const trackLanes = element("div", "devtools-editor__track-lanes");
   trackLanes.dataset.role = "track-lanes";
   const postDurationRegion = element("div", "devtools-editor__post-duration");
@@ -353,10 +360,10 @@ export function createEditorUiElements(): EditorUiElements {
     speedSelect,
     reverseButton,
     loopButton,
-    fitButton,
+    resetButton,
     zoomOutButton,
     zoomInButton,
-    zoomLevel,
+    zoomRange,
     currentTime,
     duration,
     timelineContent,

@@ -4,12 +4,94 @@ import {
   type EditorUiElements,
 } from "./dom";
 
-const TICK_COUNT = 12;
-const MINOR_TICKS_PER_SECOND = 10;
+const DEFAULT_RULER_DURATION = 12;
+const RULER_FRAMES_PER_SECOND = 60;
+const MIN_ZOOM = 0.5;
+const BASE_ZOOM = 1;
+const MAX_ZOOM = 4;
+const MIN_ZOOM_VISIBLE_DURATION = 35;
+const MAX_ZOOM_VISIBLE_DURATION = 14 / RULER_FRAMES_PER_SECOND;
+const MAX_VISIBLE_MAJOR_INTERVALS = 14;
+const RULER_MAJOR_STEPS = [
+  2 / RULER_FRAMES_PER_SECOND,
+  5 / RULER_FRAMES_PER_SECOND,
+  10 / RULER_FRAMES_PER_SECOND,
+  15 / RULER_FRAMES_PER_SECOND,
+  0.5,
+  1,
+  2,
+  5,
+  10,
+  30,
+  60,
+] as const;
+
+export interface TimelineRulerScale {
+  readonly domainDuration: number;
+  readonly visibleDuration: number;
+  readonly majorStep: number;
+  readonly minorStep: number;
+  readonly contentScale: number;
+  readonly unit: "frames" | "seconds";
+}
+
+function geometricInterpolate(from: number, to: number, progress: number): number {
+  return from * ((to / from) ** progress);
+}
+
+function selectMajorStep(visibleDuration: number): number {
+  return RULER_MAJOR_STEPS.find(
+    (step) => visibleDuration / step <= MAX_VISIBLE_MAJOR_INTERVALS,
+  ) ?? RULER_MAJOR_STEPS.at(-1)!;
+}
+
+export function getTimelineRulerScale(
+  duration: number,
+  zoom = BASE_ZOOM,
+): TimelineRulerScale {
+  const safeDuration = Math.max(
+    DEFAULT_RULER_DURATION,
+    Number.isFinite(duration) ? duration : DEFAULT_RULER_DURATION,
+  );
+  const safeZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+  const manualVisibleDuration = safeZoom <= BASE_ZOOM
+    ? geometricInterpolate(
+      MIN_ZOOM_VISIBLE_DURATION,
+      DEFAULT_RULER_DURATION,
+      (safeZoom - MIN_ZOOM) / (BASE_ZOOM - MIN_ZOOM),
+    )
+    : geometricInterpolate(
+      DEFAULT_RULER_DURATION,
+      MAX_ZOOM_VISIBLE_DURATION,
+      (safeZoom - BASE_ZOOM) / (MAX_ZOOM - BASE_ZOOM),
+    );
+  const visibleDuration = manualVisibleDuration;
+  const domainDuration = Math.max(safeDuration, visibleDuration);
+  const majorStep = selectMajorStep(visibleDuration);
+  const minorStep = majorStep >= 5
+    ? majorStep / 5
+    : majorStep >= 1
+      ? majorStep / 10
+      : majorStep / 2;
+  return {
+    domainDuration,
+    visibleDuration,
+    majorStep,
+    minorStep,
+    contentScale: domainDuration / visibleDuration,
+    unit: majorStep < 1 ? "frames" : "seconds",
+  };
+}
 
 function timelinePosition(progress: number): string {
   const offset = EDITOR_TIMELINE_EDGE_GUTTER * (1 - progress * 2);
   return `calc(${progress * 100}% + ${offset}px)`;
+}
+
+function timelineContentWidth(contentScale: number): string {
+  if (contentScale === 1) return "100%";
+  const gutterCorrection = (contentScale - 1) * EDITOR_TIMELINE_EDGE_GUTTER * 2;
+  return `calc(${contentScale * 100}% - ${gutterCorrection}px)`;
 }
 
 function node<K extends keyof HTMLElementTagNameMap>(
@@ -39,6 +121,26 @@ function formatRulerTime(seconds: number): string {
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
 }
 
+function formatRulerScaleLabel(scale: TimelineRulerScale): string {
+  if (scale.unit === "seconds") {
+    return `Timeline ruler: ${formatRulerTime(scale.visibleDuration)} visible, major ticks every ${formatRulerTime(scale.majorStep)}`;
+  }
+  const visibleFrames = scale.visibleDuration * RULER_FRAMES_PER_SECOND;
+  const majorFrames = scale.majorStep * RULER_FRAMES_PER_SECOND;
+  const readableVisibleFrames = Number.isInteger(visibleFrames)
+    ? String(visibleFrames)
+    : visibleFrames.toFixed(1);
+  const readableMajorFrames = Number.isInteger(majorFrames)
+    ? String(majorFrames)
+    : majorFrames.toFixed(1);
+  return [
+    `Timeline ruler: ${readableVisibleFrames} frames visible`,
+    `(approximately ${Math.round(scale.visibleDuration * 1000)} milliseconds),`,
+    `major ticks every ${readableMajorFrames} frames`,
+    `(approximately ${Math.round(scale.majorStep * 1000)} milliseconds)`,
+  ].join(" ");
+}
+
 function renderTimelines(elements: EditorUiElements, view: EditorViewState): void {
   const signature = view.timelines
     .map(({ id, label }) => `${id}:${label}:${id === view.activeTimelineId}`)
@@ -59,7 +161,11 @@ function renderTimelines(elements: EditorUiElements, view: EditorViewState): voi
   elements.timelineList.replaceChildren(...entries);
 }
 
-function renderTransport(elements: EditorUiElements, view: EditorViewState): void {
+function renderTransport(
+  elements: EditorUiElements,
+  view: EditorViewState,
+  scale: TimelineRulerScale,
+): void {
   const running = view.transport.playState === "running";
   elements.playIcon.toggleAttribute("hidden", running);
   elements.pauseIcon.toggleAttribute("hidden", !running);
@@ -85,56 +191,79 @@ function renderTransport(elements: EditorUiElements, view: EditorViewState): voi
   elements.currentTime.textContent = elements.currentTime.value;
   elements.duration.value = formatTime(time?.sourceDuration ?? 0);
   elements.duration.textContent = elements.duration.value;
-  elements.playhead.style.left = timelinePosition(time?.progress ?? 0);
+  const timelineProgress = time
+    ? time.progress * time.duration / scale.domainDuration
+    : 0;
+  elements.playhead.style.left = timelinePosition(timelineProgress);
   elements.playhead.setAttribute("aria-valuenow", String(Math.round((time?.progress ?? 0) * 100)));
   elements.playhead.setAttribute("aria-valuetext", elements.currentTime.value);
 }
 
 function renderRuler(
   elements: EditorUiElements,
-  view: EditorViewState,
-  zoom: number,
-  fit: boolean,
+  scale: TimelineRulerScale,
 ): void {
-  const duration = view.time?.duration ?? 12;
-  const signature = `${duration}:${zoom}:${fit}`;
+  const {
+    contentScale,
+    domainDuration,
+    majorStep,
+    minorStep,
+    unit,
+    visibleDuration,
+  } = scale;
+  const contentWidth = timelineContentWidth(contentScale);
+  elements.timelineContent.style.width = contentWidth;
+  elements.timelineContent.style.removeProperty("min-width");
+  const signature = `${domainDuration}:${visibleDuration}:${majorStep}:${minorStep}`;
   if (elements.ruler.dataset.signature === signature) return;
   elements.ruler.dataset.signature = signature;
-  const scale = Math.max(1, duration / TICK_COUNT);
-  elements.timelineContent.style.width = fit ? "100%" : `${scale * zoom * 100}%`;
-  elements.timelineContent.style.minWidth = fit ? "100%" : `${scale * zoom * 1000}px`;
-  const tickCount = Math.max(TICK_COUNT, Math.round(duration));
+  elements.ruler.dataset.visibleDuration = String(visibleDuration);
+  elements.ruler.dataset.majorStep = String(majorStep);
+  elements.ruler.dataset.unit = unit;
+  elements.ruler.setAttribute("aria-label", formatRulerScaleLabel(scale));
+  const markCount = Math.floor(domainDuration / minorStep + Number.EPSILON);
+  const subdivisions = Math.round(majorStep / minorStep);
   const marks = Array.from(
-    { length: tickCount * MINOR_TICKS_PER_SECOND + 1 },
+    { length: markCount + 1 },
     (_, index) => {
       const mark = node("span", "devtools-editor__ruler-mark");
-      const progress = index / (tickCount * MINOR_TICKS_PER_SECOND);
+      const progress = index * minorStep / domainDuration;
       mark.style.left = timelinePosition(progress);
-      mark.dataset.major = String(index % MINOR_TICKS_PER_SECOND === 0);
-      mark.dataset.mid = String(index % (MINOR_TICKS_PER_SECOND / 2) === 0);
+      mark.dataset.major = String(index % subdivisions === 0);
+      mark.dataset.mid = String(subdivisions > 2 && index % Math.round(subdivisions / 2) === 0);
       return mark;
     },
   );
+  const tickCount = Math.floor(domainDuration / majorStep + Number.EPSILON);
   const ticks = Array.from({ length: tickCount + 1 }, (_, index) => {
     const tick = node("span", "devtools-editor__tick");
-    const progress = index / tickCount;
+    const seconds = index * majorStep;
+    const progress = seconds / domainDuration;
     tick.style.left = timelinePosition(progress);
-    tick.textContent = formatRulerTime(index);
+    tick.textContent = unit === "frames"
+      ? `${Math.round(seconds * RULER_FRAMES_PER_SECOND)}f`
+      : formatRulerTime(seconds);
     if (index === 0) tick.dataset.edge = "start";
-    if (index === tickCount) tick.dataset.edge = "end";
+    if (Math.abs(seconds - domainDuration) < Number.EPSILON * 10) {
+      tick.dataset.edge = "end";
+    }
     return tick;
   });
   elements.ruler.replaceChildren(...marks, ...ticks);
 }
 
-function renderFiniteEnd(elements: EditorUiElements, view: EditorViewState): void {
+function renderFiniteEnd(
+  elements: EditorUiElements,
+  view: EditorViewState,
+  scale: TimelineRulerScale,
+): void {
   const time = view.time;
   const visible = time !== undefined
     && time.sourceDuration < time.duration;
   elements.timelineEndMarker.hidden = !visible;
   elements.postDurationRegion.hidden = !visible;
   if (!visible || !time) return;
-  const progress = time.sourceDuration / time.duration;
+  const progress = time.sourceDuration / scale.domainDuration;
   const position = timelinePosition(progress);
   elements.timelineEndMarker.style.left = position;
   elements.timelineEndMarker.setAttribute(
@@ -144,7 +273,10 @@ function renderFiniteEnd(elements: EditorUiElements, view: EditorViewState): voi
   elements.postDurationRegion.style.left = position;
 }
 
-function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
+function renderTrack(
+  track: EditorViewTrack,
+  timelineScale: number,
+): [HTMLButtonElement, HTMLElement] {
   const label = node("button", "devtools-editor__track-label");
   label.type = "button";
   label.dataset.trackKey = track.key;
@@ -164,22 +296,28 @@ function renderTrack(track: EditorViewTrack): [HTMLButtonElement, HTMLElement] {
       block.dataset.trackKey = track.key;
       block.dataset.selected = String(track.selected);
       block.setAttribute("aria-pressed", String(track.selected));
-      block.style.left = `${span.start * 100}%`;
-      block.style.width = `${(span.end - span.start) * 100}%`;
+      block.style.left = `${span.start * timelineScale * 100}%`;
+      block.style.width = `${(span.end - span.start) * timelineScale * 100}%`;
       lane.append(block);
     }
   }
   return [label, lane];
 }
 
-function renderTracks(elements: EditorUiElements, view: EditorViewState): void {
+function renderTracks(
+  elements: EditorUiElements,
+  view: EditorViewState,
+  scale: TimelineRulerScale,
+): void {
+  const timelineScale = (view.time?.duration ?? DEFAULT_RULER_DURATION)
+    / scale.domainDuration;
   const signature = view.tracks.map((track) => [
     track.key,
     track.label,
     track.fullLabel,
     track.selected,
     track.spans.map(({ start, end }) => `${start}:${end}`).join(","),
-  ].join("|")).join(";");
+  ].join("|")).concat(`@${timelineScale}`).join(";");
   if (elements.trackLanes.dataset.signature === signature) return;
   elements.trackLanes.dataset.signature = signature;
   const count = view.tracks.length;
@@ -191,7 +329,7 @@ function renderTracks(elements: EditorUiElements, view: EditorViewState): void {
   labels[0]!.dataset.role = "track-count";
   const lanes: HTMLElement[] = [];
   for (const track of view.tracks) {
-    const [label, lane] = renderTrack(track);
+    const [label, lane] = renderTrack(track, timelineScale);
     labels.push(label);
     lanes.push(lane);
   }
@@ -269,14 +407,14 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
 export function renderEditorUi(
   elements: EditorUiElements,
   view: EditorViewState,
-  zoom = 1,
-  fit = false,
+  zoom = BASE_ZOOM,
 ): void {
+  const scale = getTimelineRulerScale(view.time?.duration ?? DEFAULT_RULER_DURATION, zoom);
   renderTimelines(elements, view);
-  renderTransport(elements, view);
-  renderRuler(elements, view, zoom, fit);
-  renderFiniteEnd(elements, view);
-  renderTracks(elements, view);
+  renderTransport(elements, view, scale);
+  renderRuler(elements, scale);
+  renderFiniteEnd(elements, view, scale);
+  renderTracks(elements, view, scale);
   renderInspector(elements, view);
   elements.timelineViewport.dataset.seekable = String(view.transport.canSeek);
 }

@@ -9,7 +9,7 @@ import {
   EDITOR_TIMELINE_EDGE_GUTTER,
 } from "./dom";
 import { createEditorHeightResize } from "./editor-height-resize";
-import { renderEditorUi } from "./render";
+import { getTimelineRulerScale, renderEditorUi } from "./render";
 import { createSelectionHighlightOverlay } from "./selection-highlight-overlay";
 
 export interface EditorUiHandle {
@@ -27,6 +27,14 @@ const EDITOR_PANES = ["timelines", "timeline"] as const;
 const EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS = 1;
 const EDITOR_MIN_ZOOM = 0.5;
 const EDITOR_MAX_ZOOM = 4;
+const EDITOR_BASE_ZOOM = 1;
+const EDITOR_ZOOM_STEP = 0.05;
+
+function normalizeTimelineZoom(zoom: number): number {
+  const clamped = Math.min(EDITOR_MAX_ZOOM, Math.max(EDITOR_MIN_ZOOM, zoom));
+  const step = Math.round((clamped - EDITOR_MIN_ZOOM) / EDITOR_ZOOM_STEP);
+  return Number((EDITOR_MIN_ZOOM + step * EDITOR_ZOOM_STEP).toFixed(2));
+}
 
 export function mountEditorUi(
   container: HTMLElement,
@@ -35,6 +43,8 @@ export function mountEditorUi(
   const ownsController = options.controller === undefined;
   const controller = options.controller ?? createEditorController(options);
   const elements = createEditorUiElements();
+  elements.zoomRange.min = String(EDITOR_MIN_ZOOM);
+  elements.zoomRange.max = String(EDITOR_MAX_ZOOM);
   const selectionHighlight = createSelectionHighlightOverlay(container.ownerDocument);
   const eventController = new AbortController();
   const listenerOptions = { signal: eventController.signal };
@@ -43,8 +53,9 @@ export function mountEditorUi(
   let inspectorTriggerKey: string | undefined;
   let inspectorTriggerClass: string | undefined;
   let timelineListVisible = true;
-  let timelineZoom = 1;
-  let timelineFit = false;
+  let timelineZoom = EDITOR_BASE_ZOOM;
+  let pendingTimelineZoom: number | undefined;
+  let timelineZoomFrame: number | undefined;
 
   const setInspectorOpen = (open: boolean): void => {
     elements.root.dataset.inspectorOpen = String(open);
@@ -87,38 +98,84 @@ export function mountEditorUi(
     }
   };
 
+  const renderZoomControls = (): void => {
+    const displayedZoom = pendingTimelineZoom ?? timelineZoom;
+    const zoomPercentage = Math.round(displayedZoom * 100);
+    elements.zoomRange.value = String(zoomPercentage / 100);
+    elements.zoomRange.setAttribute("aria-valuetext", `${zoomPercentage}%`);
+    elements.zoomOutButton.disabled = displayedZoom <= EDITOR_MIN_ZOOM;
+    elements.zoomInButton.disabled = displayedZoom >= EDITOR_MAX_ZOOM;
+  };
+
   const render = (snapshot: EditorSnapshot): void => {
     if (destroyed) return;
     selectionHighlight.update(
       snapshot.selectedItem?.sources ?? [],
       snapshot.selectedItem?.label,
     );
-    renderEditorUi(elements, snapshot.view, timelineZoom, timelineFit);
-    elements.zoomLevel.value = timelineFit ? "Fit" : `${Math.round(timelineZoom * 100)}%`;
-    elements.zoomLevel.textContent = elements.zoomLevel.value;
-    elements.fitButton.setAttribute("aria-pressed", String(timelineFit));
-    elements.zoomOutButton.disabled = timelineFit || timelineZoom <= EDITOR_MIN_ZOOM;
-    elements.zoomInButton.disabled = !timelineFit && timelineZoom >= EDITOR_MAX_ZOOM;
+    renderEditorUi(elements, snapshot.view, timelineZoom);
+    renderZoomControls();
   };
 
   const setTimelineZoom = (zoom: number): void => {
-    const next = Math.min(EDITOR_MAX_ZOOM, Math.max(EDITOR_MIN_ZOOM, zoom));
-    const progress = controller.getSnapshot().view.time?.progress ?? 0;
-    const oldOffset = progress * elements.timelineContent.scrollWidth
+    const next = normalizeTimelineZoom(zoom);
+    const snapshot = controller.getSnapshot();
+    const time = snapshot.view.time;
+    const progress = time?.progress ?? 0;
+    const duration = time?.duration ?? 12;
+    const oldScale = getTimelineRulerScale(duration, timelineZoom);
+    const oldTimelinePosition = progress * duration / oldScale.domainDuration;
+    const oldOffset = oldTimelinePosition * elements.timelineContent.scrollWidth
       - elements.timelineViewport.scrollLeft;
     timelineZoom = next;
-    timelineFit = false;
-    render(controller.getSnapshot());
+    render(snapshot);
+    const nextScale = getTimelineRulerScale(duration, timelineZoom);
+    const nextTimelinePosition = progress * duration / nextScale.domainDuration;
     elements.timelineViewport.scrollLeft = Math.max(
       0,
-      progress * elements.timelineContent.scrollWidth - oldOffset,
+      nextTimelinePosition * elements.timelineContent.scrollWidth - oldOffset,
     );
   };
 
-  const fitTimeline = (): void => {
-    timelineFit = true;
+  const cancelPendingTimelineZoom = (): void => {
+    pendingTimelineZoom = undefined;
+    if (timelineZoomFrame !== undefined) {
+      cancelAnimationFrame(timelineZoomFrame);
+      timelineZoomFrame = undefined;
+    }
+  };
+
+  const flushPendingTimelineZoom = (): void => {
+    if (pendingTimelineZoom === undefined) return;
+    const next = pendingTimelineZoom;
+    cancelPendingTimelineZoom();
+    setTimelineZoom(next);
+  };
+
+  const scheduleTimelineZoom = (zoom: number): void => {
+    console.log(zoom)
+    const next = normalizeTimelineZoom(zoom);
+    if (next === EDITOR_BASE_ZOOM) {
+      cancelPendingTimelineZoom();
+      setTimelineZoom(next);
+      return;
+    }
+    pendingTimelineZoom = next;
+    renderZoomControls();
+    if (timelineZoomFrame !== undefined) return;
+    timelineZoomFrame = requestAnimationFrame(() => {
+      timelineZoomFrame = undefined;
+      if (destroyed || pendingTimelineZoom === undefined) return;
+      const next = pendingTimelineZoom;
+      pendingTimelineZoom = undefined;
+      setTimelineZoom(next);
+    });
+  };
+
+  const resetTimelineZoom = (): void => {
+    cancelPendingTimelineZoom();
+    setTimelineZoom(EDITOR_BASE_ZOOM);
     elements.timelineViewport.scrollLeft = 0;
-    render(controller.getSnapshot());
   };
 
   const onClick = (event: Event): void => {
@@ -167,40 +224,60 @@ export function mountEditorUi(
       case "toggle-loop":
         controller.setLooping(!controller.getSnapshot().view.transport.looping);
         break;
-      case "fit-timeline":
-        fitTimeline();
+      case "reset-timeline-zoom":
+        resetTimelineZoom();
         break;
       case "zoom-out": {
+        flushPendingTimelineZoom();
         setTimelineZoom(timelineZoom / 1.25);
         break;
       }
       case "zoom-in": {
-        setTimelineZoom(timelineFit ? 1 : timelineZoom * 1.25);
+        flushPendingTimelineZoom();
+        setTimelineZoom(timelineZoom * 1.25);
         break;
       }
     }
   };
 
   const onChange = (event: Event): void => {
-    if (event.target !== elements.speedSelect) return;
-    controller.setTimeScale(Number(elements.speedSelect.value));
+    if (event.target === elements.zoomRange) {
+      flushPendingTimelineZoom();
+      return;
+    }
+    if (event.target === elements.speedSelect) {
+      controller.setTimeScale(Number(elements.speedSelect.value));
+    }
+  };
+
+  const onInput = (event: Event): void => {
+    if (event.target !== elements.zoomRange) return;
+    scheduleTimelineZoom(Number(elements.zoomRange.value));
   };
 
   const progressAt = (clientX: number): number | undefined => {
     const bounds = elements.timelineContent.getBoundingClientRect();
     const width = bounds.width - EDITOR_TIMELINE_EDGE_GUTTER * 2;
     if (width <= 0) return undefined;
-    const progress = Math.min(1, Math.max(
+    const contentProgress = Math.min(1, Math.max(
       0,
       (clientX - bounds.left - EDITOR_TIMELINE_EDGE_GUTTER) / width,
     ));
     const time = controller.getSnapshot().timeWindow;
+    const duration = time?.duration ?? 12;
+    const scale = getTimelineRulerScale(duration, timelineZoom);
+    const progress = Math.min(
+      1,
+      contentProgress * scale.domainDuration / duration,
+    );
     if (!time?.repeating) return progress;
     const cycleProgress = time.sourceDuration / time.duration;
     const nearestBoundary = Math.round(progress / cycleProgress) * cycleProgress;
+    const timelineWidth = width * duration / scale.domainDuration;
     return nearestBoundary > 0
       && nearestBoundary <= 1
-      && Math.abs(progress - nearestBoundary) * width <= EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS
+      && Math.abs(progress - nearestBoundary) * timelineWidth
+        <= EDITOR_TIMELINE_BOUNDARY_SNAP_PIXELS
       ? nearestBoundary
       : progress;
   };
@@ -314,11 +391,6 @@ export function mountEditorUi(
         controller.setLooping(!transport.looping);
         return;
       }
-      if (event.code === "KeyF") {
-        event.preventDefault();
-        fitTimeline();
-        return;
-      }
     }
     if (event.code !== "Space" || formControl) return;
     event.preventDefault();
@@ -337,6 +409,7 @@ export function mountEditorUi(
   );
   elements.root.addEventListener("click", onClick, listenerOptions);
   elements.root.addEventListener("change", onChange, listenerOptions);
+  elements.root.addEventListener("input", onInput, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
   elements.timelineViewport.addEventListener(
     "pointerdown",
@@ -363,6 +436,7 @@ export function mountEditorUi(
         elements.playhead.releasePointerCapture(dragPointerId);
       }
       dragPointerId = undefined;
+      cancelPendingTimelineZoom();
       eventController.abort();
       unsubscribe();
       heightResize.destroy();

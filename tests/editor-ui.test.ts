@@ -512,9 +512,11 @@ describe("DevTools editor UI v2", () => {
 
     const zoomIn = container.querySelector<HTMLButtonElement>("[data-action='zoom-in']")!;
     zoomIn.click();
-    expect(container.querySelector("[data-role='zoom-level']")?.textContent).toBe("125%");
-    container.querySelector<HTMLButtonElement>("[data-action='fit-timeline']")?.click();
-    expect(container.querySelector("[data-role='zoom-level']")?.textContent).toBe("Fit");
+    expect(container.querySelector<HTMLInputElement>("[data-role='zoom-range']")?.value)
+      .toBe("1.25");
+    container.querySelector<HTMLButtonElement>("[data-action='reset-timeline-zoom']")?.click();
+    expect(container.querySelector<HTMLInputElement>("[data-role='zoom-range']")?.value)
+      .toBe("1");
     expect(container.querySelector<HTMLElement>("[data-role='timeline-content']")?.style.width)
       .toBe("100%");
 
@@ -649,6 +651,350 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
+  it("controls timeline zoom with an accessible synchronized range input", async () => {
+    const registry = createTimelineRegistry();
+    const registered = registration("zoom", "Zoom sequence");
+    const registrationHandle = registry.register(registered.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, registered.root);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const range = container.querySelector<HTMLInputElement>("[data-role='zoom-range']")!;
+    const reset = container.querySelector<HTMLButtonElement>(
+      "[data-action='reset-timeline-zoom']",
+    )!;
+    const zoomOut = container.querySelector<HTMLButtonElement>("[data-action='zoom-out']")!;
+    const zoomIn = container.querySelector<HTMLButtonElement>("[data-action='zoom-in']")!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const tickLabels = (): string[] => [
+      ...container.querySelectorAll<HTMLElement>(".devtools-editor__tick"),
+    ].map((tick) => tick.textContent ?? "");
+
+    expect(range.type).toBe("range");
+    expect(range.min).toBe("0.5");
+    expect(range.max).toBe("4");
+    expect(range.step).toBe("0.05");
+    expect(range.getAttribute("aria-label")).toBe("Timeline zoom");
+    expect(range.value).toBe("1");
+    expect(range.getAttribute("aria-valuetext")).toBe("100%");
+    expect(reset.textContent).toBe("Reset");
+    expect(reset.getAttribute("aria-label")).toBe("Reset timeline zoom");
+    expect(reset.hasAttribute("aria-pressed")).toBe(false);
+    expect(container.querySelector("[data-action='fit-timeline']")).toBeNull();
+
+    Object.defineProperty(content, "scrollWidth", {
+      configurable: true,
+      get: () => {
+        const visibleDuration = Number(ruler.dataset.visibleDuration);
+        const contentScale = Math.max(12, visibleDuration) / visibleDuration;
+        return contentScale * 1000 - (contentScale - 1) * 24;
+      },
+    });
+    viewport.scrollLeft = 100;
+    const snapshot = handle.controller.getSnapshot();
+    vi.spyOn(handle.controller, "getSnapshot").mockReturnValue({
+      ...snapshot,
+      view: {
+        ...snapshot.view,
+        time: { ...snapshot.view.time!, progress: 0.5 },
+      },
+    });
+    range.value = "2";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    const intermediateVisibleDuration = 12 * (((14 / 60) / 12) ** (1 / 3));
+    const intermediateContentScale = 12 / intermediateVisibleDuration;
+    const intermediateContentWidth = intermediateContentScale * 1000
+      - (intermediateContentScale - 1) * 24;
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(intermediateVisibleDuration);
+    expect(Number(ruler.dataset.majorStep)).toBeCloseTo(0.25);
+    expect(ruler.dataset.unit).toBe("frames");
+    expect(content.style.width).toBe(
+      `calc(${intermediateContentScale * 100}% - ${(intermediateContentScale - 1) * 24}px)`,
+    );
+    expect(viewport.scrollLeft).toBeCloseTo(intermediateContentWidth * 0.5 - 400);
+    expect(range.getAttribute("aria-valuetext")).toBe("200%");
+
+    zoomIn.click();
+    expect(range.value).toBe("2.5");
+    expect(range.getAttribute("aria-valuetext")).toBe("250%");
+    zoomOut.click();
+    expect(range.value).toBe("2");
+
+    range.value = range.min;
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(zoomOut.disabled).toBe(true);
+    expect(zoomIn.disabled).toBe(false);
+    expect(ruler.dataset.visibleDuration).toBe("35");
+    expect(ruler.dataset.majorStep).toBe("5");
+    expect(ruler.dataset.unit).toBe("seconds");
+    expect(content.style.width).toBe("100%");
+    expect(tickLabels()).toEqual([
+      "0s",
+      "5s",
+      "10s",
+      "15s",
+      "20s",
+      "25s",
+      "30s",
+      "35s",
+    ]);
+    expect(ruler.getAttribute("role")).toBe("img");
+    expect(ruler.getAttribute("aria-label"))
+      .toBe("Timeline ruler: 35s visible, major ticks every 5s");
+    vi.spyOn(content, "getBoundingClientRect")
+      .mockReturnValue(bounds(0, 0, 3524, 400));
+    const seek = vi.spyOn(handle.controller, "seek");
+    viewport.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 12 + 3500 * 6 / 35,
+      clientY: 100,
+    }));
+    expect(seek).toHaveBeenLastCalledWith(0.5);
+
+    range.value = range.max;
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(zoomOut.disabled).toBe(false);
+    expect(zoomIn.disabled).toBe(true);
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(14 / 60);
+    expect(Number(ruler.dataset.majorStep)).toBeCloseTo(2 / 60);
+    expect(ruler.dataset.unit).toBe("frames");
+    expect(tickLabels().slice(0, 8)).toEqual([
+      "0f",
+      "2f",
+      "4f",
+      "6f",
+      "8f",
+      "10f",
+      "12f",
+      "14f",
+    ]);
+    expect(ruler.getAttribute("aria-label")).toBe(
+      "Timeline ruler: 14 frames visible (approximately 233 milliseconds), major ticks every 2 frames (approximately 33 milliseconds)",
+    );
+
+    const removedFitShortcut = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyF",
+    });
+    container.querySelector<HTMLElement>("[data-devtools-editor]")!
+      .dispatchEvent(removedFitShortcut);
+    expect(removedFitShortcut.defaultPrevented).toBe(false);
+    expect(range.value).toBe("4");
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(14 / 60);
+
+    viewport.scrollLeft = 321;
+    reset.click();
+    expect(range.value).toBe("1");
+    expect(range.getAttribute("aria-valuetext")).toBe("100%");
+    expect(viewport.scrollLeft).toBe(0);
+    expect(content.style.width).toBe("100%");
+    expect(ruler.dataset.visibleDuration).toBe("12");
+    expect(tickLabels().at(-1)).toBe("12s");
+    reset.click();
+    expect(range.value).toBe("1");
+    expect(range.getAttribute("aria-valuetext")).toBe("100%");
+    expect(viewport.scrollLeft).toBe(0);
+    expect(content.style.width).toBe("100%");
+    expect(ruler.dataset.visibleDuration).toBe("12");
+    zoomIn.click();
+    expect(range.value).toBe("1.25");
+
+    reset.click();
+    const resetWidthOldValues: (string | null)[] = [];
+    const resetWidthObserver = new MutationObserver((records) => {
+      resetWidthOldValues.push(...records.map((record) => record.oldValue));
+    });
+    resetWidthObserver.observe(content, {
+      attributes: true,
+      attributeFilter: ["style"],
+      attributeOldValue: true,
+    });
+    range.value = "1.1";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    reset.click();
+    await Promise.resolve();
+    resetWidthObserver.disconnect();
+    expect(resetWidthOldValues.some((value) => value?.includes("114.036%"))).toBe(false);
+    expect(range.value).toBe("1");
+    expect(content.style.width).toBe("100%");
+
+    range.value = "1.25";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    range.value = "1.5";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    range.dispatchEvent(new Event("change", { bubbles: true }));
+    const oneFiftyVisibleDuration = 12 * (((14 / 60) / 12) ** (1 / 6));
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(oneFiftyVisibleDuration);
+    expect(content.style.width).toContain("calc(");
+    expect(range.getAttribute("aria-valuetext")).toBe("150%");
+    await flush();
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(oneFiftyVisibleDuration);
+
+    handle.destroy();
+    registrationHandle.destroy();
+    registry.destroy();
+  });
+
+  it("keeps the ruler coherent through rapid range sweeps and Reset interruptions", async () => {
+    const registry = createTimelineRegistry();
+    const registered = registration("zoom-stress", "Zoom stress sequence");
+    const registrationHandle = registry.register(registered.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, registered.root);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const range = container.querySelector<HTMLInputElement>("[data-role='zoom-range']")!;
+    const reset = container.querySelector<HTMLButtonElement>(
+      "[data-action='reset-timeline-zoom']",
+    )!;
+    const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    const defaultGeometry = {
+      contentWidth: content.style.width,
+      contentMinWidth: content.style.minWidth,
+      rulerSignature: ruler.dataset.signature,
+      startTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick")!.style.left,
+      endTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick:last-child")!
+        .style.left,
+      trackLeft: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.left,
+      trackWidth: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.width,
+      playheadLeft: playhead.style.left,
+    };
+    const input = (value: number): void => {
+      range.value = String(value);
+      range.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const frameRequestsBeforeStress = vi.mocked(requestAnimationFrame).mock.calls.length;
+
+    for (let pass = 0; pass < 4; pass += 1) {
+      for (let step = 50; step <= 400; step += 1) input(step / 100);
+      reset.click();
+      for (let step = 400; step >= 50; step -= 1) input(step / 100);
+    }
+    input(4);
+    expect(
+      vi.mocked(requestAnimationFrame).mock.calls.length - frameRequestsBeforeStress,
+    ).toBeLessThanOrEqual(14);
+    await flush();
+
+    const labels = [
+      ...container.querySelectorAll<HTMLElement>(".devtools-editor__tick"),
+    ].map((tick) => tick.textContent);
+    expect(range.value).toBe("4");
+    expect(range.getAttribute("aria-valuetext")).toBe("400%");
+    expect(ruler.dataset.unit).toBe("frames");
+    expect(Number(ruler.dataset.visibleDuration)).toBeCloseTo(14 / 60);
+    expect(Number(ruler.dataset.majorStep)).toBeCloseTo(2 / 60);
+    expect(labels.slice(0, 8)).toEqual([
+      "0f",
+      "2f",
+      "4f",
+      "6f",
+      "8f",
+      "10f",
+      "12f",
+      "14f",
+    ]);
+    expect(labels.at(-1)).toBe("720f");
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(container.querySelectorAll(".devtools-editor__tick")).toHaveLength(361);
+    expect(container.querySelectorAll(".devtools-editor__ruler-mark")).toHaveLength(721);
+    expect(content.style.width).not.toContain("NaN");
+    expect(content.style.width).not.toContain("Infinity");
+
+    input(0.95);
+    await flush();
+    expect(range.value).toBe("0.95");
+    expect(range.getAttribute("aria-valuetext")).toBe("95%");
+    input(1.05);
+    await flush();
+    expect(range.value).toBe("1.05");
+    expect(range.getAttribute("aria-valuetext")).toBe("105%");
+    content.style.width = "calc(95% - 24px)";
+    content.style.minWidth = "calc(95% - 24px)";
+    viewport.scrollLeft = 173;
+    reset.click();
+    expect(viewport.scrollLeft).toBe(0);
+    expect({
+      contentWidth: content.style.width,
+      contentMinWidth: content.style.minWidth,
+      rulerSignature: ruler.dataset.signature,
+      startTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick")!.style.left,
+      endTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick:last-child")!
+        .style.left,
+      trackLeft: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.left,
+      trackWidth: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.width,
+      playheadLeft: playhead.style.left,
+    }).toEqual(defaultGeometry);
+
+    const finalSignature = ruler.dataset.signature;
+    const frameCancellationsBeforeDestroy = vi.mocked(cancelAnimationFrame).mock.calls.length;
+    input(0.5);
+    handle.destroy();
+    expect(vi.mocked(cancelAnimationFrame).mock.calls.length)
+      .toBeGreaterThan(frameCancellationsBeforeDestroy);
+    await flush();
+    expect(ruler.dataset.signature).toBe(finalSignature);
+    registrationHandle.destroy();
+    registry.destroy();
+  });
+
+  it("keeps each discrete range step distinct around the exact 100% baseline", async () => {
+    const registry = createTimelineRegistry();
+    const registered = registration("zoom-baseline", "Zoom baseline sequence");
+    const registrationHandle = registry.register(registered.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, registered.root);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const range = container.querySelector<HTMLInputElement>("[data-role='zoom-range']")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const input = async (value: number): Promise<void> => {
+      range.value = String(value);
+      range.dispatchEvent(new Event("input", { bubbles: true }));
+      await flush();
+    };
+
+    await input(1.05);
+    expect(range.value).toBe("1.05");
+    expect(range.getAttribute("aria-valuetext")).toBe("105%");
+    expect(Number(ruler.dataset.visibleDuration)).toBeLessThan(12);
+    expect(content.style.width).toContain("calc(");
+
+    await input(0.95);
+    expect(range.value).toBe("0.95");
+    expect(range.getAttribute("aria-valuetext")).toBe("95%");
+    expect(Number(ruler.dataset.visibleDuration)).toBeGreaterThan(12);
+    expect(content.style.width).toBe("100%");
+
+    await input(1);
+    expect(range.value).toBe("1");
+    expect(range.getAttribute("aria-valuetext")).toBe("100%");
+    expect(ruler.dataset.visibleDuration).toBe("12");
+    expect(ruler.dataset.majorStep).toBe("1");
+    expect(content.style.width).toBe("100%");
+
+    await input(0.98);
+    expect(range.value).toBe("1");
+    expect(ruler.dataset.visibleDuration).toBe("12");
+    handle.destroy();
+    registrationHandle.destroy();
+    registry.destroy();
+  });
+
   it("shows an empty state and releases its owned controller on destroy", () => {
     const registry = createTimelineRegistry();
     const container = document.createElement("div");
@@ -750,8 +1096,8 @@ describe("DevTools editor UI v2", () => {
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
     expect(handle.controller.getSnapshot().timeWindow?.duration).toBe(16);
-    expect(content.style.width).toBe("133.33333333333331%");
-    expect(content.style.minWidth).toBe("1333.3333333333333px");
+    expect(content.style.width).toContain("calc(133.33333333333331%");
+    expect(content.style.minWidth).toBe("");
     expect(container.querySelectorAll(".devtools-editor__tick")).toHaveLength(17);
     expect(container.querySelectorAll(".devtools-editor__tick").item(16).textContent)
       .toBe("16s");
