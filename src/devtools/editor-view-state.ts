@@ -5,6 +5,7 @@ import type {
   TimelineInspectionItem,
   TimelineInspectionSnapshot,
   TimelinePlayState,
+  TimelineScrollTriggerSnapshot,
 } from "./timeline-session";
 
 export interface EditorViewTimeline {
@@ -89,6 +90,7 @@ export interface EditorViewState {
   readonly tracks: readonly EditorViewTrack[];
   readonly selectedTrackKey: string | undefined;
   readonly inspector: EditorViewInspector | undefined;
+  readonly scrollTrigger: TimelineScrollTriggerSnapshot | undefined;
   readonly transport: EditorViewTransport;
   readonly error: unknown;
 }
@@ -236,10 +238,19 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     && inspection?.driver === "manual"
     && inspection.readiness === "ready";
   const spansByItem = new Map<TimelineInspectionItem, EditorViewTrackSpan[]>();
-  for (const span of input.timeWindow?.tracks ?? []) {
-    const spans = spansByItem.get(span.item) ?? [];
-    spans.push(Object.freeze({ start: span.start, end: span.end }));
-    spansByItem.set(span.item, spans);
+  if (inspection?.scrollTrigger?.scrubbed && inspection.totalDuration > 0) {
+    for (const item of inspection.items) {
+      spansByItem.set(item, [Object.freeze({
+        start: Math.min(1, Math.max(0, item.resolvedStart / inspection.totalDuration)),
+        end: Math.min(1, Math.max(0, item.resolvedEnd / inspection.totalDuration)),
+      })]);
+    }
+  } else {
+    for (const span of input.timeWindow?.tracks ?? []) {
+      const spans = spansByItem.get(span.item) ?? [];
+      spans.push(Object.freeze({ start: span.start, end: span.end }));
+      spansByItem.set(span.item, spans);
+    }
   }
   const tracks = Object.freeze((inspection?.items ?? []).map((item): EditorViewTrack => {
     const label = trackLabel(item);
@@ -264,6 +275,7 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
     tracks,
     selectedTrackKey: input.selectedItem ? editorTrackKey(input.selectedItem) : undefined,
     inspector: inspector(input.selectedItem, input.timeWindow),
+    scrollTrigger: inspection?.scrollTrigger,
     transport: Object.freeze({
       playState,
       timeScale: inspection?.timeScale,
@@ -271,7 +283,8 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
       looping: (input.looping ?? false) && input.timeWindow?.repeating !== true,
       canPlay: canControl && playState !== "running",
       canPause: canControl && playState === "running",
-      canSeek: canControl && input.timeWindow !== undefined,
+      canSeek: (canControl && input.timeWindow !== undefined)
+        || (inspection?.driver === "scroll" && inspection.readiness === "ready"),
       canSetTimeScale: canControl,
       canSetDirection: canControl,
       canLoop: canControl && input.timeWindow !== undefined && !input.timeWindow.repeating,

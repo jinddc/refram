@@ -289,7 +289,15 @@ describe("video-editor Motion DevTools", () => {
     const { container, timeline } = scroll;
     Object.defineProperty(timeline, "scrollTrigger", {
       configurable: true,
-      value: {},
+      value: {
+        start: 0,
+        end: 100,
+        progress: 0,
+        direction: 1,
+        scroller: window,
+        vars: { scrub: true },
+        scroll: () => 0,
+      },
     });
     const { handle, registry } = mountFixture(scroll);
     await flush();

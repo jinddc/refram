@@ -100,6 +100,7 @@ const EMPTY_TIMELINE_SNAPSHOT: TimelineInspectionSnapshot = Object.freeze({
   reversed: false,
   totalDuration: 0,
   items: Object.freeze([]),
+  scrollTrigger: undefined,
 });
 
 function createElement<K extends keyof HTMLElementTagNameMap>(

@@ -1,10 +1,13 @@
 import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { MotionDevtoolsEditor } from "../src/devtools/editor-ui/editor";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
 } from "../src/devtools/timeline-registry";
+
+gsap.registerPlugin(ScrollTrigger);
 
 function requireElement<T extends Element>(selector: string): T {
   const value = document.querySelector<T>(selector);
@@ -113,7 +116,58 @@ function registerParticleTimeline(): MotionTimelineRegistration {
   });
 }
 
-const registrations = [registerFiniteTimeline(), registerParticleTimeline()];
+function registerScrollTimeline(
+  id: string,
+  rootSelector: string,
+  scrollTrigger: ScrollTrigger.Vars,
+): MotionTimelineRegistration {
+  const root = requireElement<HTMLElement>(rootSelector);
+  const target = requireElement<HTMLElement>(`${rootSelector} h2`);
+  const timeline = gsap.timeline({
+    scrollTrigger: {
+      trigger: root,
+      ...scrollTrigger,
+    },
+  }).fromTo(target, { x: -80, opacity: 0.3 }, { x: 80, opacity: 1, duration: 1 });
+  return defaultTimelineRegistry.register({
+    id,
+    label: id,
+    root,
+    timeline,
+  });
+}
+
+const registrations = [
+  registerFiniteTimeline(),
+  registerParticleTimeline(),
+  registerScrollTimeline(
+    "playground/v2/window-scroll",
+    "#devtools-v2-window-scroll",
+    { id: "Window scrub", start: "top bottom", end: "bottom top", scrub: true },
+  ),
+  registerScrollTimeline(
+    "playground/v2/custom-scroll",
+    "#devtools-v2-custom-scroll",
+    {
+      id: "Custom scrub",
+      trigger: "#devtools-v2-custom-trigger",
+      scroller: "#devtools-v2-custom-scroller",
+      start: "top bottom",
+      end: "bottom top",
+      scrub: 0.5,
+    },
+  ),
+  registerScrollTimeline(
+    "playground/v2/action-scroll",
+    "#devtools-v2-action-scroll",
+    {
+      id: "Trigger actions",
+      start: "top 80%",
+      end: "bottom 20%",
+      toggleActions: "play pause resume reverse",
+    },
+  ),
+];
 let longTimelineRegistration: MotionTimelineRegistration | undefined;
 let longTimeline: gsap.core.Timeline | undefined;
 
@@ -175,6 +229,10 @@ const harness = {
   },
   seek(progress: number) {
     return editor.controller.seek(progress);
+  },
+  get activeScrollTrigger() {
+    const activeId = editor.controller.getSnapshot().activeTimelineId;
+    return registrations.find(({ id }) => id === activeId)?.timeline.scrollTrigger;
   },
   registerLongTimeline,
   removeLongTimeline,

@@ -9,10 +9,35 @@ import {
   waitFor,
 } from "./visual-harness.mjs";
 
+function validScrubEdgeGeometry(samples) {
+  if (!Array.isArray(samples) || samples.length !== 3) return false;
+  const [start, middle, end] = samples;
+  return samples.every((sample) => (
+    Math.abs(sample.lineX - sample.expectedLineX) <= 1
+      && sample.pillLeft >= sample.viewportLeft - 0.5
+      && sample.pillRight <= sample.viewportRight + 0.5
+  ))
+    && start.progress === 0
+    && start.text === "0%"
+    && start.pillLeft <= start.lineX - 0.5
+    && start.pillLeft >= start.lineX - 1.5
+    && middle.progress === 0.5
+    && middle.text === "50%"
+    && Math.abs((middle.pillLeft + middle.pillRight) / 2 - middle.lineX) <= 0.5
+    && end.progress === 1
+    && end.text === "100%"
+    && end.pillRight >= end.lineX + 0.5
+    && end.pillRight <= end.lineX + 1.5;
+}
+
 async function verify({ artifactDirectory, send }) {
   const desktop = join(artifactDirectory, "devtools-editor-v2-desktop.png");
   const particles = join(artifactDirectory, "devtools-editor-v2-particles.png");
   const narrow = join(artifactDirectory, "devtools-editor-v2-narrow.png");
+  const scrollScrub = join(artifactDirectory, "devtools-editor-v2-scroll-scrub.png");
+  const scrollScrubNarrow = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-narrow.png");
+  const scrollScrubDpr2 = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-dpr2.png");
+  const scrollScrubNarrowDpr2 = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-narrow-dpr2.png");
 
   await waitFor(
     () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:01.640" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
@@ -117,7 +142,7 @@ async function verify({ artifactDirectory, send }) {
     editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
     workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
-  assert(desktopState.timelines === 2, "The new editor did not list both fixture timelines.");
+  assert(desktopState.timelines === 5, "The new editor did not list all fixture timelines.");
   assert(desktopState.visibleTimelineIds === 0, "Timeline IDs are still visible in the list UI.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
@@ -197,6 +222,226 @@ async function verify({ artifactDirectory, send }) {
       && Math.abs(desktopState.workspaceTop - desktopState.editorTop) <= 1,
     `The desktop idle workspace is incorrect: ${JSON.stringify(desktopState)}`,
   );
+  const windowScrollState = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/window-scroll");
+    const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
+    const expected = trigger.start + (trigger.end - trigger.start) * 0.5;
+    const sought = window.__devtoolsEditorV2Harness.seek(0.5);
+    return {
+      sought,
+      expected,
+      actual: trigger.scroll(),
+      windowScroll: window.scrollY,
+      label: window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']")?.textContent,
+      ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
+      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].map((tick) => tick.textContent),
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='zoom-range']")).display,
+      pill: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.textContent,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
+      playheadValue: window.__devtoolsEditorV2Harness.query("[data-role='playhead']")?.getAttribute("aria-valuetext"),
+    };
+  })()`);
+  assert(
+    windowScrollState.sought
+      && Math.abs(windowScrollState.actual - windowScrollState.expected) <= 2
+      && Math.abs(windowScrollState.windowScroll - windowScrollState.expected) <= 2
+      && windowScrollState.label === "Window scrub"
+      && windowScrollState.ruler === "Scroll progress ruler from 0% to 100%"
+      && windowScrollState.ticks.join("|") === "0%|25%|50%|75%|100%"
+      && windowScrollState.transportDisplay === "grid"
+      && windowScrollState.playbackDisplay === "none"
+      && windowScrollState.viewportControlsDisplay === "flex"
+      && windowScrollState.resetDisplay !== "none"
+      && windowScrollState.zoomDisplay !== "none"
+      && !windowScrollState.pillHidden
+      && windowScrollState.pill === "50%"
+      && windowScrollState.playheadValue === "50%",
+    `The real window ScrollTrigger inspection mode is incorrect: ${JSON.stringify(windowScrollState)}`,
+  );
+  const customScrollState = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll");
+    const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
+    const expected = trigger.start + (trigger.end - trigger.start) * 0.75;
+    const sought = window.__devtoolsEditorV2Harness.seek(0.75);
+    window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
+    return {
+      sought,
+      expected,
+      actual: trigger.scroll(),
+      elementScroll: document.querySelector("#devtools-v2-custom-scroller").scrollTop,
+      progress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.progress,
+      animationProgress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.animationProgress,
+      inspector: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']")?.textContent,
+      pillBounds: (() => {
+        const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, width: bounds.width };
+      })(),
+      viewportBounds: (() => {
+        const bounds = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, width: bounds.width };
+      })(),
+      endMarkerDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']")).display,
+      transport: (() => {
+        const element = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          height: bounds.height,
+          display: style.display,
+          backgroundColor: style.backgroundColor,
+          borderBottomWidth: style.borderBottomWidth,
+          columns: style.gridTemplateColumns.split(" ").length,
+          right: bounds.right,
+        };
+      })(),
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      viewportControlsRight: window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls").getBoundingClientRect().right,
+      playhead: (() => {
+        const element = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
+        const bounds = element.getBoundingClientRect();
+        const line = getComputedStyle(element, "::after");
+        const icon = getComputedStyle(element.querySelector(".devtools-editor__playhead-icon"));
+        const pill = element.querySelector(".devtools-editor__playhead-progress").getBoundingClientRect();
+        return {
+          top: bounds.top,
+          bottom: bounds.bottom,
+          centerX: bounds.left + bounds.width / 2,
+          lineTop: Number.parseFloat(line.top),
+          lineBottom: line.bottom,
+          lineWidth: line.width,
+          lineColor: line.backgroundColor,
+          iconDisplay: icon.display,
+          pillTop: pill.top,
+          pillBottom: pill.bottom,
+          pillCenterX: pill.left + pill.width / 2,
+        };
+      })(),
+      rulerTop: window.__devtoolsEditorV2Harness.query("[data-role='ruler']").getBoundingClientRect().top,
+      lanesBottom: window.__devtoolsEditorV2Harness.query("[data-role='track-lanes']").getBoundingClientRect().bottom,
+      edgeGeometry: [0, 0.5, 1].map((progress) => {
+        window.__devtoolsEditorV2Harness.seek(progress);
+        const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+        const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+        const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+        const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        return {
+          progress,
+          text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+          lineX: playhead.left + playhead.width / 2,
+          expectedLineX: content.left + 12 + (content.width - 24) * progress,
+          pillLeft: pill.left,
+          pillRight: pill.right,
+          viewportLeft: viewport.left,
+          viewportRight: viewport.right,
+        };
+      }),
+    };
+  })()`);
+  assert(
+    customScrollState.sought
+      && Math.abs(customScrollState.actual - customScrollState.expected) <= 2
+      && Math.abs(customScrollState.elementScroll - customScrollState.expected) <= 2
+      && customScrollState.progress >= 0.74
+      && customScrollState.progress <= 0.76
+      && customScrollState.inspector.includes("ScrollTrigger stateActive")
+      && customScrollState.inspector.includes("Scrub0.5s")
+      && customScrollState.inspector.includes("Scrollerdiv#devtools-v2-custom-scroller.devtools-v2-custom-scroller")
+      && customScrollState.inspector.includes("Animation progress")
+      && customScrollState.pillBounds.width > 0
+      && customScrollState.pillBounds.left >= customScrollState.viewportBounds.left
+      && customScrollState.pillBounds.right <= customScrollState.viewportBounds.right
+      && customScrollState.endMarkerDisplay === "none"
+      && customScrollState.transport.display === "grid"
+      && Math.abs(customScrollState.transport.height - 48) <= 1
+      && customScrollState.transport.borderBottomWidth === "1px"
+      && customScrollState.transport.backgroundColor !== "rgba(0, 0, 0, 0)"
+      && customScrollState.transport.columns === 3
+      && customScrollState.playbackDisplay === "none"
+      && customScrollState.viewportControlsDisplay === "flex"
+      && Math.abs(customScrollState.transport.right - customScrollState.viewportControlsRight - 10) <= 1
+      && customScrollState.playhead.lineTop >= 0
+      && customScrollState.playhead.lineTop
+        <= customScrollState.playhead.pillBottom - customScrollState.playhead.top
+      && customScrollState.playhead.lineBottom === "0px"
+      && customScrollState.playhead.lineWidth === "1px"
+      && customScrollState.playhead.iconDisplay === "none"
+      && Math.abs(customScrollState.playhead.top - customScrollState.rulerTop) <= 1
+      && customScrollState.playhead.bottom >= customScrollState.lanesBottom
+      && Math.abs(customScrollState.playhead.centerX - customScrollState.playhead.pillCenterX) <= 0.5
+      && customScrollState.playhead.pillTop >= customScrollState.playhead.top
+      && validScrubEdgeGeometry(customScrollState.edgeGeometry),
+    `The real custom-scroller ScrollTrigger inspection mode is incorrect: ${JSON.stringify(customScrollState)}`,
+  );
+  await screenshot(send, scrollScrub);
+  const desktopMetrics = await evaluate(send, `({ width: innerWidth, height: innerHeight })`);
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: desktopMetrics.width,
+    height: desktopMetrics.height,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  const desktopDpr2State = await evaluate(send, `(() => ({
+    devicePixelRatio,
+    edgeGeometry: [0, 0.5, 1].map((progress) => {
+      window.__devtoolsEditorV2Harness.seek(progress);
+      const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+      const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+      const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+      const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+      return {
+        progress,
+        text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+        lineX: playhead.left + playhead.width / 2,
+        expectedLineX: content.left + 12 + (content.width - 24) * progress,
+        pillLeft: pill.left,
+        pillRight: pill.right,
+        viewportLeft: viewport.left,
+        viewportRight: viewport.right,
+      };
+    }),
+  }))()`);
+  assert(
+    desktopDpr2State.devicePixelRatio === 2
+      && validScrubEdgeGeometry(desktopDpr2State.edgeGeometry),
+    `The DPR 2 desktop scrub endpoint join is incorrect: ${JSON.stringify(desktopDpr2State)}`,
+  );
+  await screenshot(send, scrollScrubDpr2);
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: desktopMetrics.width,
+    height: desktopMetrics.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']")?.click()`);
+  const actionScrollState = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/action-scroll");
+    return {
+      scrubbed: window.__devtoolsEditorV2Harness.view.scrollTrigger?.scrubbed,
+      canPlay: window.__devtoolsEditorV2Harness.view.transport.canPlay,
+      canPause: window.__devtoolsEditorV2Harness.view.transport.canPause,
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
+      ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
+    };
+  })()`);
+  assert(
+    actionScrollState.scrubbed === false
+      && (actionScrollState.canPlay || actionScrollState.canPause)
+      && actionScrollState.transportDisplay === "grid"
+      && actionScrollState.playbackDisplay === "flex"
+      && actionScrollState.viewportControlsDisplay === "flex"
+      && actionScrollState.pillHidden
+      && actionScrollState.ruler.startsWith("Timeline ruler:"),
+    `The trigger-action ScrollTrigger did not retain time transport: ${JSON.stringify(actionScrollState)}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/finite")`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   const collapsedTimelineList = await evaluate(send, `(() => ({
     visible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
@@ -988,6 +1233,105 @@ async function verify({ artifactDirectory, send }) {
       && closedInspectorState.highlightedTargets === 0,
     `Closing the mobile inspector did not restore an idle timeline: ${JSON.stringify(closedInspectorState)}`,
   );
+  const narrowScrollState = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll");
+    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      rootWidth: root.width,
+      timelineWidth: timeline.width,
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
+      transportHeight: window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect().height,
+      transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).gridTemplateColumns.split(" ").length,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").hidden,
+      mode: window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").dataset.timelineMode,
+      pillBounds: (() => {
+        const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, width: bounds.width };
+      })(),
+      viewportBounds: (() => {
+        const bounds = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, width: bounds.width };
+      })(),
+      edgeGeometry: [0, 0.5, 1].map((progress) => {
+        window.__devtoolsEditorV2Harness.seek(progress);
+        const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+        const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+        const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+        const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        return {
+          progress,
+          text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+          lineX: playhead.left + playhead.width / 2,
+          expectedLineX: content.left + 12 + (content.width - 24) * progress,
+          pillLeft: pill.left,
+          pillRight: pill.right,
+          viewportLeft: viewport.left,
+          viewportRight: viewport.right,
+        };
+      }),
+    };
+  })()`);
+  assert(
+    narrowScrollState.documentWidth <= 640
+      && narrowScrollState.rootWidth <= 640
+      && narrowScrollState.timelineWidth <= narrowScrollState.rootWidth
+      && narrowScrollState.transportDisplay === "grid"
+      && Math.abs(narrowScrollState.transportHeight - 48) <= 1
+      && narrowScrollState.transportColumns === 3
+      && narrowScrollState.playbackDisplay === "none"
+      && narrowScrollState.viewportControlsDisplay === "flex"
+      && !narrowScrollState.pillHidden
+      && narrowScrollState.mode === "scroll-scrub"
+      && narrowScrollState.pillBounds.width > 0
+      && narrowScrollState.pillBounds.left >= narrowScrollState.viewportBounds.left
+      && narrowScrollState.pillBounds.right <= narrowScrollState.viewportBounds.right
+      && validScrubEdgeGeometry(narrowScrollState.edgeGeometry),
+    `The narrow ScrollTrigger inspection layout overflowed or exposed time transport: ${JSON.stringify(narrowScrollState)}`,
+  );
+  await screenshot(send, scrollScrubNarrow);
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 640,
+    height: 820,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  const narrowDpr2State = await evaluate(send, `(() => ({
+    devicePixelRatio,
+    edgeGeometry: [0, 0.5, 1].map((progress) => {
+      window.__devtoolsEditorV2Harness.seek(progress);
+      const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+      const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
+      const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+      const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+      return {
+        progress,
+        text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+        lineX: playhead.left + playhead.width / 2,
+        expectedLineX: content.left + 12 + (content.width - 24) * progress,
+        pillLeft: pill.left,
+        pillRight: pill.right,
+        viewportLeft: viewport.left,
+        viewportRight: viewport.right,
+      };
+    }),
+  }))()`);
+  assert(
+    narrowDpr2State.devicePixelRatio === 2
+      && validScrubEdgeGeometry(narrowDpr2State.edgeGeometry),
+    `The DPR 2 narrow scrub endpoint join is incorrect: ${JSON.stringify(narrowDpr2State)}`,
+  );
+  await screenshot(send, scrollScrubNarrowDpr2);
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 640,
+    height: 820,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/particles")`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   await screenshot(send, narrow);
 
@@ -1017,6 +1361,10 @@ async function verify({ artifactDirectory, send }) {
     status: "pass",
     checks: [
       "timeline-selection",
+      "scrolltrigger-window-scrub-seek",
+      "scrolltrigger-custom-scroller-seek",
+      "scrolltrigger-numeric-smoothing-diagnostics",
+      "scrolltrigger-trigger-action-time-transport",
       "default-twelve-second-ruler",
       "absolute-track-time-scale",
       "standard-particle-ruler",
@@ -1052,6 +1400,8 @@ async function verify({ artifactDirectory, send }) {
       "finite-particle-window",
       "mapped-highlight",
       "narrow-layout",
+      "scrolltrigger-narrow-layout",
+      "scrolltrigger-endpoint-join-dpr2",
       "mobile-track-triggered-inspector",
       "inspector-close",
       "inspector-close-clears-selection",
@@ -1061,6 +1411,10 @@ async function verify({ artifactDirectory, send }) {
       "artifacts/visual/devtools-editor-v2-desktop.png",
       "artifacts/visual/devtools-editor-v2-particles.png",
       "artifacts/visual/devtools-editor-v2-narrow.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub-narrow.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub-dpr2.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub-narrow-dpr2.png",
     ],
   }));
 }

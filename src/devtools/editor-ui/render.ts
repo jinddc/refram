@@ -12,6 +12,7 @@ const MAX_ZOOM = 4;
 const MIN_ZOOM_VISIBLE_DURATION = 35;
 const MAX_ZOOM_VISIBLE_DURATION = 14 / RULER_FRAMES_PER_SECOND;
 const MAX_VISIBLE_MAJOR_INTERVALS = 14;
+const SCRUB_PILL_EDGE_PROGRESS = 0.05;
 const RULER_MAJOR_STEPS = [
   2 / RULER_FRAMES_PER_SECOND,
   5 / RULER_FRAMES_PER_SECOND,
@@ -94,6 +95,33 @@ function timelineContentWidth(contentScale: number): string {
   return `calc(${contentScale * 100}% - ${gutterCorrection}px)`;
 }
 
+function scrubPillTranslate(progress: number): string {
+  const clamped = Math.min(1, Math.max(0, progress));
+  if (clamped === 0) return "0%";
+  if (clamped === 1) return "-100%";
+  if (clamped < SCRUB_PILL_EDGE_PROGRESS) {
+    return `${Number((-50 * clamped / SCRUB_PILL_EDGE_PROGRESS).toFixed(4))}%`;
+  }
+  if (clamped > 1 - SCRUB_PILL_EDGE_PROGRESS) {
+    const translation = -50 - 50 * (clamped - (1 - SCRUB_PILL_EDGE_PROGRESS))
+      / SCRUB_PILL_EDGE_PROGRESS;
+    return `${Number(translation.toFixed(4))}%`;
+  }
+  return "-50%";
+}
+
+function scrubPillOverlap(progress: number): string {
+  const clamped = Math.min(1, Math.max(0, progress));
+  if (clamped < SCRUB_PILL_EDGE_PROGRESS) {
+    return `${Number((-1 + clamped / SCRUB_PILL_EDGE_PROGRESS).toFixed(4))}px`;
+  }
+  if (clamped > 1 - SCRUB_PILL_EDGE_PROGRESS) {
+    return `${Number(((clamped - (1 - SCRUB_PILL_EDGE_PROGRESS))
+      / SCRUB_PILL_EDGE_PROGRESS).toFixed(4))}px`;
+  }
+  return "0px";
+}
+
 function node<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
@@ -166,6 +194,11 @@ function renderTransport(
   view: EditorViewState,
   scale: TimelineRulerScale,
 ): void {
+  const scrollTrigger = view.scrollTrigger;
+  const scrubbed = scrollTrigger?.scrubbed === true;
+  elements.transport.hidden = false;
+  elements.playback.hidden = scrubbed;
+  elements.timelinePane.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
   const running = view.transport.playState === "running";
   elements.playIcon.toggleAttribute("hidden", running);
   elements.pauseIcon.toggleAttribute("hidden", !running);
@@ -195,16 +228,41 @@ function renderTransport(
   elements.currentTime.textContent = elements.currentTime.value;
   elements.duration.value = formatTime(time?.sourceDuration ?? 0);
   elements.duration.textContent = elements.duration.value;
-  const timelineProgress = time
-    ? time.progress * time.duration / scale.domainDuration
-    : 0;
+  const displayedProgress = scrubbed ? scrollTrigger.progress : time?.progress ?? 0;
+  const timelineProgress = scrubbed
+    ? displayedProgress
+    : time
+      ? time.progress * time.duration / scale.domainDuration
+      : 0;
   elements.playhead.style.left = timelinePosition(timelineProgress);
-  elements.playhead.setAttribute("aria-valuenow", String(Math.round((time?.progress ?? 0) * 100)));
-  elements.playhead.setAttribute("aria-valuetext", elements.currentTime.value);
+  const percentage = Math.round(displayedProgress * 100);
+  elements.playhead.setAttribute("aria-label", scrubbed
+    ? "Scroll progress playhead"
+    : "Timeline playhead");
+  elements.playhead.setAttribute("aria-valuenow", String(percentage));
+  elements.playhead.setAttribute("aria-valuetext", scrubbed
+    ? `${percentage}%`
+    : elements.currentTime.value);
+  elements.playheadProgress.hidden = !scrubbed;
+  elements.playheadProgress.textContent = `${percentage}%`;
+  if (scrubbed) {
+    elements.playheadProgress.style.setProperty(
+      "--editor-playhead-pill-translate",
+      scrubPillTranslate(displayedProgress),
+    );
+    elements.playheadProgress.style.setProperty(
+      "--editor-playhead-pill-overlap",
+      scrubPillOverlap(displayedProgress),
+    );
+  } else {
+    elements.playheadProgress.style.removeProperty("--editor-playhead-pill-translate");
+    elements.playheadProgress.style.removeProperty("--editor-playhead-pill-overlap");
+  }
 }
 
 function renderRuler(
   elements: EditorUiElements,
+  view: EditorViewState,
   scale: TimelineRulerScale,
 ): void {
   const {
@@ -218,13 +276,16 @@ function renderRuler(
   const contentWidth = timelineContentWidth(contentScale);
   elements.timelineContent.style.width = contentWidth;
   elements.timelineContent.style.removeProperty("min-width");
-  const signature = `${domainDuration}:${visibleDuration}:${majorStep}:${minorStep}`;
+  const scrubbed = view.scrollTrigger?.scrubbed === true;
+  const signature = `${scrubbed}:${domainDuration}:${visibleDuration}:${majorStep}:${minorStep}`;
   if (elements.ruler.dataset.signature === signature) return;
   elements.ruler.dataset.signature = signature;
   elements.ruler.dataset.visibleDuration = String(visibleDuration);
   elements.ruler.dataset.majorStep = String(majorStep);
-  elements.ruler.dataset.unit = unit;
-  elements.ruler.setAttribute("aria-label", formatRulerScaleLabel(scale));
+  elements.ruler.dataset.unit = scrubbed ? "percent" : unit;
+  elements.ruler.setAttribute("aria-label", scrubbed
+    ? "Scroll progress ruler from 0% to 100%"
+    : formatRulerScaleLabel(scale));
   const markCount = Math.floor(domainDuration / minorStep + Number.EPSILON);
   const subdivisions = Math.round(majorStep / minorStep);
   const marks = Array.from(
@@ -244,7 +305,9 @@ function renderRuler(
     const seconds = index * majorStep;
     const progress = seconds / domainDuration;
     tick.style.left = timelinePosition(progress);
-    tick.textContent = unit === "frames"
+    tick.textContent = scrubbed
+      ? `${Math.round(progress * 100)}%`
+      : unit === "frames"
       ? `${Math.round(seconds * RULER_FRAMES_PER_SECOND)}f`
       : formatRulerTime(seconds);
     if (index === 0) tick.dataset.edge = "start";
@@ -262,7 +325,7 @@ function renderFiniteEnd(
   scale: TimelineRulerScale,
 ): void {
   const time = view.time;
-  const visible = time !== undefined
+  const visible = view.scrollTrigger?.scrubbed !== true && time !== undefined
     && time.sourceDuration < time.duration;
   elements.timelineEndMarker.hidden = !visible;
   elements.postDurationRegion.hidden = !visible;
@@ -313,8 +376,9 @@ function renderTracks(
   view: EditorViewState,
   scale: TimelineRulerScale,
 ): void {
-  const timelineScale = (view.time?.duration ?? DEFAULT_RULER_DURATION)
-    / scale.domainDuration;
+  const timelineScale = view.scrollTrigger?.scrubbed
+    ? 1
+    : (view.time?.duration ?? DEFAULT_RULER_DURATION) / scale.domainDuration;
   const signature = view.tracks.map((track) => [
     track.key,
     track.label,
@@ -359,6 +423,10 @@ function formatInspectorTime(value: number): string {
   return `${Math.max(0, value).toFixed(2)}s`;
 }
 
+function formatInspectorProgress(value: number): string {
+  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
+}
+
 function renderInspector(elements: EditorUiElements, view: EditorViewState): void {
   const inspector = view.inspector;
   elements.inspectorEmpty.hidden = inspector !== undefined;
@@ -388,6 +456,16 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
     inspector.animatedTargetCount,
     inspector.visualTargetCount,
     inspector.properties.join(","),
+    view.scrollTrigger?.start,
+    view.scrollTrigger?.end,
+    view.scrollTrigger?.progress,
+    view.scrollTrigger?.animationProgress,
+    view.scrollTrigger?.state,
+    view.scrollTrigger?.direction,
+    view.scrollTrigger?.scrub,
+    view.scrollTrigger?.pin,
+    view.scrollTrigger?.trigger,
+    view.scrollTrigger?.scroller,
   ].join("|");
   if (elements.inspectorContent.dataset.signature === signature) return;
   elements.inspectorContent.dataset.signature = signature;
@@ -403,6 +481,35 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
       inspectorField("Animated objects", String(inspector.animatedTargetCount)),
       inspectorField("Preview elements", String(inspector.visualTargetCount)),
     ];
+  const scrollTrigger = view.scrollTrigger;
+  const scrollTriggerFields = scrollTrigger
+    ? [
+      inspectorField("ScrollTrigger state", scrollTrigger.state[0]!.toUpperCase()
+        + scrollTrigger.state.slice(1)),
+      inspectorField("Scroll start", `${scrollTrigger.start.toFixed(2)}px`),
+      inspectorField("Scroll end", `${scrollTrigger.end.toFixed(2)}px`),
+      inspectorField(
+        "Scrub",
+        typeof scrollTrigger.scrub === "number"
+          ? `${scrollTrigger.scrub}s`
+          : scrollTrigger.scrub ? "Enabled" : "Disabled",
+      ),
+      inspectorField("Pin", scrollTrigger.pin ?? "None"),
+      inspectorField("Trigger", scrollTrigger.trigger ?? "Unavailable"),
+      inspectorField("Scroller", scrollTrigger.scroller),
+      inspectorField(
+        "Direction",
+        scrollTrigger.direction < 0 ? "Backward" : scrollTrigger.direction > 0 ? "Forward" : "Idle",
+      ),
+      inspectorField("Scroll progress", formatInspectorProgress(scrollTrigger.progress)),
+      ...(typeof scrollTrigger.scrub === "number"
+        ? [inspectorField(
+          "Animation progress",
+          formatInspectorProgress(scrollTrigger.animationProgress),
+        )]
+        : []),
+    ]
+    : [];
   details.append(
     inspectorField("Start", formatInspectorTime(inspector.start)),
     inspectorField("Duration", formatInspectorTime(inspector.duration)),
@@ -413,6 +520,7 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
       "Properties",
       inspector.properties.length > 0 ? inspector.properties.join(", ") : "Unavailable",
     ),
+    ...scrollTriggerFields,
   );
   elements.inspectorContent.replaceChildren(identity, details);
 }
@@ -422,10 +530,19 @@ export function renderEditorUi(
   view: EditorViewState,
   zoom = BASE_ZOOM,
 ): void {
-  const scale = getTimelineRulerScale(view.time?.duration ?? DEFAULT_RULER_DURATION, zoom);
+  const scale = view.scrollTrigger?.scrubbed
+    ? {
+      domainDuration: 1,
+      visibleDuration: 1,
+      majorStep: 0.25,
+      minorStep: 0.05,
+      contentScale: 1,
+      unit: "seconds" as const,
+    }
+    : getTimelineRulerScale(view.time?.duration ?? DEFAULT_RULER_DURATION, zoom);
   renderTimelines(elements, view);
   renderTransport(elements, view, scale);
-  renderRuler(elements, scale);
+  renderRuler(elements, view, scale);
   renderFiniteEnd(elements, view, scale);
   renderTracks(elements, view, scale);
   renderInspector(elements, view);

@@ -8,6 +8,7 @@ import {
 } from "./editor-view-state";
 import {
   attachGsapTimelineSession,
+  readTimelineScrollTrigger,
   type TimelineInspectionItem,
   type TimelineInspectionSnapshot,
   type TimelineSessionAttachment,
@@ -60,6 +61,7 @@ export function createEditorController(
 ): EditorController {
   const registry = options.registry ?? defaultTimelineRegistry;
   const listeners = new Set<(snapshot: EditorSnapshot) => void>();
+  const timelineLabels = new WeakMap<MotionTimelineRegistration, string>();
   let registrySnapshot = registry.getSnapshot();
   let active: MotionTimelineRegistration | undefined;
   let activeIndex = 0;
@@ -79,10 +81,27 @@ export function createEditorController(
   let generation = 0;
   let current: EditorSnapshot;
 
+  const timelineLabel = (registration: MotionTimelineRegistration): string => {
+    const cached = timelineLabels.get(registration);
+    if (cached) return cached;
+    try {
+      const trigger = readTimelineScrollTrigger(registration.timeline);
+      const label = trigger?.id ?? trigger?.trigger ?? registration.label;
+      timelineLabels.set(registration, label);
+      return label;
+    } catch {
+      return registration.label;
+    }
+  };
+
   const makeSnapshot = (): EditorSnapshot => {
     const base = {
-      timelines: Object.freeze(registrySnapshot.registrations.map(({ id, label }) =>
-        Object.freeze({ id, label }))),
+      timelines: Object.freeze(registrySnapshot.registrations.map((registration) => {
+        return Object.freeze({
+          id: registration.id,
+          label: timelineLabel(registration),
+        });
+      })),
       activeTimelineId: active?.id,
       replayState: active?.replayState,
       rebuilding,
@@ -171,6 +190,7 @@ export function createEditorController(
           case "timeline":
             rebuilding = false;
             error = undefined;
+            timelineLabels.delete(registration);
             attach(registration);
             break;
           case "error":
@@ -326,8 +346,16 @@ export function createEditorController(
       }
     },
     seek(progress) {
-      if (!canControl() || !Number.isFinite(progress) || progress < 0 || progress > 1
+      if (destroyed || !attachment || inspection?.readiness !== "ready"
+        || !Number.isFinite(progress) || progress < 0 || progress > 1
         || !active || !inspection) return false;
+      if (inspection.driver === "scroll") {
+        const sought = attachment.seek(progress);
+        if (sought) inspection = attachment.read();
+        publish();
+        return sought;
+      }
+      if (!canControl()) return false;
       const window = readEditorTimeWindow(active.timeline, inspection, timeOrigin);
       if (!window) return false;
       if (inspection.playState === "finished") active.timeline.pause();

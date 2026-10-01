@@ -73,6 +73,38 @@ body {
   text-transform: uppercase;
 }
 
+.devtools-v2-scroll-stage {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  color: #eff3f6;
+  background: #171c21;
+}
+
+.devtools-v2-scroll-stage h2 {
+  margin: 0;
+  font: 560 clamp(24px, 4vw, 56px)/1 system-ui, sans-serif;
+  letter-spacing: -.04em;
+}
+
+.devtools-v2-custom-scroller {
+  width: min(80%, 560px);
+  height: 260px;
+  overflow: auto;
+  border: 1px solid #303640;
+  background: #11151a;
+}
+
+.devtools-v2-custom-spacer {
+  height: 320px;
+}
+
+#devtools-v2-custom-trigger {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+}
+
 @media (max-width: 720px) {
   #devtools-v2-sources {
     grid-template-columns: 1fr;

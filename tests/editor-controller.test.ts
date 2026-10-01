@@ -702,4 +702,81 @@ describe("headless editor controller", () => {
     ambiguous.destroy();
     registry.destroy();
   });
+
+  it("selects multiple ScrollTriggers independently and seeks only scrubbed ranges", () => {
+    const registry = createTimelineRegistry();
+    const first = directTimeline("first-scroll");
+    const firstTriggerElement = document.createElement("section");
+    firstTriggerElement.id = "first-trigger";
+    let firstScroll = 100;
+    const firstTrigger = {
+      start: 100,
+      end: 300,
+      progress: 0,
+      direction: 1,
+      trigger: firstTriggerElement,
+      scroller: window,
+      vars: { id: "Pinned hero", scrub: 0.5 },
+      scroll(position?: number) {
+        if (position === undefined) return firstScroll;
+        firstScroll = position;
+      },
+      update() {
+        this.progress = (firstScroll - this.start) / (this.end - this.start);
+      },
+    };
+    Object.defineProperty(first.timeline, "scrollTrigger", { value: firstTrigger });
+
+    const second = directTimeline("second-scroll");
+    const secondTriggerElement = document.createElement("article");
+    secondTriggerElement.className = "chapter";
+    let secondScroll = 0;
+    Object.defineProperty(second.timeline, "scrollTrigger", {
+      value: {
+        start: 0,
+        end: 400,
+        progress: 0,
+        direction: 0,
+        trigger: secondTriggerElement,
+        scroller: window,
+        vars: { scrub: false },
+        scroll(position?: number) {
+          if (position === undefined) return secondScroll;
+          secondScroll = position;
+        },
+      },
+    });
+
+    const firstRegistration = registry.register(first);
+    const secondRegistration = registry.register(second);
+    const editor = createEditorController({ registry });
+    expect(editor.getSnapshot().view.timelines).toEqual([
+      { id: "first-scroll", label: "Pinned hero" },
+      { id: "second-scroll", label: "article.chapter" },
+    ]);
+    expect(editor.getSnapshot().inspection?.driver).toBe("scroll");
+    expect(editor.getSnapshot().view.transport).toMatchObject({
+      canSeek: true,
+      canPlay: false,
+      canSetTimeScale: false,
+    });
+    expect(editor.seek(0.5)).toBe(true);
+    expect(firstScroll).toBe(200);
+    expect(editor.getSnapshot().view.scrollTrigger).toMatchObject({
+      progress: 0.5,
+      animationProgress: 0,
+    });
+
+    expect(editor.selectTimeline("second-scroll")).toBe(true);
+    expect(editor.getSnapshot().inspection?.driver).toBe("manual");
+    expect(editor.getSnapshot().view.transport.canPlay).toBe(true);
+    expect(editor.seek(0.5 / DEFAULT_FINITE_TIMELINE_DURATION)).toBe(true);
+    expect(second.timeline.totalProgress()).toBeCloseTo(0.5);
+    expect(secondScroll).toBe(0);
+
+    editor.destroy();
+    firstRegistration.destroy();
+    secondRegistration.destroy();
+    registry.destroy();
+  });
 });

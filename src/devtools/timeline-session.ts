@@ -36,6 +36,25 @@ export interface TimelineInspectionSnapshot {
   readonly reversed: boolean;
   readonly totalDuration: number;
   readonly items: readonly TimelineInspectionItem[];
+  readonly scrollTrigger: TimelineScrollTriggerSnapshot | undefined;
+}
+
+export type TimelineScrollTriggerState = "before" | "active" | "after";
+
+export interface TimelineScrollTriggerSnapshot {
+  readonly id: string | undefined;
+  readonly scrub: boolean | number | undefined;
+  readonly scrubbed: boolean;
+  readonly start: number;
+  readonly end: number;
+  readonly scroll: number;
+  readonly progress: number;
+  readonly animationProgress: number;
+  readonly state: TimelineScrollTriggerState;
+  readonly direction: -1 | 0 | 1;
+  readonly pin: string | undefined;
+  readonly trigger: string | undefined;
+  readonly scroller: string;
 }
 
 export interface TimelineSessionAttachment {
@@ -50,8 +69,85 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function isScrollOwned(timeline: gsap.core.Timeline): boolean {
-  return Boolean((timeline as gsap.core.Timeline & { scrollTrigger?: unknown }).scrollTrigger);
+interface GsapScrollTriggerLike {
+  readonly start: number;
+  readonly end: number;
+  readonly progress: number;
+  readonly direction: number;
+  readonly trigger?: Element;
+  readonly scroller?: Element | Window;
+  readonly pin?: Element;
+  readonly vars?: Readonly<{
+    id?: string;
+    scrub?: boolean | number;
+  }>;
+  scroll(): number;
+  scroll(position: number): void;
+  update?(): void;
+}
+
+function scrollTriggerOf(timeline: gsap.core.Timeline): GsapScrollTriggerLike | undefined {
+  return (timeline as gsap.core.Timeline & {
+    scrollTrigger?: GsapScrollTriggerLike;
+  }).scrollTrigger;
+}
+
+function isScrubbed(trigger: GsapScrollTriggerLike | undefined): boolean {
+  const scrub = trigger?.vars?.scrub;
+  return scrub === true || (typeof scrub === "number" && Number.isFinite(scrub));
+}
+
+function describeElement(value: unknown): string | undefined {
+  if (typeof Element === "undefined" || !(value instanceof Element)) return undefined;
+  const id = value.id ? `#${value.id}` : "";
+  const classes = [...value.classList]
+    .filter((name) => name.trim().length > 0)
+    .slice(0, 2)
+    .map((name) => `.${name}`)
+    .join("");
+  return `${value.localName}${id}${classes}`;
+}
+
+function describeScroller(value: unknown): string {
+  if (typeof window !== "undefined" && value === window) return "Window";
+  return describeElement(value) ?? "Window";
+}
+
+function rangeState(scroll: number, start: number, end: number): TimelineScrollTriggerState {
+  if (start === end) {
+    if (scroll === start) return "active";
+    return scroll < start ? "before" : "after";
+  }
+  const rangeProgress = (scroll - start) / (end - start);
+  if (rangeProgress < 0) return "before";
+  if (rangeProgress > 1) return "after";
+  return "active";
+}
+
+export function readTimelineScrollTrigger(
+  timeline: gsap.core.Timeline,
+): TimelineScrollTriggerSnapshot | undefined {
+  const trigger = scrollTriggerOf(timeline);
+  if (!trigger) return undefined;
+  const start = Number.isFinite(trigger.start) ? trigger.start : 0;
+  const end = Number.isFinite(trigger.end) ? trigger.end : start;
+  const scroll = trigger.scroll();
+  const direction = trigger.direction < 0 ? -1 : trigger.direction > 0 ? 1 : 0;
+  return Object.freeze({
+    id: trigger.vars?.id?.trim() || undefined,
+    scrub: trigger.vars?.scrub,
+    scrubbed: isScrubbed(trigger),
+    start,
+    end,
+    scroll: Number.isFinite(scroll) ? scroll : start,
+    progress: clamp(trigger.progress),
+    animationProgress: clamp(timeline.totalProgress()),
+    state: rangeState(Number.isFinite(scroll) ? scroll : start, start, end),
+    direction,
+    pin: describeElement(trigger.pin),
+    trigger: describeElement(trigger.trigger),
+    scroller: describeScroller(trigger.scroller),
+  });
 }
 
 function animationTargets(animation: gsap.core.Animation): readonly unknown[] {
@@ -173,8 +269,9 @@ export function attachGsapTimelineSession(
     const nextItems = readItems(timeline, tracks);
     if (!sameAnimations(items, nextItems)) items = nextItems;
     const duration = timeline.totalDuration();
+    const scrollTrigger = readTimelineScrollTrigger(timeline);
     return {
-      driver: isScrollOwned(timeline) ? "scroll" : "manual",
+      driver: scrollTrigger?.scrubbed ? "scroll" : "manual",
       readiness: items.length > 0 && duration > 0 ? "ready" : "empty",
       playState: playState(timeline),
       progress: clamp(timeline.totalProgress()),
@@ -182,6 +279,7 @@ export function attachGsapTimelineSession(
       reversed: timeline.reversed(),
       totalDuration: Number.isFinite(duration) ? duration : 0,
       items,
+      scrollTrigger,
     };
   };
 
@@ -218,14 +316,22 @@ export function attachGsapTimelineSession(
     },
     seek(progress) {
       requireActive();
-      if (isScrollOwned(timeline)) return false;
+      const trigger = scrollTriggerOf(timeline);
+      if (isScrubbed(trigger)) {
+        const start = Number.isFinite(trigger!.start) ? trigger!.start : 0;
+        const end = Number.isFinite(trigger!.end) ? trigger!.end : start;
+        trigger!.scroll(start + clamp(progress) * (end - start));
+        trigger!.update?.();
+        deliver();
+        return true;
+      }
       timeline.totalProgress(clamp(progress), true);
       deliver();
       return true;
     },
     setTimeScale(value) {
       requireActive();
-      if (isScrollOwned(timeline) || !Number.isFinite(value) || value <= 0) return false;
+      if (isScrubbed(scrollTriggerOf(timeline)) || !Number.isFinite(value) || value <= 0) return false;
       const reversed = timeline.reversed();
       timeline.timeScale(value);
       if (reversed) timeline.reversed(true);
@@ -234,7 +340,7 @@ export function attachGsapTimelineSession(
     },
     setReversed(value) {
       requireActive();
-      if (isScrollOwned(timeline)) return false;
+      if (isScrubbed(scrollTriggerOf(timeline))) return false;
       timeline.reversed(value);
       deliver();
       return true;

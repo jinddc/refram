@@ -373,7 +373,9 @@ export function mountEditorUi(
       0,
       (clientX - bounds.left - EDITOR_TIMELINE_EDGE_GUTTER) / width,
     ));
-    const time = controller.getSnapshot().timeWindow;
+    const snapshot = controller.getSnapshot();
+    if (snapshot.view.scrollTrigger?.scrubbed) return contentProgress;
+    const time = snapshot.timeWindow;
     const duration = time?.duration ?? 12;
     const scale = getTimelineRulerScale(duration, timelineZoom);
     const progress = Math.min(
@@ -475,7 +477,10 @@ export function mountEditorUi(
       }
     }
     if (event.target === elements.playhead) {
-      const progress = controller.getSnapshot().view.time?.progress ?? 0;
+      const view = controller.getSnapshot().view;
+      const progress = view.scrollTrigger?.scrubbed
+        ? view.scrollTrigger.progress
+        : view.time?.progress ?? 0;
       const next = event.code === "ArrowLeft" || event.code === "ArrowDown"
         ? progress - 0.01
         : event.code === "ArrowRight" || event.code === "ArrowUp"

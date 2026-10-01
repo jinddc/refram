@@ -278,6 +278,26 @@
   background: var(--editor-surface);
 }
 
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] {
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__timeline-viewport {
+  min-width: 0;
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__transport-settings {
+  grid-column: 1;
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__playback {
+  grid-column: 2;
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__viewport-controls {
+  grid-column: 3;
+}
+
 .devtools-editor__transport-group {
   min-width: 0;
   gap: 4px;
@@ -289,6 +309,10 @@
 
 .devtools-editor__playback {
   justify-self: center;
+}
+
+.devtools-editor__playback[hidden] {
+  display: none;
 }
 
 .devtools-editor__playback-actions {
@@ -385,9 +409,7 @@
   transition: transform 120ms ease;
 }
 
-.devtools-editor[data-timelines-visible="false"]
-  .devtools-editor__timeline-list-toggle
-  .devtools-editor__transport-icon {
+.devtools-editor[data-timelines-visible="false"] .devtools-editor__timeline-list-toggle .devtools-editor__transport-icon {
   transform: rotate(180deg);
 }
 
@@ -648,6 +670,11 @@
   opacity: .84;
 }
 
+.devtools-editor__timeline-end-marker[hidden],
+.devtools-editor__post-duration[hidden] {
+  display: none;
+}
+
 .devtools-editor__timeline-end-marker::before {
   position: absolute;
   top: 0;
@@ -738,6 +765,56 @@
   pointer-events: none;
   transform: translateX(-50%);
   transition: filter 120ms ease, transform 120ms ease;
+}
+
+.devtools-editor__playhead-progress {
+  position: sticky;
+  top: 20px;
+  display: block;
+  width: max-content;
+  margin-left: 50%;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--editor-accent) 55%, var(--editor-border));
+  border-radius: 999px;
+  color: var(--editor-text);
+  background: var(--editor-surface);
+  font: 600 10px/1.4 ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__playhead-icon {
+  display: none;
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__playhead-progress {
+  top: 0px;
+  z-index: 2;
+  width: 40px;
+  padding: 6px 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--editor-on-accent);
+  background: var(--editor-accent);
+  line-height: 1.2;
+  transform: translateX(calc(
+    var(--editor-playhead-pill-translate, -50%)
+    + var(--editor-playhead-pill-overlap, 0px)
+  ));
+}
+
+.devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__playhead::after {
+  top: 6px;
+  width: 1px;
+  opacity: 1;
+  background: var(--editor-accent);
+}
+
+.devtools-editor__playhead-progress[hidden] {
+  display: none;
 }
 
 .devtools-editor__playhead-icon-background {
@@ -1000,6 +1077,28 @@
 @media (max-width: 700px) {
   .devtools-editor__timeline {
     grid-template-rows: 82px minmax(0, 1fr);
+  }
+
+  .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+
+  .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__transport {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: 48px;
+    height: 48px;
+    gap: 10px;
+    padding: 0 10px;
+  }
+
+  .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__transport-settings {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__viewport-controls {
+    grid-column: 3;
+    grid-row: 1;
   }
 
   .devtools-editor__transport {

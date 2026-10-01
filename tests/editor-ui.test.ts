@@ -1858,6 +1858,126 @@ describe("DevTools editor UI v2", () => {
     defaultEditor.destroy();
   });
 
+  it("renders scrubbed ScrollTriggers with a percentage ruler and real scroller seeking", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const customScroller = document.createElement("main");
+    customScroller.id = "scroll-shell";
+    document.body.append(container, customScroller);
+    const scrubbed = registration("scroll-scrub", "Fallback scroll label");
+    scrubbed.first.className = "hero";
+    let scrollPosition = 100;
+    const trigger = {
+      start: 100,
+      end: 500,
+      progress: 0,
+      direction: 1,
+      trigger: scrubbed.first,
+      scroller: customScroller,
+      pin: scrubbed.first,
+      vars: { id: "Hero scroll", scrub: 0.75 },
+      scroll(position?: number) {
+        if (position === undefined) return scrollPosition;
+        scrollPosition = position;
+      },
+      update() {
+        this.progress = (scrollPosition - this.start) / (this.end - this.start);
+      },
+    };
+    Object.defineProperty(scrubbed.timeline, "scrollTrigger", { value: trigger });
+    const scrollRegistration = registry.register(scrubbed.declaration);
+    const standard = registration("standard", "Standard timeline");
+    const standardRegistration = registry.register(standard.declaration);
+
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+    const transport = container.querySelector<HTMLElement>(".devtools-editor__transport")!;
+    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
+    const viewportControls = container.querySelector<HTMLElement>(".devtools-editor__viewport-controls")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    const pill = container.querySelector<HTMLElement>(".devtools-editor__playhead-progress")!;
+    expect(container.querySelector("[data-timeline-id='scroll-scrub']")?.textContent)
+      .toBe("Hero scroll");
+    expect(transport.hidden).toBe(false);
+    expect(playback.hidden).toBe(true);
+    expect(viewportControls.hidden).toBe(false);
+    expect(viewportControls.querySelector("[data-action='reset-timeline-zoom']")).not.toBeNull();
+    expect(viewportControls.querySelector("[data-role='zoom-range']")).not.toBeNull();
+    expect(ruler.getAttribute("aria-label")).toBe("Scroll progress ruler from 0% to 100%");
+    expect([...ruler.querySelectorAll(".devtools-editor__tick")].map((tick) => tick.textContent))
+      .toEqual(["0%", "25%", "50%", "75%", "100%"]);
+    expect(pill.hidden).toBe(false);
+    expect(pill.textContent).toBe("0%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("0%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("-1px");
+    expect(playhead.getAttribute("aria-label")).toBe("Scroll progress playhead");
+    expect(playhead.getAttribute("aria-valuetext")).toBe("0%");
+
+    vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 200, 200));
+    ruler.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      pointerId: 2,
+    }));
+    expect(scrollPosition).toBe(300);
+    expect(pill.textContent).toBe("50%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("-50%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("0px");
+    expect(scrubbed.timeline.totalProgress()).toBe(0);
+
+    container.querySelector<HTMLButtonElement>("[data-track-key='track:opening']")!.click();
+    const inspector = container.querySelector<HTMLElement>("[data-role='inspector-content']")!;
+    expect(inspector.textContent).toContain("ScrollTrigger stateActive");
+    expect(inspector.textContent).toContain("Scroll start100.00px");
+    expect(inspector.textContent).toContain("Scroll end500.00px");
+    expect(inspector.textContent).toContain("Scrub0.75s");
+    expect(inspector.textContent).toContain("Triggerarticle#scroll-scrub-first.hero");
+    expect(inspector.textContent).toContain("Scrollermain#scroll-shell");
+    expect(inspector.textContent).toContain("Scroll progress50%");
+    expect(inspector.textContent).toContain("Animation progress0%");
+
+    expect(handle.controller.seek(0.025)).toBe(true);
+    expect(Number.parseFloat(
+      pill.style.getPropertyValue("--editor-playhead-pill-translate"),
+    )).toBeCloseTo(-25);
+    expect(Number.parseFloat(
+      pill.style.getPropertyValue("--editor-playhead-pill-overlap"),
+    )).toBeCloseTo(-0.5);
+    expect(handle.controller.seek(0.975)).toBe(true);
+    expect(Number.parseFloat(
+      pill.style.getPropertyValue("--editor-playhead-pill-translate"),
+    )).toBeCloseTo(-75);
+    expect(Number.parseFloat(
+      pill.style.getPropertyValue("--editor-playhead-pill-overlap"),
+    )).toBeCloseTo(0.5);
+    expect(handle.controller.seek(1)).toBe(true);
+    expect(pill.textContent).toBe("100%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("-100%");
+    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("1px");
+    expect(handle.controller.seek(0.5)).toBe(true);
+
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='standard']")!.click();
+    await flush();
+    expect(transport.hidden).toBe(false);
+    expect(playback.hidden).toBe(false);
+    expect(pill.hidden).toBe(true);
+    expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
+    expect(playhead.getAttribute("aria-label")).toBe("Timeline playhead");
+
+    handle.destroy();
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+    const remounted = mountEditorUi(container, { registry, initialTimelineId: "scroll-scrub" });
+    await flush();
+    expect(container.querySelector(".devtools-editor__playhead-progress")?.textContent).toBe("50%");
+    remounted.destroy();
+    scrollRegistration.destroy();
+    standardRegistration.destroy();
+    registry.destroy();
+  });
+
   it("owns one JavaScript-created editor per document without owning registrations", async () => {
     const sourceHome = document.createElement("div");
     const first = registration("owner-first", "Owner first");

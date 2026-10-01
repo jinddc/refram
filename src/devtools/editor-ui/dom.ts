@@ -7,6 +7,9 @@ export interface EditorUiElements {
   readonly timelineList: HTMLElement;
   readonly timelineListPane: HTMLElement;
   readonly timelinePane: HTMLElement;
+  readonly transport: HTMLElement;
+  readonly playback: HTMLElement;
+  readonly viewportControls: HTMLElement;
   readonly inspectorPane: HTMLElement;
   readonly inspectorCloseButton: HTMLButtonElement;
   readonly timelineListToggle: HTMLButtonElement;
@@ -35,6 +38,7 @@ export interface EditorUiElements {
   readonly timelineEndMarker: HTMLElement;
   readonly postDurationRegion: HTMLElement;
   readonly playhead: HTMLElement;
+  readonly playheadProgress: HTMLElement;
   readonly timelineViewport: HTMLElement;
 }
 
@@ -319,7 +323,10 @@ export function createEditorUiElements(): EditorUiElements {
   playhead.setAttribute("aria-valuemax", "100");
   playhead.setAttribute("role", "slider");
   playhead.tabIndex = 0;
-  playhead.append(createPlayheadIcon());
+  const playheadProgress = element("span", "devtools-editor__playhead-progress", "0%");
+  playheadProgress.hidden = true;
+  playheadProgress.setAttribute("aria-hidden", "true");
+  playhead.append(createPlayheadIcon(), playheadProgress);
   timelineContent.append(ruler, trackLanes, postDurationRegion, timelineEndMarker, playhead);
   timelineViewport.append(timelineContent);
   timelineBody.append(trackLabels, timelineViewport);
@@ -380,6 +387,9 @@ export function createEditorUiElements(): EditorUiElements {
     timelineList,
     timelineListPane,
     timelinePane: timeline,
+    transport,
+    playback,
+    viewportControls,
     inspectorPane,
     inspectorCloseButton,
     timelineListToggle,
@@ -408,6 +418,7 @@ export function createEditorUiElements(): EditorUiElements {
     timelineEndMarker,
     postDurationRegion,
     playhead,
+    playheadProgress,
     timelineViewport,
   };
 }
