@@ -31,6 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   gsap.globalTimeline.clear();
   document.body.replaceChildren();
   vi.unstubAllGlobals();
@@ -358,7 +359,43 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
+  it("preserves copy feedback through zoom reset and clears its timer on destroy", async () => {
+    vi.useFakeTimers();
+    const registry = createTimelineRegistry();
+    const fixture = registration("copy-lifecycle", "Copy lifecycle");
+    const registered = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(container, fixture.root);
+    const handle = mountEditorUi(container, { registry });
+    const clipboard = vi.spyOn(window.navigator, "clipboard", "get").mockReturnValue({
+      writeText: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Clipboard);
+
+    expect(handle.controller.selectItem(0)).toBe(true);
+    const copyDebug = container.querySelector<HTMLButtonElement>(
+      "[data-action='copy-debug-json']",
+    )!;
+    const baselineTimerCount = vi.getTimerCount();
+    copyDebug.click();
+    await flush();
+    expect(copyDebug.textContent).toBe("Copied");
+    expect(vi.getTimerCount()).toBe(baselineTimerCount + 1);
+
+    container.querySelector<HTMLButtonElement>(
+      "[data-action='reset-timeline-zoom']",
+    )?.click();
+    expect(copyDebug.textContent).toBe("Copied");
+    expect(vi.getTimerCount()).toBe(baselineTimerCount + 1);
+
+    handle.destroy();
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(baselineTimerCount);
+    clipboard.mockRestore();
+    registered.destroy();
+    registry.destroy();
+  });
+
   it("renders controller state and routes timeline, track, transport, and seek actions", async () => {
+    vi.useFakeTimers();
     const registry = createTimelineRegistry();
     const sourceHome = document.createElement("div");
     const first = registration("first", "First sequence");
@@ -469,6 +506,56 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.textContent).toContain("1.00s");
     expect(inspector.textContent).toContain("Targets1");
     expect(inspector.textContent).toContain("Propertiesx");
+    expect(inspectorPane.querySelector(".devtools-editor__pane-heading")?.textContent)
+      .toContain("Inspector");
+    const copyDebug = container.querySelector<HTMLButtonElement>(
+      "[data-action='copy-debug-json']",
+    )!;
+    expect(copyDebug.disabled).toBe(false);
+    expect(copyDebug.getAttribute("aria-describedby")).toBe("devtools-editor-copy-debug-status");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const clipboard = vi.spyOn(window.navigator, "clipboard", "get").mockReturnValue({
+      writeText,
+    } as unknown as Clipboard);
+    copyDebug.click();
+    await flush();
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(JSON.parse(writeText.mock.calls[0]![0])).toMatchObject({
+      schemaVersion: 1,
+      timeline: { id: "first", label: "First sequence" },
+      track: {
+        label: "Opening",
+        type: "authored",
+        start: 0,
+        duration: 1,
+        end: 1,
+        ease: "Unavailable",
+        targets: {
+          animatedCount: 1,
+          visualCount: 1,
+          descriptors: ["article#first-first"],
+        },
+        properties: ["x"],
+      },
+    });
+    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent)
+      .toBe("Copied debug JSON.");
+    expect(copyDebug.textContent).toBe("Copied");
+    expect(copyDebug.disabled).toBe(false);
+    vi.advanceTimersByTime(1_000);
+    expect(copyDebug.textContent).toBe("Copy debug JSON");
+    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent).toBe("");
+
+    writeText.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
+    copyDebug.click();
+    await flush();
+    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent)
+      .toBe("Could not copy debug JSON. Clipboard access is unavailable.");
+    expect(copyDebug.textContent).toBe("Copy failed");
+    expect(copyDebug.disabled).toBe(false);
+    vi.advanceTimersByTime(1_000);
+    expect(copyDebug.textContent).toBe("Copy debug JSON");
+    clipboard.mockRestore();
 
     container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
     expect(root.dataset.inspectorOpen).toBe("false");

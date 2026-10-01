@@ -363,6 +363,15 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
   const inspector = view.inspector;
   elements.inspectorEmpty.hidden = inspector !== undefined;
   elements.inspectorContent.hidden = inspector === undefined;
+  elements.inspectorActions.hidden = inspector === undefined;
+  const statusTrackKey = elements.copyDebugStatus.dataset.trackKey;
+  if (statusTrackKey !== inspector?.trackKey) {
+    elements.copyDebugStatus.textContent = "";
+    elements.copyDebugStatus.dataset.state = "";
+    elements.copyDebugStatus.dataset.trackKey = inspector?.trackKey ?? "";
+  }
+  elements.copyDebugButton.disabled = inspector === undefined
+    || elements.copyDebugStatus.dataset.state === "pending";
   if (!inspector) {
     elements.inspectorContent.replaceChildren();
     elements.inspectorContent.dataset.signature = "";

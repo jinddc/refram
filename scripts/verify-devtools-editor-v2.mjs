@@ -416,6 +416,10 @@ async function verify({ artifactDirectory, send }) {
       trackHeading: window.__devtoolsEditorV2Harness.query(".devtools-editor__track-heading")?.textContent,
       hasMapping: Boolean(content.querySelector(".devtools-editor__inspector-mapping")),
       hasKey: Boolean(content.querySelector(".devtools-editor__inspector-key")),
+      heading: window.__devtoolsEditorV2Harness.query("[data-role='inspector'] .devtools-editor__pane-heading-label")?.textContent,
+      copyLabel: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.textContent,
+      copyDisabled: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.disabled,
+      copyStatusLive: window.__devtoolsEditorV2Harness.query("[data-role='copy-debug-status']")?.getAttribute("aria-live"),
       labelColumnLeftBefore: before.left,
       labelColumnLeftAfter: after.left,
       labelColumnWidthBefore: before.width,
@@ -445,6 +449,10 @@ async function verify({ artifactDirectory, send }) {
       && inspectorState.text.includes("Propertiesopacity, y")
       && !inspectorState.hasMapping
       && !inspectorState.hasKey
+      && inspectorState.heading === "Inspector"
+      && inspectorState.copyLabel === "Copy debug JSON"
+      && inspectorState.copyDisabled === false
+      && inspectorState.copyStatusLive === "polite"
       && inspectorState.horizontalScroll > 0
       && Math.abs(inspectorState.labelColumnLeftBefore - inspectorState.labelColumnLeftAfter) <= 0.5
       && Math.abs(inspectorState.labelColumnWidthBefore - inspectorState.labelColumnWidthAfter) <= 0.5

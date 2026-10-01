@@ -5,6 +5,10 @@ import {
   type EditorSnapshot,
 } from "../editor-controller";
 import {
+  copyTextToClipboard,
+  createSelectedTrackDebugJson,
+} from "../editor-debug-snapshot";
+import {
   createEditorUiElements,
   EDITOR_TIMELINE_EDGE_GUTTER,
 } from "./dom";
@@ -68,6 +72,21 @@ export function mountEditorUi(
   let playheadFollowFrame: number | undefined;
   let playheadWasVisible: boolean | undefined;
   let manualViewportChangePending = false;
+  let copyRequest = 0;
+  let copyTrackKey: string | undefined;
+  let copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearCopyFeedbackTimer = (): void => {
+    if (copyFeedbackTimer !== undefined) clearTimeout(copyFeedbackTimer);
+    copyFeedbackTimer = undefined;
+  };
+
+  const resetCopyFeedback = (): void => {
+    clearCopyFeedbackTimer();
+    elements.copyDebugButton.textContent = "Copy debug JSON";
+    elements.copyDebugStatus.textContent = "";
+    elements.copyDebugStatus.dataset.state = "";
+  };
 
   const schedulePlayheadFollow = (manualViewportChange = false): void => {
     manualViewportChangePending ||= manualViewportChange;
@@ -162,6 +181,11 @@ export function mountEditorUi(
 
   const render = (snapshot: EditorSnapshot): void => {
     if (destroyed) return;
+    if (copyTrackKey !== snapshot.view.selectedTrackKey) {
+      copyTrackKey = snapshot.view.selectedTrackKey;
+      copyRequest += 1;
+      resetCopyFeedback();
+    }
     selectionHighlight.update(
       snapshot.selectedItem?.sources ?? [],
       snapshot.selectedItem?.label,
@@ -169,6 +193,36 @@ export function mountEditorUi(
     renderEditorUi(elements, snapshot.view, timelineZoom);
     renderZoomControls();
     if (snapshot.view.transport.playState === "running") schedulePlayheadFollow();
+  };
+
+  const copySelectedTrackDebugJson = async (): Promise<void> => {
+    const snapshot = controller.getSnapshot();
+    const debugJson = createSelectedTrackDebugJson(snapshot);
+    if (!debugJson) return;
+    const request = ++copyRequest;
+    const trackKey = snapshot.view.selectedTrackKey;
+    clearCopyFeedbackTimer();
+    elements.copyDebugButton.disabled = true;
+    elements.copyDebugButton.textContent = "Copying…";
+    elements.copyDebugStatus.textContent = "Copying…";
+    elements.copyDebugStatus.dataset.state = "pending";
+    const copied = await copyTextToClipboard(debugJson, container.ownerDocument);
+    if (destroyed || request !== copyRequest
+      || controller.getSnapshot().view.selectedTrackKey !== trackKey) return;
+    elements.copyDebugButton.disabled = false;
+    elements.copyDebugButton.textContent = copied ? "Copied" : "Copy failed";
+    elements.copyDebugStatus.textContent = copied
+      ? "Copied debug JSON."
+      : "Could not copy debug JSON. Clipboard access is unavailable.";
+    elements.copyDebugStatus.dataset.state = copied ? "success" : "failure";
+    copyFeedbackTimer = setTimeout(() => {
+      copyFeedbackTimer = undefined;
+      if (destroyed || request !== copyRequest
+        || controller.getSnapshot().view.selectedTrackKey !== trackKey) return;
+      elements.copyDebugButton.textContent = "Copy debug JSON";
+      elements.copyDebugStatus.textContent = "";
+      elements.copyDebugStatus.dataset.state = "";
+    }, 1_000);
   };
 
   const setTimelineZoom = (zoom: number): void => {
@@ -261,6 +315,9 @@ export function mountEditorUi(
         break;
       case "toggle-timelines":
         setTimelineListVisible(!timelineListVisible);
+        break;
+      case "copy-debug-json":
+        void copySelectedTrackDebugJson();
         break;
       case "play":
         controller.play();
@@ -501,6 +558,7 @@ export function mountEditorUi(
       }
       dragPointerId = undefined;
       cancelPendingTimelineZoom();
+      clearCopyFeedbackTimer();
       if (playheadFollowFrame !== undefined) cancelAnimationFrame(playheadFollowFrame);
       playheadFollowFrame = undefined;
       eventController.abort();

@@ -65,8 +65,8 @@
   --editor-surface-subtle: #1a1b1d;
   --editor-surface-hover: #ffffff0f;
   --editor-button-hover: #ffffff1a;
-  --editor-text: #d8dde2;
-  --editor-text-muted: #808080;
+  --editor-text: #dbdbdb;
+  --editor-text-muted: #a3a3a3;
   --editor-border: #ffffff0d;
   --editor-divider: #24282e;
   --editor-accent: #55adff;
@@ -816,6 +816,36 @@
   padding: 14px;
   scrollbar-width: thin;
   scrollbar-color: #ffffff1f #0000;
+}
+
+.devtools-editor__inspector-actions {
+  display: grid;
+  margin-top: auto;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--editor-border);
+}
+
+.devtools-editor__inspector-actions[hidden] {
+  display: none;
+}
+
+.devtools-editor__copy-debug {
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid var(--editor-border);
+}
+
+.devtools-editor__copy-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .devtools-editor__inspector-identity {

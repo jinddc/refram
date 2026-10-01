@@ -12,6 +12,9 @@ export interface EditorUiElements {
   readonly timelineListToggle: HTMLButtonElement;
   readonly inspectorContent: HTMLElement;
   readonly inspectorEmpty: HTMLElement;
+  readonly inspectorActions: HTMLElement;
+  readonly copyDebugButton: HTMLButtonElement;
+  readonly copyDebugStatus: HTMLOutputElement;
   readonly playButton: HTMLButtonElement;
   readonly playIcon: SVGSVGElement;
   readonly pauseIcon: SVGSVGElement;
@@ -330,7 +333,7 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorPane.setAttribute("aria-label", "Track inspector");
   inspectorPane.hidden = true;
   const inspectorHeading = element("header", "devtools-editor__pane-heading");
-  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Properties"));
+  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Inspector"));
   const inspectorCloseButton = action("", "close-inspector");
   inspectorCloseButton.classList.add("devtools-editor__inspector-close");
   inspectorCloseButton.setAttribute("aria-label", "Close inspector");
@@ -349,7 +352,23 @@ export function createEditorUiElements(): EditorUiElements {
   const inspectorContent = element("div", "devtools-editor__inspector-content");
   inspectorContent.dataset.role = "inspector-content";
   inspectorContent.hidden = true;
-  inspectorPane.append(inspectorHeading, inspectorEmpty, inspectorContent);
+  const inspectorActions = element("footer", "devtools-editor__inspector-actions");
+  inspectorActions.hidden = true;
+  const copyDebugButton = action("Copy debug JSON", "copy-debug-json");
+  copyDebugButton.classList.add("devtools-editor__copy-debug");
+  copyDebugButton.disabled = true;
+  const copyDebugStatus = element("output", "devtools-editor__copy-status");
+  copyDebugStatus.dataset.role = "copy-debug-status";
+  copyDebugStatus.id = "devtools-editor-copy-debug-status";
+  copyDebugStatus.setAttribute("aria-live", "polite");
+  copyDebugButton.setAttribute("aria-describedby", copyDebugStatus.id);
+  inspectorActions.append(copyDebugButton, copyDebugStatus);
+  inspectorPane.append(
+    inspectorHeading,
+    inspectorEmpty,
+    inspectorContent,
+    inspectorActions,
+  );
 
   workspace.append(timelineListPane, timeline, inspectorPane);
   root.append(heightSeparator, paneSwitcher, workspace);
@@ -366,6 +385,9 @@ export function createEditorUiElements(): EditorUiElements {
     timelineListToggle,
     inspectorContent,
     inspectorEmpty,
+    inspectorActions,
+    copyDebugButton,
+    copyDebugStatus,
     playButton,
     playIcon,
     pauseIcon,
