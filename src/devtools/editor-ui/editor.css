@@ -800,6 +800,7 @@
   color: var(--editor-on-accent);
   background: var(--editor-accent);
   line-height: 1.2;
+  pointer-events: auto;
   transform: translateX(calc(
     var(--editor-playhead-pill-translate, -50%)
     + var(--editor-playhead-pill-overlap, 0px)

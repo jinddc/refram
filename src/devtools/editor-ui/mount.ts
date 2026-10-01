@@ -429,7 +429,9 @@ export function mountEditorUi(
   const onTimelinePointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 || !controller.getSnapshot().view.transport.canSeek) return;
     if (isScrollbarPointer(event)) return;
-    if (event.target === elements.playhead) {
+    const playheadTarget = event.target instanceof Element
+      && event.target.closest("[data-role='playhead']") === elements.playhead;
+    if (playheadTarget) {
       event.preventDefault();
       dragPointerId = event.pointerId;
       elements.playhead.dataset.dragState = "active";

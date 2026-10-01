@@ -377,6 +377,57 @@ async function verify({ artifactDirectory, send }) {
       && validScrubEdgeGeometry(customScrollState.edgeGeometry),
     `The real custom-scroller ScrollTrigger inspection mode is incorrect: ${JSON.stringify(customScrollState)}`,
   );
+  const scrubPillDragStart = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.seek(0.5);
+    const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
+    const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+    return {
+      x: pill.left + 2,
+      y: pill.top + pill.height / 2,
+      outsidePlayhead: pill.left + 2 < playhead.left,
+    };
+  })()`);
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: scrubPillDragStart.x,
+    y: scrubPillDragStart.y,
+    button: "left",
+    clickCount: 1,
+  });
+  const scrubPillDragActive = await evaluate(
+    send,
+    `window.__devtoolsEditorV2Harness.query("[data-role='playhead']").dataset.dragState`,
+  );
+  const scrubPillDragTarget = await evaluate(send, `(() => {
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
+    return {
+      x: content.left + 12 + (content.width - 24) * 0.6,
+      y: ${scrubPillDragStart.y},
+    };
+  })()`);
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    ...scrubPillDragTarget,
+    button: "left",
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    ...scrubPillDragTarget,
+    button: "left",
+    clickCount: 1,
+  });
+  const scrubPillDragFinished = await evaluate(send, `(() => ({
+    dragState: window.__devtoolsEditorV2Harness.query("[data-role='playhead']").dataset.dragState,
+    progress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.progress,
+  }))()`);
+  assert(
+    scrubPillDragStart.outsidePlayhead
+      && scrubPillDragActive === "active"
+      && scrubPillDragFinished.dragState === "idle"
+      && Math.abs(scrubPillDragFinished.progress - 0.6) <= 0.01,
+    `The outer ScrollTrigger progress pill edge is not draggable: ${JSON.stringify({ scrubPillDragStart, scrubPillDragActive, scrubPillDragFinished })}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.seek(1)`);
   await screenshot(send, scrollScrub);
   const desktopMetrics = await evaluate(send, `({ width: innerWidth, height: innerHeight })`);
   await send("Emulation.setDeviceMetricsOverride", {

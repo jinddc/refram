@@ -1928,6 +1928,32 @@ describe("DevTools editor UI v2", () => {
     expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("0px");
     expect(scrubbed.timeline.totalProgress()).toBe(0);
 
+    const setPointerCapture = vi.spyOn(playhead, "setPointerCapture")
+      .mockImplementation(() => undefined);
+    pill.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      pointerId: 3,
+    }));
+    expect(playhead.dataset.dragState).toBe("active");
+    expect(setPointerCapture).toHaveBeenCalledWith(3);
+    playhead.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      button: 0,
+      clientX: 56,
+      pointerId: 3,
+    }));
+    expect(scrollPosition).toBe(200);
+    playhead.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      clientX: 56,
+      pointerId: 3,
+    }));
+    expect(playhead.dataset.dragState).toBe("idle");
+    expect(handle.controller.seek(0.5)).toBe(true);
+
     container.querySelector<HTMLButtonElement>("[data-track-key='track:opening']")!.click();
     const inspector = container.querySelector<HTMLElement>("[data-role='inspector-content']")!;
     expect(inspector.textContent).toContain("ScrollTrigger stateActive");
