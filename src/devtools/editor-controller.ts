@@ -40,6 +40,8 @@ export interface EditorController {
   setTimeScale(value: number): boolean;
   setReversed(value: boolean): boolean;
   setLooping(value: boolean): boolean;
+  jumpToScrollTriggerTarget(): boolean;
+  toggleScrollTriggerMarkers(): boolean;
   destroy(): void;
 }
 
@@ -55,6 +57,20 @@ function selectedItem(
 ): TimelineInspectionItem | undefined {
   return inspection?.items.find((item) => editorTrackKey(item) === trackKey)
     ?? inspection?.items.find((item) => item.animation === animation);
+}
+
+function scrollTriggerTarget(timeline: gsap.core.Timeline): Element | undefined {
+  const trigger = (timeline as gsap.core.Timeline & {
+    readonly scrollTrigger?: { readonly trigger?: unknown };
+  }).scrollTrigger;
+  return trigger?.trigger instanceof Element ? trigger.trigger : undefined;
+}
+
+function timelineTarget(
+  registration: MotionTimelineRegistration,
+  hasScrollTrigger: boolean,
+): Element | undefined {
+  return hasScrollTrigger ? scrollTriggerTarget(registration.timeline) : registration.root;
 }
 
 export function createEditorController(
@@ -123,6 +139,20 @@ export function createEditorController(
       selectedItem: selectedItem(inspection, trackKey, animation),
       error,
       looping,
+      canJumpToScrollTriggerTarget: Boolean(
+        inspection && active && timelineTarget(active, inspection.scrollTrigger !== undefined),
+      ),
+      canToggleScrollTriggerMarkers: Boolean(
+        inspection?.scrollTrigger
+          && active
+          && markerPresentation.canPresent(active.timeline),
+      ),
+      scrollTriggerMarkersVisible: Boolean(
+        inspection?.scrollTrigger
+          && active
+          && active.id === markerTimelineId
+          && markerPresentation.isVisible(active.id),
+      ),
     } satisfies EditorViewInput & Pick<EditorSnapshot, "previewRoot">;
     return Object.freeze({ ...base, view: buildEditorViewState(base) });
   };
@@ -164,6 +194,7 @@ export function createEditorController(
           trackKey = editorTrackKey(item);
           animation = item.animation;
         }
+        syncMarkers();
         publish();
       },
       registration.tracks,
@@ -277,9 +308,12 @@ export function createEditorController(
       if (destroyed) return false;
       const registration = registrySnapshot.registrations.find((candidate) => candidate.id === id);
       if (!registration) return false;
+      const alreadyActive = active === registration;
       markerTimelineId = id;
+      markerPresentation.activate(registration.id, registration.timeline);
       activate(registration);
       syncMarkers();
+      if (alreadyActive) publish();
       return true;
     },
     selectTrack(key) {
@@ -419,6 +453,27 @@ export function createEditorController(
       }
       if (looping === value) return true;
       looping = value;
+      publish();
+      return true;
+    },
+    jumpToScrollTriggerTarget() {
+      if (destroyed || !active || !inspection) return false;
+      const target = timelineTarget(active, inspection.scrollTrigger !== undefined);
+      if (!target) return false;
+      target.scrollIntoView({
+        block: "center",
+        inline: "nearest",
+        behavior: "auto",
+      });
+      return true;
+    },
+    toggleScrollTriggerMarkers() {
+      if (destroyed || !active || !inspection?.scrollTrigger) return false;
+      const nextVisible = !(active.id === markerTimelineId
+        && markerPresentation.isVisible(active.id));
+      if (!markerPresentation.setVisible(active.id, active.timeline, nextVisible)) return false;
+      markerTimelineId = active.id;
+      syncMarkers();
       publish();
       return true;
     },

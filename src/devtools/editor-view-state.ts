@@ -23,6 +23,9 @@ export interface EditorViewInput {
   readonly selectedItem: TimelineInspectionItem | undefined;
   readonly error: unknown;
   readonly looping?: boolean;
+  readonly canJumpToScrollTriggerTarget?: boolean;
+  readonly canToggleScrollTriggerMarkers?: boolean;
+  readonly scrollTriggerMarkersVisible?: boolean;
 }
 
 export interface EditorViewTrackSpan {
@@ -80,6 +83,9 @@ export interface EditorViewTransport {
   readonly canReplay: boolean;
   readonly canRetryReplay: boolean;
   readonly rebuilding: boolean;
+  readonly canJumpToScrollTriggerTarget: boolean;
+  readonly canToggleScrollTriggerMarkers: boolean;
+  readonly scrollTriggerMarkersVisible: boolean;
 }
 
 export interface EditorViewState {
@@ -293,6 +299,9 @@ export function buildEditorViewState(input: EditorViewInput): EditorViewState {
         && inspection !== undefined,
       canRetryReplay: input.activeTimelineId !== undefined && input.replayState === "retryable",
       rebuilding: input.rebuilding ?? false,
+      canJumpToScrollTriggerTarget: input.canJumpToScrollTriggerTarget ?? false,
+      canToggleScrollTriggerMarkers: input.canToggleScrollTriggerMarkers ?? false,
+      scrollTriggerMarkersVisible: input.scrollTriggerMarkersVisible ?? false,
     }),
     error: input.error,
   });

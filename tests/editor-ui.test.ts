@@ -641,6 +641,7 @@ describe("DevTools editor UI v2", () => {
       role: group.getAttribute("role"),
       label: group.getAttribute("aria-label"),
     }))).toEqual([
+      { role: "group", label: "Timeline actions" },
       { role: "group", label: "Playback controls" },
       { role: "group", label: "Timeline viewport" },
     ]);
@@ -2064,6 +2065,20 @@ describe("DevTools editor UI v2", () => {
     document.body.append(container, customScroller);
     const scrubbed = registration("scroll-scrub", "Fallback scroll label");
     scrubbed.first.className = "hero section-with-an-intentionally-long-class-name feature-panel-active";
+    const scrollIntoView = vi.fn();
+    scrubbed.first.scrollIntoView = scrollIntoView;
+    const marker = (type: "start" | "end" | "scroller-start" | "scroller-end") => {
+      const element = document.createElement("div");
+      element.className = `gsap-marker-${type}`;
+      element.textContent = `${type}-Hero scroll`;
+      customScroller.append(element);
+      return element;
+    };
+    const markerStart = marker("start");
+    const markerEnd = marker("end");
+    const scrollerStart = marker("scroller-start");
+    const scrollerEnd = marker("scroller-end");
+    const markers = [markerStart, markerEnd, scrollerStart, scrollerEnd];
     let scrollPosition = 100;
     const trigger = {
       start: 100,
@@ -2073,6 +2088,8 @@ describe("DevTools editor UI v2", () => {
       trigger: scrubbed.first,
       scroller: customScroller,
       pin: scrubbed.first,
+      markerStart,
+      markerEnd,
       vars: {
         id: "Hero scroll",
         scrub: 0.75,
@@ -2101,12 +2118,23 @@ describe("DevTools editor UI v2", () => {
 
     const handle = mountEditorUi(container, { registry });
     await flush();
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='scroll-scrub']")!.click();
+    await flush();
     const transport = container.querySelector<HTMLElement>(".devtools-editor__transport")!;
     const transportHint = container.querySelector<HTMLElement>(
       ".devtools-editor__transport-hint",
     )!;
     const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
     const viewportControls = container.querySelector<HTMLElement>(".devtools-editor__viewport-controls")!;
+    const scrollTriggerActions = container.querySelector<HTMLElement>(
+      ".devtools-editor__transport-settings",
+    )!;
+    const jumpToTarget = container.querySelector<HTMLButtonElement>(
+      "[data-action='jump-to-scrolltrigger-target']",
+    )!;
+    const toggleMarkers = container.querySelector<HTMLButtonElement>(
+      "[data-action='toggle-scrolltrigger-markers']",
+    )!;
     const resetZoom = viewportControls.querySelector<HTMLButtonElement>(
       "[data-action='reset-timeline-zoom']",
     )!;
@@ -2123,6 +2151,31 @@ describe("DevTools editor UI v2", () => {
     expect(playback.hidden).toBe(true);
     expect(transportHint.hidden).toBe(false);
     expect(transportHint.textContent).toBe("Scroll the page to preview");
+    expect(scrollTriggerActions.getAttribute("aria-hidden")).toBeNull();
+    expect(jumpToTarget.hidden).toBe(false);
+    expect(toggleMarkers.hidden).toBe(false);
+    expect(jumpToTarget.disabled).toBe(false);
+    expect(jumpToTarget.getAttribute("aria-label")).toBe("Jump to target");
+    expect(toggleMarkers.disabled).toBe(false);
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
+    expect(toggleMarkers.getAttribute("aria-label")).toBe("Hide ScrollTrigger markers");
+    jumpToTarget.click();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "center",
+      inline: "nearest",
+      behavior: "auto",
+    });
+    toggleMarkers.click();
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("false");
+    expect(toggleMarkers.getAttribute("aria-label")).toBe("Show ScrollTrigger markers");
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    toggleMarkers.click();
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
     expect(viewportControls.hidden).toBe(false);
     expect(resetZoom.hidden).toBe(true);
     expect(zoomControl.hidden).toBe(true);
@@ -2234,6 +2287,10 @@ describe("DevTools editor UI v2", () => {
     expect(transport.hidden).toBe(false);
     expect(playback.hidden).toBe(false);
     expect(transportHint.hidden).toBe(true);
+    expect(scrollTriggerActions.getAttribute("aria-hidden")).toBeNull();
+    expect(jumpToTarget.hidden).toBe(false);
+    expect(jumpToTarget.disabled).toBe(false);
+    expect(toggleMarkers.hidden).toBe(true);
     expect(resetZoom.hidden).toBe(false);
     expect(zoomControl.hidden).toBe(false);
     expect(pill.hidden).toBe(true);
@@ -2242,6 +2299,9 @@ describe("DevTools editor UI v2", () => {
     expect(playhead.getAttribute("aria-label")).toBe("Timeline playhead");
 
     handle.destroy();
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
     expect(cancelAnimationFrame).toHaveBeenCalled();
     const remounted = mountEditorUi(container, { registry, initialTimelineId: "scroll-scrub" });
     await flush();
@@ -2249,6 +2309,121 @@ describe("DevTools editor UI v2", () => {
     remounted.destroy();
     scrollRegistration.destroy();
     standardRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("shows marker controls for authored and marker-free trigger-action timelines", async () => {
+    const registry = createTimelineRegistry();
+    const container = document.createElement("div");
+    const authored = registration("action-authored", "Authored trigger actions");
+    const markerFree = registration("action-marker-free", "Marker-free trigger actions");
+    const ordinary = registration("action-ordinary", "Ordinary timeline");
+    document.body.append(container, authored.root, markerFree.root, ordinary.root);
+
+    const markerId = "Authored trigger actions";
+    const marker = (type: "start" | "end" | "scroller-start" | "scroller-end") => {
+      const element = document.createElement("div");
+      element.className = `gsap-marker-${type}`;
+      element.textContent = `${type}-${markerId}`;
+      document.body.append(element);
+      return element;
+    };
+    const markerStart = marker("start");
+    const markerEnd = marker("end");
+    const scrollerStart = marker("scroller-start");
+    const scrollerEnd = marker("scroller-end");
+    const authoredMarkers = { startColor: "green", endColor: "red" };
+    const authoredTrigger = {
+      start: 100,
+      end: 500,
+      progress: 0,
+      direction: 1,
+      trigger: authored.first,
+      scroller: window,
+      markerStart,
+      markerEnd,
+      vars: {
+        id: markerId,
+        scrub: false,
+        toggleActions: "play pause resume reverse",
+        markers: authoredMarkers,
+      },
+      scroll: () => 100,
+    };
+    const markerFreeVars = {
+      id: "Marker-free trigger actions",
+      scrub: false,
+      toggleActions: "play pause resume reverse",
+      markers: false,
+    };
+    const markerFreeTrigger = {
+      start: 200,
+      end: 600,
+      progress: 0,
+      direction: 1,
+      trigger: markerFree.first,
+      scroller: window,
+      vars: markerFreeVars,
+      scroll: () => 200,
+    };
+    Object.defineProperty(authored.timeline, "scrollTrigger", { value: authoredTrigger });
+    Object.defineProperty(markerFree.timeline, "scrollTrigger", { value: markerFreeTrigger });
+
+    const authoredRegistration = registry.register(authored.declaration);
+    const markerFreeRegistration = registry.register(markerFree.declaration);
+    const ordinaryRegistration = registry.register(ordinary.declaration);
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+
+    const toggleMarkers = container.querySelector<HTMLButtonElement>(
+      "[data-action='toggle-scrolltrigger-markers']",
+    )!;
+    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const pill = container.querySelector<HTMLElement>(".devtools-editor__playhead-progress")!;
+
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='action-authored']")!.click();
+    await flush();
+    expect(toggleMarkers.hidden).toBe(false);
+    expect(toggleMarkers.disabled).toBe(false);
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
+    expect(playback.hidden).toBe(false);
+    expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
+    expect(pill.hidden).toBe(true);
+    toggleMarkers.click();
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("false");
+    expect(authoredTrigger.vars.markers).toBe(authoredMarkers);
+    toggleMarkers.click();
+    expect(authoredTrigger.vars.markers).toBe(authoredMarkers);
+
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='action-marker-free']")!.click();
+    await flush();
+    expect(toggleMarkers.hidden).toBe(false);
+    expect(toggleMarkers.disabled).toBe(false);
+    expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(4);
+    expect(playback.hidden).toBe(false);
+    expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
+    expect(pill.hidden).toBe(true);
+    toggleMarkers.click();
+    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    expect(markerFreeTrigger.vars).toBe(markerFreeVars);
+    expect(markerFreeTrigger.vars.markers).toBe(false);
+
+    container.querySelector<HTMLButtonElement>("[data-timeline-id='action-ordinary']")!.click();
+    await flush();
+    expect(toggleMarkers.hidden).toBe(true);
+    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
+
+    handle.destroy();
+    markerStart.remove();
+    markerEnd.remove();
+    scrollerStart.remove();
+    scrollerEnd.remove();
+    authoredRegistration.destroy();
+    markerFreeRegistration.destroy();
+    ordinaryRegistration.destroy();
     registry.destroy();
   });
 

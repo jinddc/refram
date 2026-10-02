@@ -352,6 +352,12 @@ export function mountEditorUi(
       case "toggle-timeline-visibility":
         setTimelineCollapsed(!timelineCollapsed);
         break;
+      case "jump-to-scrolltrigger-target":
+        controller.jumpToScrollTriggerTarget();
+        break;
+      case "toggle-scrolltrigger-markers":
+        controller.toggleScrollTriggerMarkers();
+        break;
       case "copy-debug-json":
         void copySelectedTrackDebugJson();
         break;

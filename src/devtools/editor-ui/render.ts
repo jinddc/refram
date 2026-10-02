@@ -206,6 +206,21 @@ function renderTransport(
   elements.transport.hidden = false;
   elements.playback.hidden = scrubbed;
   elements.transportHint.hidden = !scrubbed;
+  if (view.activeTimelineId) elements.scrollTriggerActions.removeAttribute("aria-hidden");
+  else elements.scrollTriggerActions.setAttribute("aria-hidden", "true");
+  elements.jumpToTargetButton.hidden = !view.activeTimelineId;
+  elements.toggleMarkersButton.hidden = scrollTrigger === undefined;
+  elements.jumpToTargetButton.disabled = !view.transport.canJumpToScrollTriggerTarget;
+  elements.toggleMarkersButton.disabled = !view.transport.canToggleScrollTriggerMarkers;
+  elements.toggleMarkersButton.setAttribute(
+    "aria-pressed",
+    String(view.transport.scrollTriggerMarkersVisible),
+  );
+  const markersLabel = view.transport.scrollTriggerMarkersVisible
+    ? "Hide ScrollTrigger markers"
+    : "Show ScrollTrigger markers";
+  elements.toggleMarkersButton.setAttribute("aria-label", markersLabel);
+  elements.toggleMarkersButton.title = markersLabel;
   elements.resetButton.hidden = scrubbed;
   elements.zoomControl.hidden = scrubbed;
   elements.timelinePane.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";

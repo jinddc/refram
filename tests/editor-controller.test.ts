@@ -780,7 +780,7 @@ describe("headless editor controller", () => {
     registry.destroy();
   });
 
-  it("shows simplified native markers only after their timeline is selected", () => {
+  it("shows authored markers for a trigger-action timeline only after selection", () => {
     const registry = createTimelineRegistry();
     const marked = directTimeline("marked-scroll");
     const markerId = "Marked scroll";
@@ -806,27 +806,47 @@ describe("headless editor controller", () => {
       "important",
     );
     const markers = [markerStart, markerEnd, scrollerStart, scrollerEnd];
+    const triggerElement = document.createElement("section");
+    const scrollIntoView = vi.fn();
+    triggerElement.scrollIntoView = scrollIntoView;
+    const authoredMarkers = true;
+    const markedTrigger = {
+      start: 100,
+      end: 500,
+      progress: 0,
+      direction: 0,
+      trigger: triggerElement,
+      markerStart,
+      markerEnd,
+      scroller: window,
+      vars: { id: markerId, scrub: false, markers: authoredMarkers },
+      scroll: () => 100,
+    };
     Object.defineProperty(marked.timeline, "scrollTrigger", {
-      value: {
-        start: 100,
-        end: 500,
-        progress: 0,
-        direction: 0,
-        markerStart,
-        markerEnd,
-        scroller: window,
-        vars: { id: markerId, scrub: true, markers: true },
-        scroll: () => 100,
-      },
+      value: markedTrigger,
     });
     const markedRegistration = registry.register(marked);
-    const standardRegistration = registry.register(directTimeline("standard"));
+    const standard = directTimeline("standard");
+    const standardScrollIntoView = vi.fn();
+    standard.root.scrollIntoView = standardScrollIntoView;
+    const standardRegistration = registry.register(standard);
     const editor = createEditorController({ registry });
 
     expect(markers.every((node) => node.hasAttribute(
       "data-motion-devtools-marker-hidden",
     ))).toBe(true);
     expect(editor.selectTimeline("marked-scroll")).toBe(true);
+    expect(editor.getSnapshot().view.transport).toMatchObject({
+      canJumpToScrollTriggerTarget: true,
+      canToggleScrollTriggerMarkers: true,
+      scrollTriggerMarkersVisible: true,
+    });
+    expect(editor.jumpToScrollTriggerTarget()).toBe(true);
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "center",
+      inline: "nearest",
+      behavior: "auto",
+    });
     expect(markers.every((node) => !node.hasAttribute(
       "data-motion-devtools-marker-hidden",
     ))).toBe(true);
@@ -849,12 +869,44 @@ describe("headless editor controller", () => {
       "--motion-devtools-marker-scroller-width",
     )).toBe("0px");
 
+    expect(editor.toggleScrollTriggerMarkers()).toBe(true);
+    expect((marked.timeline as gsap.core.Timeline & {
+      readonly scrollTrigger: typeof markedTrigger;
+    }).scrollTrigger).toBe(markedTrigger);
+    expect(markedTrigger.vars.markers).toBe(authoredMarkers);
+    expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(false);
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+
     expect(editor.selectTimeline("standard")).toBe(true);
+    expect(editor.getSnapshot().view.transport).toMatchObject({
+      canJumpToScrollTriggerTarget: true,
+      canToggleScrollTriggerMarkers: false,
+      scrollTriggerMarkersVisible: false,
+    });
+    expect(editor.jumpToScrollTriggerTarget()).toBe(true);
+    expect(standardScrollIntoView).toHaveBeenCalledWith({
+      block: "center",
+      inline: "nearest",
+      behavior: "auto",
+    });
+    expect(editor.toggleScrollTriggerMarkers()).toBe(false);
     expect(markers.every((node) => node.hasAttribute(
       "data-motion-devtools-marker-hidden",
     ))).toBe(true);
     expect(markers.every((node) => !node.hasAttribute(
       "data-motion-devtools-marker-selected",
+    ))).toBe(true);
+    expect(editor.selectTimeline("marked-scroll")).toBe(true);
+    expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(false);
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    expect(editor.toggleScrollTriggerMarkers()).toBe(true);
+    expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(true);
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
     ))).toBe(true);
     editor.destroy();
     expect(markers.every((node) => !node.hasAttribute(
@@ -888,6 +940,134 @@ describe("headless editor controller", () => {
 
     markedRegistration.destroy();
     standardRegistration.destroy();
+    registry.destroy();
+  });
+
+  it("owns fallback markers for marker-free trigger-action ScrollTriggers", () => {
+    vi.stubGlobal("innerHeight", 800);
+    const registry = createTimelineRegistry();
+    const scrubbed = directTimeline("marker-free");
+    const scroller = document.createElement("main");
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+      top: 50,
+      right: 700,
+      bottom: 650,
+      left: 100,
+    } as DOMRect);
+    let scrollPosition = 100;
+    const vars = { id: "Marker free", scrub: false, markers: false };
+    const trigger = {
+      start: 100,
+      end: 500,
+      progress: 0,
+      direction: 1,
+      trigger: scrubbed.root,
+      scroller,
+      vars,
+      scroll(position?: number) {
+        if (position === undefined) return scrollPosition;
+        scrollPosition = position;
+      },
+      update() {
+        this.progress = (scrollPosition - this.start) / (this.end - this.start);
+      },
+    };
+    Object.defineProperty(scrubbed.timeline, "scrollTrigger", { value: trigger });
+    const registration = registry.register(scrubbed);
+    const editor = createEditorController({ registry });
+
+    expect(editor.selectTimeline("marker-free")).toBe(true);
+    expect(editor.getSnapshot().view.transport).toMatchObject({
+      canToggleScrollTriggerMarkers: true,
+      scrollTriggerMarkersVisible: true,
+    });
+    const owned = () => [...document.querySelectorAll<HTMLElement>(
+      "[data-motion-devtools-owned-marker]",
+    )];
+    expect(owned()).toHaveLength(4);
+    expect(owned().every((marker) => marker.getAttribute("aria-hidden") === "true")).toBe(true);
+    expect(Object.fromEntries(owned().map((marker) => [
+      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.style.top,
+    ]))).toEqual({
+      start: "650px",
+      end: "450px",
+      "scroller-start": "650px",
+      "scroller-end": "50px",
+    });
+    expect(vars.markers).toBe(false);
+
+    expect(editor.seek(0.5)).toBe(true);
+    expect(scrollPosition).toBe(100);
+    scrollPosition = 300;
+    trigger.update();
+    expect(editor.selectTimeline("marker-free")).toBe(true);
+    expect(Object.fromEntries(owned().map((marker) => [
+      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.style.top,
+    ]))).toEqual({
+      start: "450px",
+      end: "250px",
+      "scroller-start": "650px",
+      "scroller-end": "50px",
+    });
+    expect(editor.toggleScrollTriggerMarkers()).toBe(true);
+    expect(owned()).toHaveLength(0);
+    expect(editor.toggleScrollTriggerMarkers()).toBe(true);
+    expect(owned()).toHaveLength(4);
+
+    editor.destroy();
+    expect(owned()).toHaveLength(0);
+    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+    expect(vars.markers).toBe(false);
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("replaces DevTools-owned fallback markers with a rebuilt timeline", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const markerSets: Array<{ vars: { scrub: true; markers: false } }> = [];
+    const registration = registry.register({
+      id: "rebuilt-marker-free",
+      root,
+      create() {
+        const target = document.createElement("div");
+        root.replaceChildren(target);
+        const timeline = gsap.timeline({ paused: true });
+        timeline.to(target, { x: 40, duration: 1 });
+        const vars = { scrub: true as const, markers: false as const };
+        const trigger = {
+          start: 0,
+          end: 400,
+          progress: 0,
+          direction: 0,
+          trigger: target,
+          scroller: window,
+          vars,
+          scroll: () => 0,
+        };
+        Object.defineProperty(timeline, "scrollTrigger", { value: trigger });
+        markerSets.push({ vars });
+        return { timeline, dispose: () => timeline.pause() };
+      },
+    });
+    const editor = createEditorController({ registry });
+    expect(editor.selectTimeline("rebuilt-marker-free")).toBe(true);
+    const before = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")];
+    expect(before).toHaveLength(4);
+
+    expect(editor.replay()).toBe(true);
+    const after = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")];
+    expect(after).toHaveLength(4);
+    expect(after.every((marker) => !before.includes(marker))).toBe(true);
+    expect(before.every((marker) => !marker.isConnected)).toBe(true);
+    expect(markerSets).toHaveLength(2);
+    expect(markerSets.every(({ vars }) => vars.markers === false)).toBe(true);
+
+    editor.destroy();
+    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    registration.destroy();
     registry.destroy();
   });
 });

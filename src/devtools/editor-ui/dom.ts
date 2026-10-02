@@ -9,6 +9,9 @@ export interface EditorUiElements {
   readonly timelinePane: HTMLElement;
   readonly transport: HTMLElement;
   readonly transportHint: HTMLElement;
+  readonly scrollTriggerActions: HTMLElement;
+  readonly jumpToTargetButton: HTMLButtonElement;
+  readonly toggleMarkersButton: HTMLButtonElement;
   readonly playback: HTMLElement;
   readonly viewportControls: HTMLElement;
   readonly timelineVisibilityButton: HTMLButtonElement;
@@ -65,6 +68,7 @@ function action(label: string, name: string): HTMLButtonElement {
 
 function createTransportIcon(
   name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close" | "timeline-visibility"
+    | "jump-to-target" | "markers"
     | "zoom-out" | "zoom-in",
   pathData: string | readonly string[],
   viewBox = "0 0 16 16",
@@ -207,6 +211,30 @@ export function createEditorUiElements(): EditorUiElements {
   );
   transportHint.hidden = true;
   const transportSettings = element("div", "devtools-editor__transport-settings");
+  transportSettings.classList.add("devtools-editor__transport-group");
+  transportSettings.setAttribute("role", "group");
+  transportSettings.setAttribute("aria-label", "Timeline actions");
+  transportSettings.setAttribute("aria-hidden", "true");
+  const jumpToTargetButton = action("", "jump-to-scrolltrigger-target");
+  jumpToTargetButton.hidden = true;
+  jumpToTargetButton.classList.add("devtools-editor__action--icon");
+  jumpToTargetButton.setAttribute("aria-label", "Jump to target");
+  jumpToTargetButton.title = "Jump to target";
+  jumpToTargetButton.append(createTransportIcon(
+    "jump-to-target",
+    "m 8 0 c -0.554688 0 -1 0.445312 -1 1 v 1 c 0 0.03125 0 0.058594 0.003906 0.085938 c -2.507812 0.421874 -4.492187 2.410156 -4.914062 4.917968 c -0.03125 -0.003906 -0.058594 -0.003906 -0.089844 -0.003906 h -1 c -0.554688 0 -1 0.445312 -1 1 s 0.445312 1 1 1 h 1 c 0.03125 0 0.058594 0 0.089844 -0.003906 c 0.421875 2.507812 2.40625 4.496094 4.914062 4.917968 c 0 0.027344 -0.003906 0.054688 -0.003906 0.085938 v 1 c 0 0.554688 0.445312 1 1 1 s 1 -0.445312 1 -1 v -1 c 0 -0.03125 0 -0.058594 -0.003906 -0.085938 c 2.507812 -0.421874 4.496094 -2.410156 4.917968 -4.917968 c 0.03125 0 0.058594 0.003906 0.085938 0.003906 h 1 c 0.554688 0 1 -0.445312 1 -1 s -0.445312 -1 -1 -1 h -1 c -0.027344 0 -0.054688 0 -0.085938 0.003906 c -0.421874 -2.507812 -2.410156 -4.496094 -4.917968 -4.917968 c 0 -0.027344 0.003906 -0.058594 0.003906 -0.085938 v -1 c 0 -0.554688 -0.445312 -1 -1 -1 z m 0.003906 4 c 2.199219 0 4 1.796875 4 4 s -1.800781 4 -4 4 c -2.203125 0 -4 -1.796875 -4 -4 s 1.796875 -4 4 -4 z m -0.003906 2 c -1.105469 0 -2 0.894531 -2 2 s 0.894531 2 2 2 s 2 -0.894531 2 -2 s -0.894531 -2 -2 -2 z m 0 0",
+  ));
+  const toggleMarkersButton = action("", "toggle-scrolltrigger-markers");
+  toggleMarkersButton.hidden = true;
+  toggleMarkersButton.classList.add("devtools-editor__action--icon");
+  toggleMarkersButton.setAttribute("aria-label", "Show ScrollTrigger markers");
+  toggleMarkersButton.setAttribute("aria-pressed", "false");
+  toggleMarkersButton.title = "Show ScrollTrigger markers";
+  toggleMarkersButton.append(createTransportIcon("markers", [
+    "m 0 5 v 6 h 1 v -0.007812 c 0.265625 0.003906 0.519531 -0.101563 0.707031 -0.285157 l 2 -2 c 0.390625 -0.390625 0.390625 -1.023437 0 -1.414062 l -2 -2 c -0.1875 -0.183594 -0.441406 -0.289063 -0.707031 -0.285157 v -0.007812 z m 0 0",
+    "m 16 5 v 6 h -1 v -0.007812 c -0.265625 0.003906 -0.519531 -0.101563 -0.707031 -0.285157 l -2 -2 c -0.390625 -0.390625 -0.390625 -1.023437 0 -1.414062 l 2 -2 c 0.1875 -0.183594 0.441406 -0.289063 0.707031 -0.289063 v -0.003906 z m 0 0",
+  ]));
+  transportSettings.append(jumpToTargetButton, toggleMarkersButton);
   const speedSelect = element("select", "devtools-editor__speed");
   speedSelect.dataset.action = "set-speed";
   speedSelect.setAttribute("aria-label", "Playback speed");
@@ -412,6 +440,9 @@ export function createEditorUiElements(): EditorUiElements {
     timelinePane: timeline,
     transport,
     transportHint,
+    scrollTriggerActions: transportSettings,
+    jumpToTargetButton,
+    toggleMarkersButton,
     playback,
     viewportControls,
     timelineVisibilityButton,
