@@ -198,6 +198,7 @@ function renderTransport(
   const scrubbed = scrollTrigger?.scrubbed === true;
   elements.transport.hidden = false;
   elements.playback.hidden = scrubbed;
+  elements.transportHint.hidden = !scrubbed;
   elements.timelinePane.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
   const running = view.transport.playState === "running";
   elements.playIcon.toggleAttribute("hidden", running);
@@ -409,11 +410,20 @@ function renderTracks(
   elements.trackLanes.replaceChildren(...lanes);
 }
 
-function inspectorField(label: string, value: string): HTMLDivElement {
+function inspectorField(
+  label: string,
+  value: string,
+  truncate = false,
+): HTMLDivElement {
   const field = node("div", "devtools-editor__inspector-field");
+  const valueNode = node("dd", "devtools-editor__inspector-value", value);
+  if (truncate) {
+    valueNode.classList.add("devtools-editor__inspector-value--truncate");
+    valueNode.title = value;
+  }
   field.append(
     node("dt", "devtools-editor__inspector-term", label),
-    node("dd", "devtools-editor__inspector-value", value),
+    valueNode,
   );
   return field;
 }
@@ -425,6 +435,16 @@ function formatInspectorTime(value: number): string {
 
 function formatInspectorProgress(value: number): string {
   return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
+}
+
+function formatRawScrollPosition(value: string | number | undefined): string {
+  if (typeof value === "number") return `${value}px`;
+  return value ?? "Default";
+}
+
+function formatMarkersStatus(markers: false | true | object): string {
+  if (markers === false) return "Off";
+  return markers === true ? "On" : "On (custom)";
 }
 
 function renderInspector(elements: EditorUiElements, view: EditorViewState): void {
@@ -458,6 +478,9 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
     inspector.properties.join(","),
     view.scrollTrigger?.start,
     view.scrollTrigger?.end,
+    view.scrollTrigger?.rawStart,
+    view.scrollTrigger?.rawEnd,
+    view.scrollTrigger?.distance,
     view.scrollTrigger?.progress,
     view.scrollTrigger?.animationProgress,
     view.scrollTrigger?.state,
@@ -466,6 +489,7 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
     view.scrollTrigger?.pin,
     view.scrollTrigger?.trigger,
     view.scrollTrigger?.scroller,
+    JSON.stringify(view.scrollTrigger?.markers),
   ].join("|");
   if (elements.inspectorContent.dataset.signature === signature) return;
   elements.inspectorContent.dataset.signature = signature;
@@ -486,8 +510,11 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
     ? [
       inspectorField("ScrollTrigger state", scrollTrigger.state[0]!.toUpperCase()
         + scrollTrigger.state.slice(1)),
-      inspectorField("Scroll start", `${scrollTrigger.start.toFixed(2)}px`),
-      inspectorField("Scroll end", `${scrollTrigger.end.toFixed(2)}px`),
+      inspectorField("Raw start", formatRawScrollPosition(scrollTrigger.rawStart)),
+      inspectorField("Raw end", formatRawScrollPosition(scrollTrigger.rawEnd)),
+      inspectorField("Resolved start", `${scrollTrigger.start.toFixed(2)}px`),
+      inspectorField("Resolved end", `${scrollTrigger.end.toFixed(2)}px`),
+      inspectorField("Scroll distance", `${scrollTrigger.distance.toFixed(2)}px`),
       inspectorField(
         "Scrub",
         typeof scrollTrigger.scrub === "number"
@@ -495,8 +522,9 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
           : scrollTrigger.scrub ? "Enabled" : "Disabled",
       ),
       inspectorField("Pin", scrollTrigger.pin ?? "None"),
-      inspectorField("Trigger", scrollTrigger.trigger ?? "Unavailable"),
-      inspectorField("Scroller", scrollTrigger.scroller),
+      inspectorField("Trigger", scrollTrigger.trigger ?? "Unavailable", true),
+      inspectorField("Scroller", scrollTrigger.scroller, true),
+      inspectorField("Markers", formatMarkersStatus(scrollTrigger.markers)),
       inspectorField(
         "Direction",
         scrollTrigger.direction < 0 ? "Backward" : scrollTrigger.direction > 0 ? "Forward" : "Idle",

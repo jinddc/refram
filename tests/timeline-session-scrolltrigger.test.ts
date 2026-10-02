@@ -13,6 +13,9 @@ interface FakeTriggerOptions {
   readonly progress?: number;
   readonly scrub?: boolean | number;
   readonly id?: string;
+  readonly rawStart?: string | number | (() => string | number);
+  readonly rawEnd?: string | number | (() => string | number);
+  readonly markers?: boolean | Readonly<Record<string, unknown>>;
   readonly trigger?: Element;
   readonly scroller?: Element | Window;
   readonly pin?: Element;
@@ -31,7 +34,13 @@ function attachFakeScrollTrigger(
     trigger: options.trigger,
     scroller: options.scroller ?? window,
     pin: options.pin,
-    vars: { id: options.id, scrub: options.scrub },
+    vars: {
+      id: options.id,
+      scrub: options.scrub,
+      start: options.rawStart,
+      end: options.rawEnd,
+      markers: options.markers,
+    },
     scroll(position?: number) {
       if (position === undefined) return scrollPosition;
       scrollPosition = position;
@@ -141,6 +150,14 @@ describe("ScrollTrigger timeline inspection", () => {
       progress: 0.7,
       scrub: 0.8,
       id: "hero-scroll",
+      rawStart: "top 80%",
+      rawEnd: () => "+=400",
+      markers: {
+        startColor: "#fff",
+        fontSize: "12px",
+        indent: 8,
+        ignored: "value",
+      },
       trigger: triggerElement,
       pin,
     });
@@ -150,8 +167,11 @@ describe("ScrollTrigger timeline inspection", () => {
       id: "hero-scroll",
       scrub: 0.8,
       scrubbed: true,
+      rawStart: "top 80%",
+      rawEnd: "Function",
       start: 100,
       end: 500,
+      distance: 400,
       scroll: 380,
       progress: 0.7,
       animationProgress: 0.2,
@@ -160,7 +180,30 @@ describe("ScrollTrigger timeline inspection", () => {
       pin: "div.pin",
       trigger: "section#hero.panel.active",
       scroller: "Window",
+      markers: {
+        startColor: "#fff",
+        fontSize: "12px",
+        indent: 8,
+      },
     });
+  });
+
+  it("keeps markers off by default without creating or mutating marker DOM", () => {
+    const { timeline } = fixture();
+    const markerCount = document.querySelectorAll("[class*='gsap-marker-']").length;
+    attachFakeScrollTrigger(timeline, {
+      rawStart: 20,
+      rawEnd: 420,
+      scrub: true,
+    });
+
+    expect(readTimelineScrollTrigger(timeline)).toMatchObject({
+      rawStart: 20,
+      rawEnd: 420,
+      distance: 400,
+      markers: false,
+    });
+    expect(document.querySelectorAll("[class*='gsap-marker-']")).toHaveLength(markerCount);
   });
 
   it("retains time transport for non-scrub trigger actions and cleans up sampling", () => {

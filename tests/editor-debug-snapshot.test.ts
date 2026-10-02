@@ -2,7 +2,10 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSelectedTrackDebugJson } from "../src/devtools/editor-debug-snapshot";
+import {
+  createScrollTriggerMarkersConfig,
+  createSelectedTrackDebugJson,
+} from "../src/devtools/editor-debug-snapshot";
 import { createEditorController } from "../src/devtools/editor-controller";
 import { createTimelineRegistry } from "../src/devtools/timeline-registry";
 
@@ -60,6 +63,86 @@ describe("selected track debug snapshot", () => {
     expect(createSelectedTrackDebugJson(editor.getSnapshot())).not.toContain(
       "Private application content",
     );
+
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("copies an applicable native markers config without changing the trigger", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const target = document.createElement("article");
+    root.append(target);
+    const timeline = gsap.timeline({ paused: true }).to(target, { x: 20, duration: 1 });
+    const markerConfig = {
+      startColor: "#22c55e",
+      endColor: "#ef4444",
+      fontSize: "12px",
+      fontWeight: "600",
+      indent: 8,
+    };
+    Object.defineProperty(timeline, "scrollTrigger", {
+      value: {
+        start: 100,
+        end: 500,
+        progress: 0,
+        direction: 0,
+        trigger: target,
+        scroller: window,
+        vars: { scrub: true, markers: markerConfig },
+        scroll: () => 100,
+      },
+    });
+    const registration = registry.register({ id: "markers", root, timeline });
+    const editor = createEditorController({ registry });
+    expect(editor.selectItem(0)).toBe(true);
+
+    expect(createScrollTriggerMarkersConfig(editor.getSnapshot())).toBe([
+      "markers: {",
+      '  startColor: "#22c55e",',
+      '  endColor: "#ef4444",',
+      '  fontSize: "12px",',
+      '  fontWeight: "600",',
+      "  indent: 8,",
+      "}",
+    ].join("\n"));
+    expect(markerConfig).toEqual({
+      startColor: "#22c55e",
+      endColor: "#ef4444",
+      fontSize: "12px",
+      fontWeight: "600",
+      indent: 8,
+    });
+
+    editor.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("suggests the minimal opt-in when native markers are off", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const target = document.createElement("article");
+    root.append(target);
+    const timeline = gsap.timeline({ paused: true }).to(target, { x: 20, duration: 1 });
+    Object.defineProperty(timeline, "scrollTrigger", {
+      value: {
+        start: 0,
+        end: 200,
+        progress: 0,
+        direction: 0,
+        trigger: target,
+        scroller: window,
+        vars: { scrub: true },
+        scroll: () => 0,
+      },
+    });
+    const registration = registry.register({ id: "markers-off", root, timeline });
+    const editor = createEditorController({ registry });
+    expect(editor.selectItem(0)).toBe(true);
+    expect(editor.getSnapshot().view.scrollTrigger?.markers).toBe(false);
+    expect(createScrollTriggerMarkersConfig(editor.getSnapshot())).toBe("markers: true");
 
     editor.destroy();
     registration.destroy();

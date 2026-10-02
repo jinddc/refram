@@ -1865,7 +1865,7 @@ describe("DevTools editor UI v2", () => {
     customScroller.id = "scroll-shell";
     document.body.append(container, customScroller);
     const scrubbed = registration("scroll-scrub", "Fallback scroll label");
-    scrubbed.first.className = "hero";
+    scrubbed.first.className = "hero section-with-an-intentionally-long-class-name feature-panel-active";
     let scrollPosition = 100;
     const trigger = {
       start: 100,
@@ -1875,7 +1875,19 @@ describe("DevTools editor UI v2", () => {
       trigger: scrubbed.first,
       scroller: customScroller,
       pin: scrubbed.first,
-      vars: { id: "Hero scroll", scrub: 0.75 },
+      vars: {
+        id: "Hero scroll",
+        scrub: 0.75,
+        start: "top 80%",
+        end: "bottom 20%",
+        markers: {
+          startColor: "#22c55e",
+          endColor: "#ef4444",
+          fontSize: "12px",
+          fontWeight: "600",
+          indent: 8,
+        },
+      },
       scroll(position?: number) {
         if (position === undefined) return scrollPosition;
         scrollPosition = position;
@@ -1892,6 +1904,9 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     await flush();
     const transport = container.querySelector<HTMLElement>(".devtools-editor__transport")!;
+    const transportHint = container.querySelector<HTMLElement>(
+      ".devtools-editor__transport-hint",
+    )!;
     const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
     const viewportControls = container.querySelector<HTMLElement>(".devtools-editor__viewport-controls")!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
@@ -1902,6 +1917,8 @@ describe("DevTools editor UI v2", () => {
       .toBe("Hero scroll");
     expect(transport.hidden).toBe(false);
     expect(playback.hidden).toBe(true);
+    expect(transportHint.hidden).toBe(false);
+    expect(transportHint.textContent).toBe("Scroll the page to preview");
     expect(viewportControls.hidden).toBe(false);
     expect(viewportControls.querySelector("[data-action='reset-timeline-zoom']")).not.toBeNull();
     expect(viewportControls.querySelector("[data-role='zoom-range']")).not.toBeNull();
@@ -1957,13 +1974,36 @@ describe("DevTools editor UI v2", () => {
     container.querySelector<HTMLButtonElement>("[data-track-key='track:opening']")!.click();
     const inspector = container.querySelector<HTMLElement>("[data-role='inspector-content']")!;
     expect(inspector.textContent).toContain("ScrollTrigger stateActive");
-    expect(inspector.textContent).toContain("Scroll start100.00px");
-    expect(inspector.textContent).toContain("Scroll end500.00px");
+    expect(inspector.textContent).toContain("Raw starttop 80%");
+    expect(inspector.textContent).toContain("Raw endbottom 20%");
+    expect(inspector.textContent).toContain("Resolved start100.00px");
+    expect(inspector.textContent).toContain("Resolved end500.00px");
+    expect(inspector.textContent).toContain("Scroll distance400.00px");
     expect(inspector.textContent).toContain("Scrub0.75s");
-    expect(inspector.textContent).toContain("Triggerarticle#scroll-scrub-first.hero");
+    const triggerField = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+      .find((field) => field.querySelector("dt")?.textContent === "Trigger")!;
+    expect(triggerField.querySelector(".devtools-editor__inspector-term")?.textContent)
+      .toBe("Trigger");
+    const triggerValue = triggerField.querySelector<HTMLElement>(
+      ".devtools-editor__inspector-value",
+    )!;
+    const fullTriggerValue =
+      "article#scroll-scrub-first.hero.section-with-an-intentionally-long-class-name";
+    expect(triggerValue.textContent).toBe(fullTriggerValue);
+    expect(triggerValue.title).toBe(fullTriggerValue);
+    expect(triggerValue.classList.contains("devtools-editor__inspector-value--truncate")).toBe(true);
+    const scrollerValue = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+      .find((field) => field.querySelector("dt")?.textContent === "Scroller")!
+      .querySelector<HTMLElement>(".devtools-editor__inspector-value")!;
+    expect(scrollerValue.textContent).toBe("main#scroll-shell");
+    expect(scrollerValue.title).toBe("main#scroll-shell");
+    expect(scrollerValue.classList.contains("devtools-editor__inspector-value--truncate"))
+      .toBe(true);
     expect(inspector.textContent).toContain("Scrollermain#scroll-shell");
+    expect(inspector.textContent).toContain("MarkersOn (custom)");
     expect(inspector.textContent).toContain("Scroll progress50%");
     expect(inspector.textContent).toContain("Animation progress0%");
+    expect(container.querySelector("[data-action='copy-markers-config']")).toBeNull();
 
     expect(handle.controller.seek(0.025)).toBe(true);
     expect(Number.parseFloat(
@@ -1989,7 +2029,9 @@ describe("DevTools editor UI v2", () => {
     await flush();
     expect(transport.hidden).toBe(false);
     expect(playback.hidden).toBe(false);
+    expect(transportHint.hidden).toBe(true);
     expect(pill.hidden).toBe(true);
+    expect(container.querySelector("[data-action='copy-markers-config']")).toBeNull();
     expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
     expect(playhead.getAttribute("aria-label")).toBe("Timeline playhead");
 

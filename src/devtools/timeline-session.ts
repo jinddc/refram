@@ -41,12 +41,28 @@ export interface TimelineInspectionSnapshot {
 
 export type TimelineScrollTriggerState = "before" | "active" | "after";
 
+export interface TimelineScrollTriggerMarkerConfig {
+  readonly startColor?: string;
+  readonly endColor?: string;
+  readonly fontSize?: string;
+  readonly fontWeight?: string;
+  readonly indent?: number;
+}
+
+export type TimelineScrollTriggerMarkers =
+  | false
+  | true
+  | TimelineScrollTriggerMarkerConfig;
+
 export interface TimelineScrollTriggerSnapshot {
   readonly id: string | undefined;
   readonly scrub: boolean | number | undefined;
   readonly scrubbed: boolean;
+  readonly rawStart: string | number | undefined;
+  readonly rawEnd: string | number | undefined;
   readonly start: number;
   readonly end: number;
+  readonly distance: number;
   readonly scroll: number;
   readonly progress: number;
   readonly animationProgress: number;
@@ -55,6 +71,7 @@ export interface TimelineScrollTriggerSnapshot {
   readonly pin: string | undefined;
   readonly trigger: string | undefined;
   readonly scroller: string;
+  readonly markers: TimelineScrollTriggerMarkers;
 }
 
 export interface TimelineSessionAttachment {
@@ -80,10 +97,49 @@ interface GsapScrollTriggerLike {
   readonly vars?: Readonly<{
     id?: string;
     scrub?: boolean | number;
+    start?: string | number | ((...args: readonly unknown[]) => string | number);
+    end?: string | number | ((...args: readonly unknown[]) => string | number);
+    markers?: boolean | Readonly<Record<string, unknown>>;
   }>;
   scroll(): number;
   scroll(position: number): void;
   update?(): void;
+}
+
+const MARKER_STRING_KEYS = [
+  "startColor",
+  "endColor",
+  "fontSize",
+  "fontWeight",
+] as const;
+
+function rawPosition(
+  value: string | number | ((...args: readonly unknown[]) => string | number) | undefined,
+): string | number | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "function") return "Function";
+  return undefined;
+}
+
+function readMarkers(value: unknown): TimelineScrollTriggerMarkers {
+  if (value === true) return true;
+  if (!value || typeof value !== "object") return false;
+  const source = value as Readonly<Record<string, unknown>>;
+  const config: {
+    startColor?: string;
+    endColor?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    indent?: number;
+  } = {};
+  for (const key of MARKER_STRING_KEYS) {
+    if (typeof source[key] === "string") config[key] = source[key];
+  }
+  if (typeof source.indent === "number" && Number.isFinite(source.indent)) {
+    config.indent = source.indent;
+  }
+  return Object.freeze(config);
 }
 
 function scrollTriggerOf(timeline: gsap.core.Timeline): GsapScrollTriggerLike | undefined {
@@ -137,8 +193,11 @@ export function readTimelineScrollTrigger(
     id: trigger.vars?.id?.trim() || undefined,
     scrub: trigger.vars?.scrub,
     scrubbed: isScrubbed(trigger),
+    rawStart: rawPosition(trigger.vars?.start),
+    rawEnd: rawPosition(trigger.vars?.end),
     start,
     end,
+    distance: Math.abs(end - start),
     scroll: Number.isFinite(scroll) ? scroll : start,
     progress: clamp(trigger.progress),
     animationProgress: clamp(timeline.totalProgress()),
@@ -147,6 +206,7 @@ export function readTimelineScrollTrigger(
     pin: describeElement(trigger.pin),
     trigger: describeElement(trigger.trigger),
     scroller: describeScroller(trigger.scroller),
+    markers: readMarkers(trigger.vars?.markers),
   });
 }
 

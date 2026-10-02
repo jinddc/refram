@@ -1,4 +1,8 @@
 import type { EditorSnapshot } from "./editor-controller";
+import type {
+  TimelineScrollTriggerMarkerConfig,
+  TimelineScrollTriggerMarkers,
+} from "./timeline-session";
 
 const DEBUG_SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -46,6 +50,31 @@ export function createSelectedTrackDebugJson(snapshot: EditorSnapshot): string |
       properties: inspector.properties,
     },
   }, null, 2);
+}
+
+const MARKER_CONFIG_KEYS = [
+  "startColor",
+  "endColor",
+  "fontSize",
+  "fontWeight",
+  "indent",
+] as const satisfies readonly (keyof TimelineScrollTriggerMarkerConfig)[];
+
+function markerConfigLines(config: TimelineScrollTriggerMarkerConfig): readonly string[] {
+  return MARKER_CONFIG_KEYS.flatMap((key) => {
+    const value = config[key];
+    return value === undefined ? [] : [`  ${key}: ${JSON.stringify(value)},`];
+  });
+}
+
+export function createScrollTriggerMarkersConfig(snapshot: EditorSnapshot): string | undefined {
+  const markers: TimelineScrollTriggerMarkers | undefined = snapshot.view.scrollTrigger?.markers;
+  if (markers === undefined) return undefined;
+  if (markers === false || markers === true) return "markers: true";
+  const lines = markerConfigLines(markers);
+  return lines.length === 0
+    ? "markers: {}"
+    : ["markers: {", ...lines, "}"].join("\n");
 }
 
 export async function copyTextToClipboard(

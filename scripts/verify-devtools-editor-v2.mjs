@@ -222,11 +222,33 @@ async function verify({ artifactDirectory, send }) {
       && Math.abs(desktopState.workspaceTop - desktopState.editorTop) <= 1,
     `The desktop idle workspace is incorrect: ${JSON.stringify(desktopState)}`,
   );
-  const windowScrollState = await evaluate(send, `(() => {
-    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/window-scroll");
+  assert(
+    await evaluate(send, `[...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")].every((marker) => getComputedStyle(marker).display === "none")`),
+    "Native ScrollTrigger markers were visible before an explicit timeline selection.",
+  );
+  const windowScrollState = await evaluate(send, `(async () => {
+    window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']").click();
     const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
     const expected = trigger.start + (trigger.end - trigger.start) * 0.5;
     const sought = window.__devtoolsEditorV2Harness.seek(0.5);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const markerTops = (selector) => Object.fromEntries(
+      [...document.querySelectorAll(selector)].map((marker) => [
+        marker.textContent,
+        marker.getBoundingClientRect().top,
+      ]),
+    );
+    const contentBeforeScroll = markerTops(".gsap-marker-start, .gsap-marker-end");
+    const scrollerBeforeScroll = markerTops(".gsap-marker-scroller-start, .gsap-marker-scroller-end");
+    trigger.scroll(expected + 20);
+    trigger.update();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const contentAfterScroll = markerTops(".gsap-marker-start, .gsap-marker-end");
+    const scrollerAfterScroll = markerTops(".gsap-marker-scroller-start, .gsap-marker-scroller-end");
+    trigger.scroll(expected);
+    trigger.update();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const previewBottom = document.querySelector("motion-devtools-editor").getBoundingClientRect().top;
     return {
       sought,
       expected,
@@ -235,6 +257,54 @@ async function verify({ artifactDirectory, send }) {
       label: window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']")?.textContent,
       ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
       ticks: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].map((tick) => tick.textContent),
+      markerMotion: {
+        content: Object.keys(contentBeforeScroll).map((label) => (
+          contentAfterScroll[label] - contentBeforeScroll[label]
+        )),
+        scroller: Object.keys(scrollerBeforeScroll).map((label) => (
+          scrollerAfterScroll[label] - scrollerBeforeScroll[label]
+        )),
+      },
+      markerPairGaps: {
+        start: document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().left
+          - document.querySelector(".gsap-marker-start").getBoundingClientRect().right,
+        end: document.querySelector(".gsap-marker-scroller-end").getBoundingClientRect().left
+          - document.querySelector(".gsap-marker-end").getBoundingClientRect().right,
+      },
+      scrollerMarkerWidths: {
+        start: document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().width,
+        end: document.querySelector(".gsap-marker-scroller-end").getBoundingClientRect().width,
+      },
+      scrollerStartInset: previewBottom
+        - document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().bottom,
+      copyMarkersAbsent: window.__devtoolsEditorV2Harness.query(
+        "[data-action='copy-markers-config']",
+      ) === null,
+      nativeMarkerCount: document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end").length,
+      nativeMarkers: [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")].map((marker) => {
+        const rect = marker.getBoundingClientRect();
+        return {
+          text: marker.textContent,
+          display: getComputedStyle(marker).display,
+          rect: {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          },
+          visibleInViewport: rect.bottom > 0
+            && rect.top < window.innerHeight
+            && rect.right > 0
+            && rect.left < window.innerWidth,
+          visibleInPreview: rect.bottom > 0
+            && rect.bottom <= previewBottom + 1
+            && rect.right > 0
+            && rect.left < window.innerWidth,
+        };
+      }),
+      markers: window.__devtoolsEditorV2Harness.view.scrollTrigger?.markers,
       transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
@@ -244,7 +314,7 @@ async function verify({ artifactDirectory, send }) {
       pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
       playheadValue: window.__devtoolsEditorV2Harness.query("[data-role='playhead']")?.getAttribute("aria-valuetext"),
     };
-  })()`);
+  })()`, true);
   assert(
     windowScrollState.sought
       && Math.abs(windowScrollState.actual - windowScrollState.expected) <= 2
@@ -252,6 +322,26 @@ async function verify({ artifactDirectory, send }) {
       && windowScrollState.label === "Window scrub"
       && windowScrollState.ruler === "Scroll progress ruler from 0% to 100%"
       && windowScrollState.ticks.join("|") === "0%|25%|50%|75%|100%"
+      && windowScrollState.nativeMarkerCount === 4
+      && windowScrollState.nativeMarkers.map(({ text }) => text).sort().join("|")
+        === "end|scroller end|scroller start|start"
+      && windowScrollState.nativeMarkers.every(({ display }) => display !== "none")
+      && windowScrollState.nativeMarkers.every(({ visibleInViewport }) => visibleInViewport)
+      && windowScrollState.nativeMarkers
+        .filter(({ text }) => text.startsWith("scroller "))
+        .every(({ visibleInPreview }) => visibleInPreview)
+      && windowScrollState.markerMotion.content.every((delta) => Math.abs(delta + 20) <= 1)
+      && windowScrollState.markerMotion.scroller.every((delta) => Math.abs(delta) <= 1)
+      && Math.abs(windowScrollState.markerPairGaps.start - 4) <= 1
+      && Math.abs(windowScrollState.markerPairGaps.end - 4) <= 1
+      && Math.abs(
+        windowScrollState.scrollerMarkerWidths.start
+          - windowScrollState.scrollerMarkerWidths.end,
+      ) <= 1
+      && Math.abs(windowScrollState.scrollerStartInset - 1) <= 0.5
+      && windowScrollState.copyMarkersAbsent
+      && windowScrollState.markers?.startColor === "#22c55e"
+      && windowScrollState.markers?.endColor === "#ef4444"
       && windowScrollState.transportDisplay === "grid"
       && windowScrollState.playbackDisplay === "none"
       && windowScrollState.viewportControlsDisplay === "flex"
@@ -262,12 +352,30 @@ async function verify({ artifactDirectory, send }) {
       && windowScrollState.playheadValue === "50%",
     `The real window ScrollTrigger inspection mode is incorrect: ${JSON.stringify(windowScrollState)}`,
   );
+  await screenshot(send, scrollScrub);
   const customScrollState = await evaluate(send, `(() => {
-    window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll");
+    document.querySelector("#devtools-v2-custom-trigger").className =
+      "section-with-an-intentionally-long-class-name feature-panel-active-with-extra-detail";
+    window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/custom-scroll']").click();
     const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
     const expected = trigger.start + (trigger.end - trigger.start) * 0.75;
     const sought = window.__devtoolsEditorV2Harness.seek(0.75);
     window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
+    const inspectorContent = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
+    const triggerField = [...inspectorContent.querySelectorAll(".devtools-editor__inspector-field")]
+      .find((field) => field.querySelector("dt")?.textContent === "Trigger");
+    const triggerTerm = triggerField.querySelector(".devtools-editor__inspector-term");
+    const triggerValue = triggerField.querySelector(".devtools-editor__inspector-value");
+    const inspectorBounds = inspectorContent.getBoundingClientRect();
+    const triggerTermBounds = triggerTerm.getBoundingClientRect();
+    const triggerValueBounds = triggerValue.getBoundingClientRect();
+    const triggerValueStyle = getComputedStyle(triggerValue);
+    const transportElement = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const hintElement = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint");
+    const transportBounds = transportElement.getBoundingClientRect();
+    const hintBounds = hintElement.getBoundingClientRect();
+    const viewportControlBounds = window.__devtoolsEditorV2Harness
+      .query(".devtools-editor__viewport-controls").getBoundingClientRect();
     return {
       sought,
       expected,
@@ -275,7 +383,39 @@ async function verify({ artifactDirectory, send }) {
       elementScroll: document.querySelector("#devtools-v2-custom-scroller").scrollTop,
       progress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.progress,
       animationProgress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.animationProgress,
-      inspector: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']")?.textContent,
+      nativeMarkersHidden: [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")]
+        .every((marker) => getComputedStyle(marker).display === "none"),
+      inspector: inspectorContent.textContent,
+      inspectorLayout: {
+        clientWidth: inspectorContent.clientWidth,
+        scrollWidth: inspectorContent.scrollWidth,
+        left: inspectorBounds.left,
+        right: inspectorBounds.right,
+        termRight: triggerTermBounds.right,
+        valueLeft: triggerValueBounds.left,
+        valueRight: triggerValueBounds.right,
+        valueHeight: triggerValueBounds.height,
+        valueLineHeight: Number.parseFloat(triggerValueStyle.lineHeight),
+        valueScrollWidth: triggerValue.scrollWidth,
+        valueClientWidth: triggerValue.clientWidth,
+        valueOverflowWrap: triggerValueStyle.overflowWrap,
+        valueWhiteSpace: triggerValueStyle.whiteSpace,
+        valueTextOverflow: triggerValueStyle.textOverflow,
+        valueOverflowX: triggerValueStyle.overflowX,
+        valueText: triggerValue.textContent,
+        valueTitle: triggerValue.title,
+        valueTruncated: triggerValue.classList.contains(
+          "devtools-editor__inspector-value--truncate",
+        ),
+      },
+      hint: {
+        text: hintElement.textContent,
+        display: getComputedStyle(hintElement).display,
+        centerX: hintBounds.left + hintBounds.width / 2,
+        transportCenterX: transportBounds.left + transportBounds.width / 2,
+        right: hintBounds.right,
+        viewportControlsLeft: viewportControlBounds.left,
+      },
       pillBounds: (() => {
         const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
         return { left: bounds.left, right: bounds.right, width: bounds.width };
@@ -348,10 +488,33 @@ async function verify({ artifactDirectory, send }) {
       && Math.abs(customScrollState.elementScroll - customScrollState.expected) <= 2
       && customScrollState.progress >= 0.74
       && customScrollState.progress <= 0.76
+      && customScrollState.nativeMarkersHidden
       && customScrollState.inspector.includes("ScrollTrigger stateActive")
+      && customScrollState.inspector.includes("Raw starttop bottom")
+      && customScrollState.inspector.includes("Raw endbottom top")
+      && customScrollState.inspector.includes("Resolved start")
+      && customScrollState.inspector.includes("Resolved end")
+      && customScrollState.inspector.includes("Scroll distance")
+      && customScrollState.inspector.includes("MarkersOff")
       && customScrollState.inspector.includes("Scrub0.5s")
       && customScrollState.inspector.includes("Scrollerdiv#devtools-v2-custom-scroller.devtools-v2-custom-scroller")
       && customScrollState.inspector.includes("Animation progress")
+      && customScrollState.inspectorLayout.valueText.includes("section-with-an-intentionally-long-class-name")
+      && customScrollState.inspectorLayout.scrollWidth <= customScrollState.inspectorLayout.clientWidth
+      && customScrollState.inspectorLayout.termRight < customScrollState.inspectorLayout.valueLeft
+      && customScrollState.inspectorLayout.valueRight <= customScrollState.inspectorLayout.right + 0.5
+      && customScrollState.inspectorLayout.valueScrollWidth > customScrollState.inspectorLayout.valueClientWidth
+      && customScrollState.inspectorLayout.valueHeight <= customScrollState.inspectorLayout.valueLineHeight + 1
+      && customScrollState.inspectorLayout.valueOverflowWrap === "normal"
+      && customScrollState.inspectorLayout.valueWhiteSpace === "nowrap"
+      && customScrollState.inspectorLayout.valueTextOverflow === "ellipsis"
+      && customScrollState.inspectorLayout.valueOverflowX === "hidden"
+      && customScrollState.inspectorLayout.valueTitle === customScrollState.inspectorLayout.valueText
+      && customScrollState.inspectorLayout.valueTruncated
+      && customScrollState.hint.text === "Scroll the page to preview"
+      && customScrollState.hint.display !== "none"
+      && Math.abs(customScrollState.hint.centerX - customScrollState.hint.transportCenterX) <= 0.5
+      && customScrollState.hint.right <= customScrollState.hint.viewportControlsLeft
       && customScrollState.pillBounds.width > 0
       && customScrollState.pillBounds.left >= customScrollState.viewportBounds.left
       && customScrollState.pillBounds.right <= customScrollState.viewportBounds.right
@@ -428,7 +591,6 @@ async function verify({ artifactDirectory, send }) {
     `The outer ScrollTrigger progress pill edge is not draggable: ${JSON.stringify({ scrubPillDragStart, scrubPillDragActive, scrubPillDragFinished })}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.seek(1)`);
-  await screenshot(send, scrollScrub);
   const desktopMetrics = await evaluate(send, `({ width: innerWidth, height: innerHeight })`);
   await send("Emulation.setDeviceMetricsOverride", {
     width: desktopMetrics.width,
@@ -478,6 +640,7 @@ async function verify({ artifactDirectory, send }) {
       transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
       pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
       ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
     };
@@ -488,6 +651,7 @@ async function verify({ artifactDirectory, send }) {
       && actionScrollState.transportDisplay === "grid"
       && actionScrollState.playbackDisplay === "flex"
       && actionScrollState.viewportControlsDisplay === "flex"
+      && actionScrollState.hintDisplay === "none"
       && actionScrollState.pillHidden
       && actionScrollState.ruler.startsWith("Timeline ruler:"),
     `The trigger-action ScrollTrigger did not retain time transport: ${JSON.stringify(actionScrollState)}`,
@@ -1297,6 +1461,21 @@ async function verify({ artifactDirectory, send }) {
       transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).gridTemplateColumns.split(" ").length,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      hint: (() => {
+        const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect();
+        const hint = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint");
+        const bounds = hint.getBoundingClientRect();
+        const viewport = window.__devtoolsEditorV2Harness
+          .query(".devtools-editor__viewport-controls").getBoundingClientRect();
+        return {
+          display: getComputedStyle(hint).display,
+          text: hint.textContent,
+          centerX: bounds.left + bounds.width / 2,
+          transportCenterX: transport.left + transport.width / 2,
+          right: bounds.right,
+          viewportLeft: viewport.left,
+        };
+      })(),
       pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").hidden,
       mode: window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").dataset.timelineMode,
       pillBounds: (() => {
@@ -1335,6 +1514,10 @@ async function verify({ artifactDirectory, send }) {
       && narrowScrollState.transportColumns === 3
       && narrowScrollState.playbackDisplay === "none"
       && narrowScrollState.viewportControlsDisplay === "flex"
+      && narrowScrollState.hint.display !== "none"
+      && narrowScrollState.hint.text === "Scroll the page to preview"
+      && Math.abs(narrowScrollState.hint.centerX - narrowScrollState.hint.transportCenterX) <= 0.5
+      && narrowScrollState.hint.right <= narrowScrollState.hint.viewportLeft
       && !narrowScrollState.pillHidden
       && narrowScrollState.mode === "scroll-scrub"
       && narrowScrollState.pillBounds.width > 0
@@ -1342,6 +1525,60 @@ async function verify({ artifactDirectory, send }) {
       && narrowScrollState.pillBounds.right <= narrowScrollState.viewportBounds.right
       && validScrubEdgeGeometry(narrowScrollState.edgeGeometry),
     `The narrow ScrollTrigger inspection layout overflowed or exposed time transport: ${JSON.stringify(narrowScrollState)}`,
+  );
+  const narrowInspectorState = await evaluate(send, `(() => {
+    window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
+    const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
+    const field = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+      .find((candidate) => candidate.querySelector("dt")?.textContent === "Trigger");
+    const term = field.querySelector(".devtools-editor__inspector-term");
+    const value = field.querySelector(".devtools-editor__inspector-value");
+    const inspectorBounds = inspector.getBoundingClientRect();
+    const termBounds = term.getBoundingClientRect();
+    const valueBounds = value.getBoundingClientRect();
+    const valueStyle = getComputedStyle(value);
+    const state = {
+      clientWidth: inspector.clientWidth,
+      scrollWidth: inspector.scrollWidth,
+      inspectorRight: inspectorBounds.right,
+      termText: term.textContent,
+      termRight: termBounds.right,
+      valueText: value.textContent,
+      valueLeft: valueBounds.left,
+      valueRight: valueBounds.right,
+      valueHeight: valueBounds.height,
+      lineHeight: Number.parseFloat(valueStyle.lineHeight),
+      valueClientWidth: value.clientWidth,
+      valueScrollWidth: value.scrollWidth,
+      valueTitle: value.title,
+      valueWhiteSpace: valueStyle.whiteSpace,
+      valueTextOverflow: valueStyle.textOverflow,
+      valueOverflowX: valueStyle.overflowX,
+      valueTruncated: value.classList.contains("devtools-editor__inspector-value--truncate"),
+    };
+    window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click();
+    return {
+      ...state,
+      timelineRestored: getComputedStyle(
+        window.__devtoolsEditorV2Harness.query("[data-pane='timeline']"),
+      ).display !== "none",
+    };
+  })()`);
+  assert(
+    narrowInspectorState.termText === "Trigger"
+      && narrowInspectorState.valueText.includes("section-with-an-intentionally-long-class-name")
+      && narrowInspectorState.scrollWidth <= narrowInspectorState.clientWidth
+      && narrowInspectorState.termRight < narrowInspectorState.valueLeft
+      && narrowInspectorState.valueRight <= narrowInspectorState.inspectorRight + 0.5
+      && narrowInspectorState.valueScrollWidth > narrowInspectorState.valueClientWidth
+      && narrowInspectorState.valueHeight <= narrowInspectorState.lineHeight + 1
+      && narrowInspectorState.valueTitle === narrowInspectorState.valueText
+      && narrowInspectorState.valueWhiteSpace === "nowrap"
+      && narrowInspectorState.valueTextOverflow === "ellipsis"
+      && narrowInspectorState.valueOverflowX === "hidden"
+      && narrowInspectorState.valueTruncated
+      && narrowInspectorState.timelineRestored,
+    `The narrow Inspector did not wrap the long selector safely: ${JSON.stringify(narrowInspectorState)}`,
   );
   await screenshot(send, scrollScrubNarrow);
   await send("Emulation.setDeviceMetricsOverride", {
@@ -1386,9 +1623,19 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   await screenshot(send, narrow);
 
+  const nativeMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end").length`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
   assert(
-    await evaluate(send, `document.querySelectorAll("motion-devtools-editor").length === 0 && document.querySelectorAll("[data-devtools-editor-highlight-root]").length === 0 && document.querySelector("#devtools-v2-finite").parentElement?.id === "devtools-v2-sources" && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles"`),
+    await evaluate(send, `(() => {
+      const markers = [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")];
+      return document.querySelectorAll("motion-devtools-editor").length === 0
+        && document.querySelectorAll("[data-devtools-editor-highlight-root]").length === 0
+        && markers.length === ${nativeMarkersBeforeEditorDestroy}
+        && markers.every((marker) => getComputedStyle(marker).display !== "none")
+        && markers.every((marker) => marker.textContent.endsWith("Window scrub"))
+        && document.querySelector("#devtools-v2-finite").parentElement?.id === "devtools-v2-sources"
+        && document.querySelector("#devtools-v2-finite").nextElementSibling?.id === "devtools-v2-particles";
+    })()`),
     "Destroying the editor removed or moved application roots.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.remount()`);
@@ -1404,7 +1651,12 @@ async function verify({ artifactDirectory, send }) {
   assert(
     Math.abs(remountedResizeState.height - expectedNarrowHeight) <= 2
       && remountedResizeState.resizeState === "idle"
-      && Math.abs(Number(remountedResizeState.valueNow) - remountedResizeState.height) <= 1,
+      && Math.abs(Number(remountedResizeState.valueNow) - remountedResizeState.height) <= 1
+      && await evaluate(send, `(() => {
+        const markers = [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")];
+        return markers.length === ${nativeMarkersBeforeEditorDestroy}
+          && markers.every((marker) => getComputedStyle(marker).display === "none");
+      })()`),
     `The editor height ratio or resize lifecycle did not survive remount: ${JSON.stringify(remountedResizeState)}`,
   );
 
@@ -1413,6 +1665,7 @@ async function verify({ artifactDirectory, send }) {
     checks: [
       "timeline-selection",
       "scrolltrigger-window-scrub-seek",
+      "scrolltrigger-native-marker-ownership",
       "scrolltrigger-custom-scroller-seek",
       "scrolltrigger-numeric-smoothing-diagnostics",
       "scrolltrigger-trigger-action-time-transport",

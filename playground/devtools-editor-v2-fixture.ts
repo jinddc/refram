@@ -143,7 +143,19 @@ const registrations = [
   registerScrollTimeline(
     "playground/v2/window-scroll",
     "#devtools-v2-window-scroll",
-    { id: "Window scrub", start: "top bottom", end: "bottom top", scrub: true },
+    {
+      id: "Window scrub",
+      start: "top bottom",
+      end: "bottom top",
+      scrub: true,
+      markers: {
+        startColor: "#22c55e",
+        endColor: "#ef4444",
+        fontSize: "12px",
+        fontWeight: "600",
+        indent: 8,
+      },
+    },
   ),
   registerScrollTimeline(
     "playground/v2/custom-scroll",

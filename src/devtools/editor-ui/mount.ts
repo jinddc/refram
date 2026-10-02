@@ -195,34 +195,39 @@ export function mountEditorUi(
     if (snapshot.view.transport.playState === "running") schedulePlayheadFollow();
   };
 
-  const copySelectedTrackDebugJson = async (): Promise<void> => {
+  const copyInspectorText = async (
+    text: string,
+    button: HTMLButtonElement,
+    description: string,
+  ): Promise<void> => {
     const snapshot = controller.getSnapshot();
-    const debugJson = createSelectedTrackDebugJson(snapshot);
-    if (!debugJson) return;
     const request = ++copyRequest;
     const trackKey = snapshot.view.selectedTrackKey;
     clearCopyFeedbackTimer();
     elements.copyDebugButton.disabled = true;
-    elements.copyDebugButton.textContent = "Copying…";
+    button.textContent = "Copying…";
     elements.copyDebugStatus.textContent = "Copying…";
     elements.copyDebugStatus.dataset.state = "pending";
-    const copied = await copyTextToClipboard(debugJson, container.ownerDocument);
+    const copied = await copyTextToClipboard(text, container.ownerDocument);
     if (destroyed || request !== copyRequest
       || controller.getSnapshot().view.selectedTrackKey !== trackKey) return;
     elements.copyDebugButton.disabled = false;
-    elements.copyDebugButton.textContent = copied ? "Copied" : "Copy failed";
+    button.textContent = copied ? "Copied" : "Copy failed";
     elements.copyDebugStatus.textContent = copied
-      ? "Copied debug JSON."
-      : "Could not copy debug JSON. Clipboard access is unavailable.";
+      ? `Copied ${description}.`
+      : `Could not copy ${description}. Clipboard access is unavailable.`;
     elements.copyDebugStatus.dataset.state = copied ? "success" : "failure";
     copyFeedbackTimer = setTimeout(() => {
       copyFeedbackTimer = undefined;
       if (destroyed || request !== copyRequest
         || controller.getSnapshot().view.selectedTrackKey !== trackKey) return;
-      elements.copyDebugButton.textContent = "Copy debug JSON";
-      elements.copyDebugStatus.textContent = "";
-      elements.copyDebugStatus.dataset.state = "";
+      resetCopyFeedback();
     }, 1_000);
+  };
+
+  const copySelectedTrackDebugJson = async (): Promise<void> => {
+    const debugJson = createSelectedTrackDebugJson(controller.getSnapshot());
+    if (debugJson) await copyInspectorText(debugJson, elements.copyDebugButton, "debug JSON");
   };
 
   const setTimelineZoom = (zoom: number): void => {

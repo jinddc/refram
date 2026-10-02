@@ -779,4 +779,115 @@ describe("headless editor controller", () => {
     secondRegistration.destroy();
     registry.destroy();
   });
+
+  it("shows simplified native markers only after their timeline is selected", () => {
+    const registry = createTimelineRegistry();
+    const marked = directTimeline("marked-scroll");
+    const markerId = "Marked scroll";
+    const marker = (type: "start" | "end" | "scroller-start" | "scroller-end") => {
+      const element = document.createElement("div");
+      element.className = `gsap-marker-${type}`;
+      element.textContent = `${type}-${markerId}`;
+      document.body.append(element);
+      return element;
+    };
+    const markerStart = marker("start");
+    const markerEnd = marker("end");
+    const scrollerStart = marker("scroller-start");
+    const scrollerEnd = marker("scroller-end");
+    markerStart.style.setProperty(
+      "--motion-devtools-marker-inline-end",
+      "12px",
+      "important",
+    );
+    scrollerEnd.style.setProperty(
+      "--motion-devtools-marker-scroller-width",
+      "99px",
+      "important",
+    );
+    const markers = [markerStart, markerEnd, scrollerStart, scrollerEnd];
+    Object.defineProperty(marked.timeline, "scrollTrigger", {
+      value: {
+        start: 100,
+        end: 500,
+        progress: 0,
+        direction: 0,
+        markerStart,
+        markerEnd,
+        scroller: window,
+        vars: { id: markerId, scrub: true, markers: true },
+        scroll: () => 100,
+      },
+    });
+    const markedRegistration = registry.register(marked);
+    const standardRegistration = registry.register(directTimeline("standard"));
+    const editor = createEditorController({ registry });
+
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    expect(editor.selectTimeline("marked-scroll")).toBe(true);
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-selected",
+    ))).toBe(true);
+    expect(markers.map((node) => node.textContent)).toEqual([
+      "start",
+      "end",
+      "scroller start",
+      "scroller end",
+    ]);
+    expect(markerStart.style.getPropertyValue(
+      "--motion-devtools-marker-inline-end",
+    )).toBe("4px");
+    expect(markerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-inline-end",
+    )).toBe("4px");
+    expect(scrollerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-width",
+    )).toBe("0px");
+
+    expect(editor.selectTimeline("standard")).toBe(true);
+    expect(markers.every((node) => node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-selected",
+    ))).toBe(true);
+    editor.destroy();
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-hidden",
+    ))).toBe(true);
+    expect(markers.map((node) => node.textContent)).toEqual([
+      `start-${markerId}`,
+      `end-${markerId}`,
+      `scroller-start-${markerId}`,
+      `scroller-end-${markerId}`,
+    ]);
+    expect(markers.every((node) => !node.hasAttribute(
+      "data-motion-devtools-marker-selected",
+    ))).toBe(true);
+    expect(markerStart.style.getPropertyValue(
+      "--motion-devtools-marker-inline-end",
+    )).toBe("12px");
+    expect(markerStart.style.getPropertyPriority(
+      "--motion-devtools-marker-inline-end",
+    )).toBe("important");
+    expect(markerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-inline-end",
+    )).toBe("");
+    expect(scrollerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-width",
+    )).toBe("99px");
+    expect(scrollerEnd.style.getPropertyPriority(
+      "--motion-devtools-marker-scroller-width",
+    )).toBe("important");
+    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+
+    markedRegistration.destroy();
+    standardRegistration.destroy();
+    registry.destroy();
+  });
 });

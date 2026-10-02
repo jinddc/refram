@@ -1,5 +1,6 @@
 import type { gsap } from "gsap";
 import { readEditorTimeWindow } from "./editor-time";
+import { createScrollTriggerMarkerPresentation } from "./scrolltrigger-marker-presentation";
 import {
   buildEditorViewState,
   editorTrackKey,
@@ -62,6 +63,7 @@ export function createEditorController(
   const registry = options.registry ?? defaultTimelineRegistry;
   const listeners = new Set<(snapshot: EditorSnapshot) => void>();
   const timelineLabels = new WeakMap<MotionTimelineRegistration, string>();
+  const markerPresentation = createScrollTriggerMarkerPresentation();
   let registrySnapshot = registry.getSnapshot();
   let active: MotionTimelineRegistration | undefined;
   let activeIndex = 0;
@@ -79,7 +81,15 @@ export function createEditorController(
   let replayInProgress = false;
   let destroyed = false;
   let generation = 0;
+  let markerTimelineId: string | undefined;
   let current: EditorSnapshot;
+
+  const syncMarkers = (): void => {
+    markerPresentation.sync(
+      registrySnapshot.registrations,
+      active?.id === markerTimelineId ? markerTimelineId : undefined,
+    );
+  };
 
   const timelineLabel = (registration: MotionTimelineRegistration): string => {
     const cached = timelineLabels.get(registration);
@@ -163,6 +173,7 @@ export function createEditorController(
       return;
     }
     attachment = next;
+    syncMarkers();
   };
 
   const activate = (registration: MotionTimelineRegistration | undefined): void => {
@@ -213,6 +224,7 @@ export function createEditorController(
         error = cause;
       }
     }
+    syncMarkers();
     publish();
   };
 
@@ -229,6 +241,10 @@ export function createEditorController(
         : undefined;
       activate(initial ?? registrations[Math.min(activeIndex, registrations.length - 1)]);
     }
+    if (markerTimelineId && !registrations.some(({ id }) => id === markerTimelineId)) {
+      markerTimelineId = undefined;
+    }
+    syncMarkers();
     publish();
   };
 
@@ -261,7 +277,9 @@ export function createEditorController(
       if (destroyed) return false;
       const registration = registrySnapshot.registrations.find((candidate) => candidate.id === id);
       if (!registration) return false;
+      markerTimelineId = id;
       activate(registration);
+      syncMarkers();
       return true;
     },
     selectTrack(key) {
@@ -409,6 +427,7 @@ export function createEditorController(
       destroyed = true;
       unsubscribeRegistry();
       detach();
+      markerPresentation.destroy();
       active = undefined;
       listeners.clear();
       current = makeSnapshot();

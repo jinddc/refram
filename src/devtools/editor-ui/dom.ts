@@ -8,6 +8,7 @@ export interface EditorUiElements {
   readonly timelineListPane: HTMLElement;
   readonly timelinePane: HTMLElement;
   readonly transport: HTMLElement;
+  readonly transportHint: HTMLElement;
   readonly playback: HTMLElement;
   readonly viewportControls: HTMLElement;
   readonly inspectorPane: HTMLElement;
@@ -197,6 +198,12 @@ export function createEditorUiElements(): EditorUiElements {
   configurePane(timeline, "timeline", true);
   timeline.setAttribute("aria-label", "Timeline inspector");
   const transport = element("div", "devtools-editor__transport");
+  const transportHint = element(
+    "p",
+    "devtools-editor__transport-hint",
+    "Scroll the page to preview",
+  );
+  transportHint.hidden = true;
   const transportSettings = element("div", "devtools-editor__transport-settings");
   const speedSelect = element("select", "devtools-editor__speed");
   speedSelect.dataset.action = "set-speed";
@@ -293,7 +300,7 @@ export function createEditorUiElements(): EditorUiElements {
   const zoomControl = element("div", "devtools-editor__zoom-control");
   zoomControl.append(zoomOutButton, zoomRange, zoomInButton);
   viewportControls.append(resetButton, zoomControl);
-  transport.append(transportSettings, playback, viewportControls);
+  transport.append(transportSettings, playback, transportHint, viewportControls);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
   const trackLabels = element("div", "devtools-editor__track-labels");
@@ -388,6 +395,7 @@ export function createEditorUiElements(): EditorUiElements {
     timelineListPane,
     timelinePane: timeline,
     transport,
+    transportHint,
     playback,
     viewportControls,
     inspectorPane,
