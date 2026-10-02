@@ -519,6 +519,19 @@
   gap: 7px;
 }
 
+.devtools-editor__zoom-control[hidden],
+.devtools-editor [data-action="reset-timeline-zoom"][hidden] {
+  display: none;
+}
+
+.devtools-editor[data-timeline-mode="scroll-scrub"] .devtools-editor__timeline-visibility {
+  margin-left: 0;
+}
+
+.devtools-editor[data-timeline-mode="scroll-scrub"] .devtools-editor__timeline-visibility::before {
+  display: none;
+}
+
 .devtools-editor__zoom-range {
   width: 84px;
   height: 18px;
@@ -1294,10 +1307,6 @@
   .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] .devtools-editor__viewport-controls {
     grid-column: 3;
     grid-row: 1;
-  }
-
-  .devtools-editor__timeline[data-timeline-mode="scroll-scrub"] [data-action="reset-timeline-zoom"] {
-    display: none;
   }
 
   .devtools-editor__transport {

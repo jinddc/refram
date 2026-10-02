@@ -206,6 +206,8 @@ function renderTransport(
   elements.transport.hidden = false;
   elements.playback.hidden = scrubbed;
   elements.transportHint.hidden = !scrubbed;
+  elements.resetButton.hidden = scrubbed;
+  elements.zoomControl.hidden = scrubbed;
   elements.timelinePane.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
   elements.root.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
   const running = view.transport.playState === "running";

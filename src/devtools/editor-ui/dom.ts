@@ -28,6 +28,7 @@ export interface EditorUiElements {
   readonly reverseButton: HTMLButtonElement;
   readonly loopButton: HTMLButtonElement;
   readonly resetButton: HTMLButtonElement;
+  readonly zoomControl: HTMLElement;
   readonly zoomOutButton: HTMLButtonElement;
   readonly zoomInButton: HTMLButtonElement;
   readonly zoomRange: HTMLInputElement;
@@ -430,6 +431,7 @@ export function createEditorUiElements(): EditorUiElements {
     reverseButton,
     loopButton,
     resetButton,
+    zoomControl,
     zoomOutButton,
     zoomInButton,
     zoomRange,

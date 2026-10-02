@@ -312,7 +312,7 @@ async function verify({ artifactDirectory, send }) {
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='zoom-range']")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
       pill: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.textContent,
       pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
       playheadValue: window.__devtoolsEditorV2Harness.query("[data-role='playhead']")?.getAttribute("aria-valuetext"),
@@ -348,8 +348,8 @@ async function verify({ artifactDirectory, send }) {
       && windowScrollState.transportDisplay === "grid"
       && windowScrollState.playbackDisplay === "none"
       && windowScrollState.viewportControlsDisplay === "flex"
-      && windowScrollState.resetDisplay !== "none"
-      && windowScrollState.zoomDisplay !== "none"
+      && windowScrollState.resetDisplay === "none"
+      && windowScrollState.zoomDisplay === "none"
       && !windowScrollState.pillHidden
       && windowScrollState.pill === "50%"
       && windowScrollState.playheadValue === "50%",
@@ -359,11 +359,6 @@ async function verify({ artifactDirectory, send }) {
   const desktopScrollExpandedHeight = await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`);
   const desktopScrollMinimalState = await evaluate(send, `(() => {
     const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
-    const expandedToggleBounds = toggle.getBoundingClientRect();
-    const expandedZoomInBounds = window.__devtoolsEditorV2Harness
-      .query("[data-action='zoom-in']").getBoundingClientRect();
-    const expandedSeparatorLeft = expandedToggleBounds.left
-      + Number.parseFloat(getComputedStyle(toggle, "::before").left);
     toggle.click();
     const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
     const host = document.querySelector("motion-devtools-editor");
@@ -387,10 +382,7 @@ async function verify({ artifactDirectory, send }) {
       playheadHeight: playhead.getBoundingClientRect().height,
       toggleRightGap: transportBounds.right - toggleBounds.right,
       toggleBorderLeft: getComputedStyle(toggle).borderLeftWidth,
-      toggleSeparatorWidth: getComputedStyle(toggle, "::before").width,
-      toggleSeparatorLeft: getComputedStyle(toggle, "::before").left,
-      zoomToSeparatorGap: expandedSeparatorLeft - expandedZoomInBounds.right,
-      separatorToToggleGap: expandedToggleBounds.left - expandedSeparatorLeft,
+      toggleSeparatorDisplay: getComputedStyle(toggle, "::before").display,
       iconStrokeWidth: getComputedStyle(toggle.querySelector("path")).strokeWidth,
       label: toggle.getAttribute("aria-label"),
       expanded: toggle.getAttribute("aria-expanded"),
@@ -419,10 +411,7 @@ async function verify({ artifactDirectory, send }) {
       && Math.abs(desktopScrollMinimalState.playheadHeight - 20) <= 1
       && Math.abs(desktopScrollMinimalState.toggleRightGap - 10) <= 1
       && desktopScrollMinimalState.toggleBorderLeft === "0px"
-      && desktopScrollMinimalState.toggleSeparatorWidth === "1px"
-      && desktopScrollMinimalState.toggleSeparatorLeft === "-6px"
-      && Math.abs(desktopScrollMinimalState.zoomToSeparatorGap - 4) <= 0.5
-      && Math.abs(desktopScrollMinimalState.separatorToToggleGap - 6) <= 0.5
+      && desktopScrollMinimalState.toggleSeparatorDisplay === "none"
       && Number.parseFloat(desktopScrollMinimalState.iconStrokeWidth) >= 0.6
       && desktopScrollMinimalState.label === "Show timeline"
       && desktopScrollMinimalState.expanded === "false"
@@ -535,6 +524,8 @@ async function verify({ artifactDirectory, send }) {
       })(),
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
       viewportControlsRight: window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls").getBoundingClientRect().right,
       playhead: (() => {
         const element = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
@@ -621,6 +612,8 @@ async function verify({ artifactDirectory, send }) {
       && customScrollState.transport.columns === 3
       && customScrollState.playbackDisplay === "none"
       && customScrollState.viewportControlsDisplay === "flex"
+      && customScrollState.resetDisplay === "none"
+      && customScrollState.zoomDisplay === "none"
       && Math.abs(customScrollState.transport.right - customScrollState.viewportControlsRight - 10) <= 1
       && customScrollState.playhead.lineTop >= 0
       && customScrollState.playhead.lineTop
@@ -1618,6 +1611,8 @@ async function verify({ artifactDirectory, send }) {
       transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).gridTemplateColumns.split(" ").length,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
       hint: (() => {
         const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect();
         const hint = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint");
@@ -1671,6 +1666,8 @@ async function verify({ artifactDirectory, send }) {
       && narrowScrollState.transportColumns === 3
       && narrowScrollState.playbackDisplay === "none"
       && narrowScrollState.viewportControlsDisplay === "flex"
+      && narrowScrollState.resetDisplay === "none"
+      && narrowScrollState.zoomDisplay === "none"
       && narrowScrollState.hint.display !== "none"
       && narrowScrollState.hint.text === "Scroll the page to preview"
       && Math.abs(narrowScrollState.hint.centerX - narrowScrollState.hint.transportCenterX) <= 0.5

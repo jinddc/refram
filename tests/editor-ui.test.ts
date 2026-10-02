@@ -2107,6 +2107,12 @@ describe("DevTools editor UI v2", () => {
     )!;
     const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
     const viewportControls = container.querySelector<HTMLElement>(".devtools-editor__viewport-controls")!;
+    const resetZoom = viewportControls.querySelector<HTMLButtonElement>(
+      "[data-action='reset-timeline-zoom']",
+    )!;
+    const zoomControl = viewportControls.querySelector<HTMLElement>(
+      ".devtools-editor__zoom-control",
+    )!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
@@ -2118,8 +2124,8 @@ describe("DevTools editor UI v2", () => {
     expect(transportHint.hidden).toBe(false);
     expect(transportHint.textContent).toBe("Scroll the page to preview");
     expect(viewportControls.hidden).toBe(false);
-    expect(viewportControls.querySelector("[data-action='reset-timeline-zoom']")).not.toBeNull();
-    expect(viewportControls.querySelector("[data-role='zoom-range']")).not.toBeNull();
+    expect(resetZoom.hidden).toBe(true);
+    expect(zoomControl.hidden).toBe(true);
     expect(ruler.getAttribute("aria-label")).toBe("Scroll progress ruler from 0% to 100%");
     expect([...ruler.querySelectorAll(".devtools-editor__tick")].map((tick) => tick.textContent))
       .toEqual(["0%", "25%", "50%", "75%", "100%"]);
@@ -2228,6 +2234,8 @@ describe("DevTools editor UI v2", () => {
     expect(transport.hidden).toBe(false);
     expect(playback.hidden).toBe(false);
     expect(transportHint.hidden).toBe(true);
+    expect(resetZoom.hidden).toBe(false);
+    expect(zoomControl.hidden).toBe(false);
     expect(pill.hidden).toBe(true);
     expect(container.querySelector("[data-action='copy-markers-config']")).toBeNull();
     expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
