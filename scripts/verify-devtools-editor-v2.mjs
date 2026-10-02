@@ -104,6 +104,7 @@ async function verify({ artifactDirectory, send }) {
       return {
         role: group.getAttribute("role"),
         label: group.getAttribute("aria-label"),
+        display: style.display,
         height: bounds.height,
         borderWidth: style.borderTopWidth,
         backgroundColor: style.backgroundColor,
@@ -140,6 +141,14 @@ async function verify({ artifactDirectory, send }) {
         icons: [...button.querySelectorAll(".devtools-editor__transport-icon")].map((icon) => icon.dataset.icon),
       };
     }),
+    jumpAction: (() => {
+      const button = window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']");
+      return {
+        hidden: button.hidden,
+        disabled: button.disabled,
+        label: button.getAttribute("aria-label"),
+      };
+    })(),
     replayBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).backgroundColor,
     replayBorderWidth: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).borderTopWidth,
     editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
@@ -178,8 +187,8 @@ async function verify({ artifactDirectory, send }) {
   );
   assert(desktopState.playheadIcon, "The SVG playhead handle was not rendered.");
   assert(
-    desktopState.transportGroups.length === 2
-      && desktopState.transportGroups.every(({ role, label, height, borderWidth, backgroundColor }) => (
+    desktopState.transportGroups.length === 3
+      && desktopState.transportGroups.every(({ role, label, display, height, borderWidth, backgroundColor }) => (
         role === "group"
           && Boolean(label)
           && Math.abs(height - (label === "Playback controls" ? 32 : 28)) <= 1
@@ -207,7 +216,24 @@ async function verify({ artifactDirectory, send }) {
       && desktopState.playBackground === "rgb(255, 255, 255)"
       && desktopState.playBackground !== desktopState.replayBackground
       && desktopState.replayBorderWidth === "0px",
-    `The transport hierarchy or grouping is incorrect: ${JSON.stringify(desktopState)}`,
+    `The transport hierarchy or grouping is incorrect: ${JSON.stringify({
+      transportGroups: desktopState.transportGroups,
+      speedParent: desktopState.speedParent,
+      playbackOrder: desktopState.playbackOrder,
+      playbackActionOrder: desktopState.playbackActionOrder,
+      playbackCenterOffset: desktopState.playbackCenterOffset,
+      playButtonGeometry: desktopState.playButtonGeometry,
+      transportIconActions: desktopState.transportIconActions,
+      playBackground: desktopState.playBackground,
+      replayBackground: desktopState.replayBackground,
+      replayBorderWidth: desktopState.replayBorderWidth,
+    })}`,
+  );
+  assert(
+    !desktopState.jumpAction.hidden
+      && !desktopState.jumpAction.disabled
+      && desktopState.jumpAction.label === "Jump to target",
+    `The ordinary timeline target action is incorrect: ${JSON.stringify(desktopState.jumpAction)}`,
   );
   assert(
     desktopState.activeTimeline === "playground/v2/finite"
@@ -232,26 +258,73 @@ async function verify({ artifactDirectory, send }) {
   const windowScrollState = await evaluate(send, `(async () => {
     window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']").click();
     const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
+    const jumpButton = window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']");
+    const markersButton = window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']");
+    const markerConfig = trigger.vars.markers;
+    const markersOnColor = getComputedStyle(markersButton).color;
+    jumpButton.click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const triggerBoundsAfterJump = trigger.trigger.getBoundingClientRect();
+    const jumpTargetOffset = Math.abs(
+      triggerBoundsAfterJump.top + triggerBoundsAfterJump.height / 2 - innerHeight / 2,
+    );
     const expected = trigger.start + (trigger.end - trigger.start) * 0.5;
     const sought = window.__devtoolsEditorV2Harness.seek(0.5);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const markerTops = (selector) => Object.fromEntries(
-      [...document.querySelectorAll(selector)].map((marker) => [
-        marker.textContent,
-        marker.getBoundingClientRect().top,
-      ]),
+    const markerTops = (types) => Object.fromEntries(
+      [...document.querySelectorAll("[data-motion-devtools-owned-marker]")]
+        .filter((marker) => types.includes(marker.dataset.motionDevtoolsOwnedMarkerType))
+        .map((marker) => [
+          marker.dataset.motionDevtoolsOwnedMarkerType,
+          marker.getBoundingClientRect().top,
+        ]),
     );
-    const contentBeforeScroll = markerTops(".gsap-marker-start, .gsap-marker-end");
-    const scrollerBeforeScroll = markerTops(".gsap-marker-scroller-start, .gsap-marker-scroller-end");
+    const contentBeforeScroll = markerTops(["start", "end"]);
+    const scrollerBeforeScroll = markerTops(["scroller-start", "scroller-end"]);
     trigger.scroll(expected + 20);
     trigger.update();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const contentAfterScroll = markerTops(".gsap-marker-start, .gsap-marker-end");
-    const scrollerAfterScroll = markerTops(".gsap-marker-scroller-start, .gsap-marker-scroller-end");
+    const contentAfterScroll = markerTops(["start", "end"]);
+    const scrollerAfterScroll = markerTops(["scroller-start", "scroller-end"]);
     trigger.scroll(expected);
     trigger.update();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const previewBottom = document.querySelector("motion-devtools-editor").getBoundingClientRect().top;
+    const ownedMarkers = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")].map((marker) => {
+      const rect = marker.getBoundingClientRect();
+      return {
+        type: marker.dataset.motionDevtoolsOwnedMarkerType,
+        text: marker.textContent,
+        display: getComputedStyle(marker).display,
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        },
+        visibleInPreview: rect.top >= -0.5
+          && rect.bottom <= previewBottom + 0.5
+          && rect.right > 0
+          && rect.left < window.innerWidth,
+      };
+    });
+    const markersDoNotOverlap = ownedMarkers.every((marker, index) => (
+      ownedMarkers.slice(index + 1).every((other) => (
+        marker.rect.bottom <= other.rect.top + 0.5
+          || other.rect.bottom <= marker.rect.top + 0.5
+          || marker.rect.right <= other.rect.left + 0.5
+          || other.rect.right <= marker.rect.left + 0.5
+      ))
+    ));
+    markersButton.click();
+    const markersCleanedAfterToggle = document.querySelectorAll(
+      "[data-motion-devtools-owned-marker]",
+    ).length === 0;
+    const markersOffColor = getComputedStyle(markersButton).color;
+    const markersPressedOff = markersButton.getAttribute("aria-pressed");
+    markersButton.click();
     return {
       sought,
       expected,
@@ -268,46 +341,33 @@ async function verify({ artifactDirectory, send }) {
           scrollerAfterScroll[label] - scrollerBeforeScroll[label]
         )),
       },
-      markerPairGaps: {
-        start: document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().left
-          - document.querySelector(".gsap-marker-start").getBoundingClientRect().right,
-        end: document.querySelector(".gsap-marker-scroller-end").getBoundingClientRect().left
-          - document.querySelector(".gsap-marker-end").getBoundingClientRect().right,
-      },
-      scrollerMarkerWidths: {
-        start: document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().width,
-        end: document.querySelector(".gsap-marker-scroller-end").getBoundingClientRect().width,
-      },
-      scrollerStartInset: previewBottom
-        - document.querySelector(".gsap-marker-scroller-start").getBoundingClientRect().bottom,
+      scrollerStartInset: previewBottom - ownedMarkers
+        .find(({ type }) => type === "scroller-start").rect.bottom,
+      scrollerEndInset: ownedMarkers
+        .find(({ type }) => type === "scroller-end").rect.top,
       copyMarkersAbsent: window.__devtoolsEditorV2Harness.query(
         "[data-action='copy-markers-config']",
       ) === null,
-      nativeMarkerCount: document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end").length,
-      nativeMarkers: [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")].map((marker) => {
-        const rect = marker.getBoundingClientRect();
-        return {
-          text: marker.textContent,
-          display: getComputedStyle(marker).display,
-          rect: {
-            left: rect.left,
-            top: rect.top,
-            right: rect.right,
-            bottom: rect.bottom,
-            width: rect.width,
-            height: rect.height,
-          },
-          visibleInViewport: rect.bottom > 0
-            && rect.top < window.innerHeight
-            && rect.right > 0
-            && rect.left < window.innerWidth,
-          visibleInPreview: rect.bottom > 0
-            && rect.bottom <= previewBottom + 1
-            && rect.right > 0
-            && rect.left < window.innerWidth,
-        };
-      }),
+      ownedMarkers,
+      markersDoNotOverlap,
       markers: window.__devtoolsEditorV2Harness.view.scrollTrigger?.markers,
+      actions: {
+        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+        jumpDisabled: jumpButton.disabled,
+        jumpLabel: jumpButton.getAttribute("aria-label"),
+        jumpIcon: jumpButton.querySelector("svg")?.dataset.icon,
+        jumpTargetOffset,
+        markersDisabled: markersButton.disabled,
+        markersPressed: markersButton.getAttribute("aria-pressed"),
+        markersLabel: markersButton.getAttribute("aria-label"),
+        markersIcon: markersButton.querySelector("svg")?.dataset.icon,
+        markersCleanedAfterToggle,
+        markersPressedOff,
+        markersOnColor,
+        markersOffColor,
+        markerConfigPreserved: trigger.vars.markers === markerConfig,
+        triggerPreserved: window.__devtoolsEditorV2Harness.activeScrollTrigger === trigger,
+      },
       transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
@@ -325,26 +385,35 @@ async function verify({ artifactDirectory, send }) {
       && windowScrollState.label === "Window scrub"
       && windowScrollState.ruler === "Scroll progress ruler from 0% to 100%"
       && windowScrollState.ticks.join("|") === "0%|25%|50%|75%|100%"
-      && windowScrollState.nativeMarkerCount === 4
-      && windowScrollState.nativeMarkers.map(({ text }) => text).sort().join("|")
+      && windowScrollState.ownedMarkers.length === 4
+      && windowScrollState.ownedMarkers.map(({ text }) => text).sort().join("|")
         === "end|scroller end|scroller start|start"
-      && windowScrollState.nativeMarkers.every(({ display }) => display !== "none")
-      && windowScrollState.nativeMarkers.every(({ visibleInViewport }) => visibleInViewport)
-      && windowScrollState.nativeMarkers
-        .filter(({ text }) => text.startsWith("scroller "))
+      && windowScrollState.ownedMarkers.every(({ display }) => display !== "none")
+      && windowScrollState.ownedMarkers
+        .filter(({ type }) => type.startsWith("scroller-"))
         .every(({ visibleInPreview }) => visibleInPreview)
+      && windowScrollState.ownedMarkers.every(({ rect }) => rect.width > 0 && rect.height > 0)
+      && windowScrollState.markersDoNotOverlap
       && windowScrollState.markerMotion.content.every((delta) => Math.abs(delta + 20) <= 1)
       && windowScrollState.markerMotion.scroller.every((delta) => Math.abs(delta) <= 1)
-      && Math.abs(windowScrollState.markerPairGaps.start - 4) <= 1
-      && Math.abs(windowScrollState.markerPairGaps.end - 4) <= 1
-      && Math.abs(
-        windowScrollState.scrollerMarkerWidths.start
-          - windowScrollState.scrollerMarkerWidths.end,
-      ) <= 1
-      && Math.abs(windowScrollState.scrollerStartInset - 1) <= 0.5
+      && Math.abs(windowScrollState.scrollerStartInset) <= 0.5
+      && Math.abs(windowScrollState.scrollerEndInset) <= 0.5
       && windowScrollState.copyMarkersAbsent
-      && windowScrollState.markers?.startColor === "#22c55e"
-      && windowScrollState.markers?.endColor === "#ef4444"
+      && windowScrollState.markers === false
+      && windowScrollState.actions.display === "flex"
+      && !windowScrollState.actions.jumpDisabled
+      && windowScrollState.actions.jumpLabel === "Jump to target"
+      && windowScrollState.actions.jumpIcon === "jump-to-target"
+      && windowScrollState.actions.jumpTargetOffset <= 2
+      && !windowScrollState.actions.markersDisabled
+      && windowScrollState.actions.markersPressed === "true"
+      && windowScrollState.actions.markersLabel === "Hide ScrollTrigger markers"
+      && windowScrollState.actions.markersIcon === "markers"
+      && windowScrollState.actions.markersCleanedAfterToggle
+      && windowScrollState.actions.markersPressedOff === "false"
+      && windowScrollState.actions.markersOnColor !== windowScrollState.actions.markersOffColor
+      && windowScrollState.actions.markerConfigPreserved
+      && windowScrollState.actions.triggerPreserved
       && windowScrollState.transportDisplay === "grid"
       && windowScrollState.playbackDisplay === "none"
       && windowScrollState.viewportControlsDisplay === "flex"
@@ -388,6 +457,7 @@ async function verify({ artifactDirectory, send }) {
       expanded: toggle.getAttribute("aria-expanded"),
       separatorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='height-separator']")).display,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
       hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
       inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
       trackLabelsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='track-labels']")).display,
@@ -417,6 +487,7 @@ async function verify({ artifactDirectory, send }) {
       && desktopScrollMinimalState.expanded === "false"
       && desktopScrollMinimalState.separatorDisplay === "none"
       && desktopScrollMinimalState.playbackDisplay === "none"
+      && desktopScrollMinimalState.actionsDisplay === "flex"
       && desktopScrollMinimalState.hintDisplay !== "none"
       && desktopScrollMinimalState.inspectorDisplay === "none"
       && desktopScrollMinimalState.trackLabelsDisplay === "none"
@@ -437,13 +508,32 @@ async function verify({ artifactDirectory, send }) {
     Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - desktopScrollExpandedHeight) <= 1,
     "Expanding the desktop ScrollTrigger timeline did not restore its height.",
   );
-  const customScrollState = await evaluate(send, `(() => {
+  const customScrollState = await evaluate(send, `(async () => {
     document.querySelector("#devtools-v2-custom-trigger").className =
       "section-with-an-intentionally-long-class-name feature-panel-active-with-extra-detail";
     window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/custom-scroll']").click();
     const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
     const expected = trigger.start + (trigger.end - trigger.start) * 0.75;
     const sought = window.__devtoolsEditorV2Harness.seek(0.75);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const markerSelector = "[data-motion-devtools-owned-marker]";
+    const markerTops = () => Object.fromEntries([...document.querySelectorAll(markerSelector)].map((marker) => [
+      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.getBoundingClientRect().top,
+    ]));
+    const ownedBeforeScroll = markerTops();
+    trigger.scroll(expected + 20);
+    trigger.update();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const ownedAfterScroll = markerTops();
+    trigger.scroll(expected);
+    trigger.update();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const markerConfig = trigger.vars.markers;
+    const markersButton = window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']");
+    markersButton.click();
+    const ownedCountAfterToggleOff = document.querySelectorAll(markerSelector).length;
+    markersButton.click();
     window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
     const inspectorContent = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
     const triggerField = [...inspectorContent.querySelectorAll(".devtools-editor__inspector-field")]
@@ -460,6 +550,8 @@ async function verify({ artifactDirectory, send }) {
     const hintBounds = hintElement.getBoundingClientRect();
     const viewportControlBounds = window.__devtoolsEditorV2Harness
       .query(".devtools-editor__viewport-controls").getBoundingClientRect();
+    const actionBounds = window.__devtoolsEditorV2Harness
+      .query(".devtools-editor__transport-settings").getBoundingClientRect();
     return {
       sought,
       expected,
@@ -469,6 +561,21 @@ async function verify({ artifactDirectory, send }) {
       animationProgress: window.__devtoolsEditorV2Harness.view.scrollTrigger?.animationProgress,
       nativeMarkersHidden: [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")]
         .every((marker) => getComputedStyle(marker).display === "none"),
+      ownedMarkers: {
+        count: document.querySelectorAll(markerSelector).length,
+        types: [...document.querySelectorAll(markerSelector)].map((marker) => (
+          marker.dataset.motionDevtoolsOwnedMarkerType
+        )).sort(),
+        contentMotion: ["start", "end"].map((type) => (
+          ownedAfterScroll[type] - ownedBeforeScroll[type]
+        )),
+        scrollerMotion: ["scroller-start", "scroller-end"].map((type) => (
+          ownedAfterScroll[type] - ownedBeforeScroll[type]
+        )),
+        countAfterToggleOff: ownedCountAfterToggleOff,
+        configPreserved: trigger.vars.markers === markerConfig && !markerConfig,
+        triggerPreserved: window.__devtoolsEditorV2Harness.activeScrollTrigger === trigger,
+      },
       inspector: inspectorContent.textContent,
       inspectorLayout: {
         clientWidth: inspectorContent.clientWidth,
@@ -499,6 +606,12 @@ async function verify({ artifactDirectory, send }) {
         transportCenterX: transportBounds.left + transportBounds.width / 2,
         right: hintBounds.right,
         viewportControlsLeft: viewportControlBounds.left,
+        actionsRight: actionBounds.right,
+      },
+      actions: {
+        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+        jumpDisabled: window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']").disabled,
+        markersDisabled: window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").disabled,
       },
       pillBounds: (() => {
         const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
@@ -567,7 +680,7 @@ async function verify({ artifactDirectory, send }) {
         };
       }),
     };
-  })()`);
+  })()`, true);
   assert(
     customScrollState.sought
       && Math.abs(customScrollState.actual - customScrollState.expected) <= 2
@@ -575,6 +688,13 @@ async function verify({ artifactDirectory, send }) {
       && customScrollState.progress >= 0.74
       && customScrollState.progress <= 0.76
       && customScrollState.nativeMarkersHidden
+      && customScrollState.ownedMarkers.count === 4
+      && customScrollState.ownedMarkers.types.join("|") === "end|scroller-end|scroller-start|start"
+      && customScrollState.ownedMarkers.contentMotion.every((delta) => Math.abs(delta + 20) <= 1)
+      && customScrollState.ownedMarkers.scrollerMotion.every((delta) => Math.abs(delta) <= 1)
+      && customScrollState.ownedMarkers.countAfterToggleOff === 0
+      && customScrollState.ownedMarkers.configPreserved
+      && customScrollState.ownedMarkers.triggerPreserved
       && customScrollState.inspector.includes("ScrollTrigger stateActive")
       && customScrollState.inspector.includes("Raw starttop bottom")
       && customScrollState.inspector.includes("Raw endbottom top")
@@ -601,6 +721,10 @@ async function verify({ artifactDirectory, send }) {
       && customScrollState.hint.display !== "none"
       && Math.abs(customScrollState.hint.centerX - customScrollState.hint.transportCenterX) <= 0.5
       && customScrollState.hint.right <= customScrollState.hint.viewportControlsLeft
+      && customScrollState.hint.actionsRight <= customScrollState.hint.transportCenterX
+      && customScrollState.actions.display === "flex"
+      && !customScrollState.actions.jumpDisabled
+      && !customScrollState.actions.markersDisabled
       && customScrollState.pillBounds.width > 0
       && customScrollState.pillBounds.left >= customScrollState.viewportBounds.left
       && customScrollState.pillBounds.right <= customScrollState.viewportBounds.right
@@ -627,6 +751,37 @@ async function verify({ artifactDirectory, send }) {
       && customScrollState.playhead.pillTop >= customScrollState.playhead.top
       && validScrubEdgeGeometry(customScrollState.edgeGeometry),
     `The real custom-scroller ScrollTrigger inspection mode is incorrect: ${JSON.stringify(customScrollState)}`,
+  );
+  const elementScrollerBoundaryState = await evaluate(send, `(async () => {
+    const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
+    const scroller = document.querySelector("#devtools-v2-custom-scroller");
+    const originalHeight = scroller.style.height;
+    scroller.style.height = innerHeight + "px";
+    trigger.refresh();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const editorTop = document.querySelector("motion-devtools-editor").getBoundingClientRect().top;
+    const scrollerBounds = scroller.getBoundingClientRect();
+    const markerBounds = document.querySelector(
+      "[data-motion-devtools-owned-marker-type='scroller-start']",
+    ).getBoundingClientRect();
+    const state = {
+      editorTop,
+      scrollerBottom: scrollerBounds.bottom,
+      markerTop: markerBounds.top,
+      markerBottom: markerBounds.bottom,
+    };
+    scroller.style.height = originalHeight;
+    trigger.refresh();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return state;
+  })()`, true);
+  assert(
+    elementScrollerBoundaryState.scrollerBottom > elementScrollerBoundaryState.editorTop
+      && elementScrollerBoundaryState.markerTop >= -0.5
+      && Math.abs(
+        elementScrollerBoundaryState.markerBottom - elementScrollerBoundaryState.editorTop,
+      ) <= 0.5,
+    `The element-scroller start marker was not fully visible above DevTools: ${JSON.stringify(elementScrollerBoundaryState)}`,
   );
   const scrubPillDragStart = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.seek(0.5);
@@ -721,6 +876,28 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']")?.click()`);
   const actionScrollState = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/action-scroll");
+    const trigger = window.__devtoolsEditorV2Harness.activeScrollTrigger;
+    const markerConfig = trigger.vars.markers;
+    const markerButton = window.__devtoolsEditorV2Harness.query(
+      "[data-action='toggle-scrolltrigger-markers']",
+    );
+    const markerBounds = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")]
+      .map((marker) => {
+        const rect = marker.getBoundingClientRect();
+        return {
+          type: marker.dataset.motionDevtoolsOwnedMarkerType,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+    markerButton.click();
+    const ownedAfterToggleOff = document.querySelectorAll(
+      "[data-motion-devtools-owned-marker]",
+    ).length;
+    const pressedAfterToggleOff = markerButton.getAttribute("aria-pressed");
+    markerButton.click();
     return {
       scrubbed: window.__devtoolsEditorV2Harness.view.scrollTrigger?.scrubbed,
       canPlay: window.__devtoolsEditorV2Harness.view.transport.canPlay,
@@ -728,23 +905,57 @@ async function verify({ artifactDirectory, send }) {
       transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
       hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
       pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
       ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
+      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")]
+        .map((tick) => tick.textContent),
+      markerButton: {
+        hidden: markerButton.hidden,
+        disabled: markerButton.disabled,
+        pressed: markerButton.getAttribute("aria-pressed"),
+        pressedAfterToggleOff,
+      },
+      markerBounds,
+      ownedAfterToggleOff,
+      markerConfigPreserved: trigger.vars.markers === markerConfig,
+      triggerPreserved: window.__devtoolsEditorV2Harness.activeScrollTrigger === trigger,
+      start: trigger.vars.start,
+      end: trigger.vars.end,
+      toggleActions: trigger.vars.toggleActions,
     };
   })()`);
   assert(
     actionScrollState.scrubbed === false
       && (actionScrollState.canPlay || actionScrollState.canPause)
       && actionScrollState.transportDisplay === "grid"
+      && actionScrollState.actionsDisplay === "flex"
       && actionScrollState.playbackDisplay === "flex"
       && actionScrollState.viewportControlsDisplay === "flex"
       && actionScrollState.hintDisplay === "none"
       && actionScrollState.pillHidden
-      && actionScrollState.ruler.startsWith("Timeline ruler:"),
+      && actionScrollState.ruler.startsWith("Timeline ruler:")
+      && actionScrollState.ticks.every((tick) => !tick.endsWith("%"))
+      && !actionScrollState.markerButton.hidden
+      && !actionScrollState.markerButton.disabled
+      && actionScrollState.markerButton.pressed === "true"
+      && actionScrollState.markerButton.pressedAfterToggleOff === "false"
+      && actionScrollState.markerBounds.length === 4
+      && actionScrollState.markerBounds.every(({ width, height }) => width > 0 && height > 0)
+      && actionScrollState.ownedAfterToggleOff === 0
+      && actionScrollState.markerConfigPreserved
+      && actionScrollState.triggerPreserved
+      && actionScrollState.start === "top 80%"
+      && actionScrollState.end === "bottom 20%"
+      && actionScrollState.toggleActions === "play pause resume reverse",
     `The trigger-action ScrollTrigger did not retain time transport: ${JSON.stringify(actionScrollState)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/finite")`);
+  assert(
+    await evaluate(send, `document.querySelectorAll("[data-motion-devtools-owned-marker]").length === 0 && window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").hidden`),
+    "Trigger-action fallback markers were not cleaned up after selecting an ordinary timeline.",
+  );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   const collapsedTimelineList = await evaluate(send, `(() => ({
     visible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
@@ -1611,6 +1822,9 @@ async function verify({ artifactDirectory, send }) {
       transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).gridTemplateColumns.split(" ").length,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
       viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+      jumpDisabled: window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']").disabled,
+      markersDisabled: window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").disabled,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
       zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
       hint: (() => {
@@ -1666,6 +1880,9 @@ async function verify({ artifactDirectory, send }) {
       && narrowScrollState.transportColumns === 3
       && narrowScrollState.playbackDisplay === "none"
       && narrowScrollState.viewportControlsDisplay === "flex"
+      && narrowScrollState.actionsDisplay === "flex"
+      && !narrowScrollState.jumpDisabled
+      && !narrowScrollState.markersDisabled
       && narrowScrollState.resetDisplay === "none"
       && narrowScrollState.zoomDisplay === "none"
       && narrowScrollState.hint.display !== "none"
@@ -1749,6 +1966,7 @@ async function verify({ artifactDirectory, send }) {
       viewportHeight: viewport.getBoundingClientRect().height,
       documentWidth: document.documentElement.scrollWidth,
       playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
       hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
       progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
       zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
@@ -1762,6 +1980,7 @@ async function verify({ artifactDirectory, send }) {
       && Math.abs(narrowScrollMinimalState.viewportHeight - 20) <= 1
       && narrowScrollMinimalState.documentWidth <= 640
       && narrowScrollMinimalState.playbackDisplay === "none"
+      && narrowScrollMinimalState.actionsDisplay === "flex"
       && narrowScrollMinimalState.hintDisplay !== "none"
       && narrowScrollMinimalState.progressPillDisplay === "flex"
       && narrowScrollMinimalState.zoomDisplay === "none"
@@ -1817,6 +2036,8 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
   await screenshot(send, narrow);
 
+  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll")`);
+  const ownedMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll("[data-motion-devtools-owned-marker]").length`);
   const nativeMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end").length`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
   assert(
@@ -1824,6 +2045,8 @@ async function verify({ artifactDirectory, send }) {
       const markers = [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")];
       return document.querySelectorAll("motion-devtools-editor").length === 0
         && document.querySelectorAll("[data-devtools-editor-highlight-root]").length === 0
+        && ${ownedMarkersBeforeEditorDestroy} === 4
+        && document.querySelectorAll("[data-motion-devtools-owned-marker]").length === 0
         && markers.length === ${nativeMarkersBeforeEditorDestroy}
         && markers.every((marker) => getComputedStyle(marker).display !== "none")
         && markers.every((marker) => marker.textContent.endsWith("Window scrub"))
@@ -1860,6 +2083,7 @@ async function verify({ artifactDirectory, send }) {
       "timeline-selection",
       "scrolltrigger-window-scrub-seek",
       "scrolltrigger-native-marker-ownership",
+      "scrolltrigger-owned-marker-fallback",
       "scrolltrigger-custom-scroller-seek",
       "scrolltrigger-numeric-smoothing-diagnostics",
       "scrolltrigger-trigger-action-time-transport",

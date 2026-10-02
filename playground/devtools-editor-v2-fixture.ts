@@ -148,13 +148,13 @@ const registrations = [
       start: "top bottom",
       end: "bottom top",
       scrub: true,
-      markers: {
-        startColor: "#22c55e",
-        endColor: "#ef4444",
-        fontSize: "12px",
-        fontWeight: "600",
-        indent: 8,
-      },
+      // markers: {
+      //   startColor: "#22c55e",
+      //   endColor: "#ef4444",
+      //   fontSize: "12px",
+      //   fontWeight: "600",
+      //   indent: 8,
+      // },
     },
   ),
   registerScrollTimeline(
