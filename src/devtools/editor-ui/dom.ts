@@ -11,6 +11,7 @@ export interface EditorUiElements {
   readonly transportHint: HTMLElement;
   readonly playback: HTMLElement;
   readonly viewportControls: HTMLElement;
+  readonly timelineVisibilityButton: HTMLButtonElement;
   readonly inspectorPane: HTMLElement;
   readonly inspectorCloseButton: HTMLButtonElement;
   readonly timelineListToggle: HTMLButtonElement;
@@ -62,7 +63,7 @@ function action(label: string, name: string): HTMLButtonElement {
 }
 
 function createTransportIcon(
-  name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close"
+  name: "play" | "pause" | "loop" | "reverse" | "replay" | "previous" | "close" | "timeline-visibility"
     | "zoom-out" | "zoom-in",
   pathData: string | readonly string[],
   viewBox = "0 0 16 16",
@@ -299,10 +300,24 @@ export function createEditorUiElements(): EditorUiElements {
   ], "0 0 24 24"));
   const zoomControl = element("div", "devtools-editor__zoom-control");
   zoomControl.append(zoomOutButton, zoomRange, zoomInButton);
-  viewportControls.append(resetButton, zoomControl);
+  const timelineVisibilityButton = action("", "toggle-timeline-visibility");
+  timelineVisibilityButton.classList.add(
+    "devtools-editor__action--icon",
+    "devtools-editor__timeline-visibility",
+  );
+  timelineVisibilityButton.setAttribute("aria-label", "Hide timeline");
+  timelineVisibilityButton.setAttribute("aria-expanded", "true");
+  timelineVisibilityButton.setAttribute("aria-controls", "devtools-editor-timeline-body");
+  timelineVisibilityButton.title = "Hide timeline";
+  timelineVisibilityButton.append(createTransportIcon("timeline-visibility", [
+    "M18 2H6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V5a3 3 0 0 0-3-3ZM6 4h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z",
+    "M14.914 15.57 12 18.482 9.086 15.57 7.67 16.983l3.268 3.268a1.5 1.5 0 0 0 2.121 0l3.268-3.268-1.414-1.414Z",
+  ], "0 0 24 24"));
+  viewportControls.append(resetButton, zoomControl, timelineVisibilityButton);
   transport.append(transportSettings, playback, transportHint, viewportControls);
 
   const timelineBody = element("div", "devtools-editor__timeline-body");
+  timelineBody.id = "devtools-editor-timeline-body";
   const trackLabels = element("div", "devtools-editor__track-labels");
   trackLabels.dataset.role = "track-labels";
   const timelineViewport = element("div", "devtools-editor__timeline-viewport");
@@ -398,6 +413,7 @@ export function createEditorUiElements(): EditorUiElements {
     transportHint,
     playback,
     viewportControls,
+    timelineVisibilityButton,
     inspectorPane,
     inspectorCloseButton,
     timelineListToggle,

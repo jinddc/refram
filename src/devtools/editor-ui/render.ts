@@ -84,8 +84,15 @@ export function getTimelineRulerScale(
   };
 }
 
-function timelinePosition(progress: number): string {
-  const offset = EDITOR_TIMELINE_EDGE_GUTTER * (1 - progress * 2);
+const EDITOR_MINIMAL_TIMELINE_EDGE_GUTTER = 10;
+const EDITOR_MINIMAL_PLAYHEAD_ICON_HALF_WIDTH = 6;
+
+function timelinePosition(
+  progress: number,
+  startGutter = EDITOR_TIMELINE_EDGE_GUTTER,
+  endGutter = startGutter,
+): string {
+  const offset = startGutter * (1 - progress) - endGutter * progress;
   return `calc(${progress * 100}% + ${offset}px)`;
 }
 
@@ -200,6 +207,7 @@ function renderTransport(
   elements.playback.hidden = scrubbed;
   elements.transportHint.hidden = !scrubbed;
   elements.timelinePane.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
+  elements.root.dataset.timelineMode = scrubbed ? "scroll-scrub" : "time";
   const running = view.transport.playState === "running";
   elements.playIcon.toggleAttribute("hidden", running);
   elements.pauseIcon.toggleAttribute("hidden", !running);
@@ -229,13 +237,43 @@ function renderTransport(
   elements.currentTime.textContent = elements.currentTime.value;
   elements.duration.value = formatTime(time?.sourceDuration ?? 0);
   elements.duration.textContent = elements.duration.value;
-  const displayedProgress = scrubbed ? scrollTrigger.progress : time?.progress ?? 0;
+  const sourceProgress = time
+    ? Math.min(1, Math.max(0, (time.time - time.start) / time.sourceDuration))
+    : 0;
+  const displayedProgress = scrubbed
+    ? scrollTrigger.progress
+    : elements.root.dataset.timelineCollapsed === "true"
+      ? sourceProgress
+      : time?.progress ?? 0;
   const timelineProgress = scrubbed
     ? displayedProgress
     : time
       ? time.progress * time.duration / scale.domainDuration
       : 0;
-  elements.playhead.style.left = timelinePosition(timelineProgress);
+  const playheadPosition = timelinePosition(timelineProgress);
+  elements.playhead.style.left = playheadPosition;
+  elements.timelineContent.style.setProperty(
+    "--editor-playhead-position",
+    playheadPosition,
+  );
+  elements.timelineContent.style.setProperty(
+    "--editor-progress-position",
+    timelinePosition(displayedProgress),
+  );
+  elements.timelineContent.style.setProperty(
+    "--editor-minimal-progress-position",
+    timelinePosition(
+      displayedProgress,
+      EDITOR_MINIMAL_TIMELINE_EDGE_GUTTER,
+    ),
+  );
+  elements.timelineContent.style.setProperty(
+    "--editor-minimal-icon-progress-position",
+    timelinePosition(
+      displayedProgress,
+      EDITOR_MINIMAL_TIMELINE_EDGE_GUTTER + EDITOR_MINIMAL_PLAYHEAD_ICON_HALF_WIDTH,
+    ),
+  );
   const percentage = Math.round(displayedProgress * 100);
   elements.playhead.setAttribute("aria-label", scrubbed
     ? "Scroll progress playhead"

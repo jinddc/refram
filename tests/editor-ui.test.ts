@@ -280,6 +280,204 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
+  it("collapses to a seekable minimal timeline and restores expanded state and height", async () => {
+    vi.stubGlobal("innerHeight", 800);
+    vi.stubGlobal("innerWidth", 1000);
+    const registry = createTimelineRegistry();
+    const fixture = registration("minimal", "Minimal timeline");
+    const registered = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    container.style.height = "340px";
+    vi.spyOn(container, "getBoundingClientRect")
+      .mockReturnValue(bounds(0, 460, 1000, 340));
+    document.body.append(container, fixture.root);
+
+    const handle = mountEditorUi(container, { registry });
+    await flush();
+    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const separator = container.querySelector<HTMLElement>("[data-role='height-separator']")!;
+    const toggle = container.querySelector<HTMLButtonElement>(
+      "[data-action='toggle-timeline-visibility']",
+    )!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 200, 20));
+
+    separator.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "ArrowUp",
+    }));
+    expect(container.style.height).toBe("356px");
+    const storedExpandedRatio = sessionStorage.getItem(
+      "motion-lab-devtools-editor-height-ratio",
+    );
+    container.querySelector<HTMLButtonElement>(
+      ".devtools-editor__track-block[data-track-key='track:opening']",
+    )!.click();
+    expect(handle.controller.seek(0.25)).toBe(true);
+    const selectedTrackKey = handle.controller.getSnapshot().view.selectedTrackKey;
+    const progressBeforeCollapse = fixture.timeline.totalProgress();
+
+    expect(toggle.type).toBe("button");
+    expect(toggle.getAttribute("aria-label")).toBe("Hide timeline");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.title).toBe("Hide timeline");
+    expect(toggle.querySelector("svg")?.getAttribute("data-icon"))
+      .toBe("timeline-visibility");
+    expect([...toggle.querySelectorAll("path")].map((path) => path.getAttribute("d")))
+      .toEqual([
+        "M18 2H6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V5a3 3 0 0 0-3-3ZM6 4h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z",
+        "M14.914 15.57 12 18.482 9.086 15.57 7.67 16.983l3.268 3.268a1.5 1.5 0 0 0 2.121 0l3.268-3.268-1.414-1.414Z",
+      ]);
+
+    toggle.click();
+    expect(root.dataset.timelineCollapsed).toBe("true");
+    expect(toggle.getAttribute("aria-label")).toBe("Show timeline");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.title).toBe("Show timeline");
+    expect(container.style.height).toBe("75px");
+    expect(content.style.getPropertyValue("--editor-playhead-position"))
+      .toBe(playhead.style.left);
+    expect(ruler.getAttribute("aria-label"))
+      .toBe("Timeline progress ruler from 0% to 100%");
+    expect(separator.hidden).toBe(true);
+    expect(separator.tabIndex).toBe(-1);
+    expect(separator.getAttribute("aria-hidden")).toBe("true");
+    expect(sessionStorage.getItem("motion-lab-devtools-editor-height-ratio"))
+      .toBe(storedExpandedRatio);
+    expect(handle.controller.getSnapshot().view.selectedTrackKey).toBe(selectedTrackKey);
+    expect(fixture.timeline.totalProgress()).toBeCloseTo(progressBeforeCollapse);
+
+    ruler.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 30,
+      pointerId: 10,
+    }));
+    expect(fixture.timeline.totalProgress()).not.toBe(progressBeforeCollapse);
+    const progressAfterPointerSeek = fixture.timeline.totalProgress();
+    playhead.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      code: "ArrowRight",
+    }));
+    expect(fixture.timeline.totalProgress()).not.toBe(progressAfterPointerSeek);
+    const progressAfterKeyboardSeek = fixture.timeline.totalProgress();
+
+    toggle.click();
+    expect(root.dataset.timelineCollapsed).toBe("false");
+    expect(container.style.height).toBe("356px");
+    expect(separator.hidden).toBe(false);
+    expect(separator.tabIndex).toBe(0);
+    expect(toggle.getAttribute("aria-label")).toBe("Hide timeline");
+    expect(handle.controller.getSnapshot().view.selectedTrackKey).toBe(selectedTrackKey);
+    expect(fixture.timeline.totalProgress()).toBeCloseTo(progressAfterKeyboardSeek);
+
+    toggle.click();
+    handle.destroy();
+    expect(container.style.height).toBe("340px");
+    const remounted = mountEditorUi(container, { registry });
+    await flush();
+    expect(container.querySelector<HTMLElement>("[data-devtools-editor]")
+      ?.dataset.timelineCollapsed).toBe("false");
+    expect(container.style.height).toBe("356px");
+    expect(container.querySelector("[data-action='toggle-timeline-visibility']")
+      ?.getAttribute("aria-expanded")).toBe("true");
+
+    remounted.destroy();
+    registered.destroy();
+    registry.destroy();
+  });
+
+  it("keeps minimal mode coherent while switching between scrubbed and standard timelines", async () => {
+    vi.stubGlobal("innerHeight", 800);
+    vi.stubGlobal("innerWidth", 600);
+    const registry = createTimelineRegistry();
+    const scrubbed = registration("minimal-scroll", "Minimal scroll");
+    let scrollPosition = 100;
+    const trigger = {
+      start: 100,
+      end: 500,
+      progress: 0,
+      direction: 1,
+      vars: { id: "Minimal scrub", scrub: true },
+      scroll(position?: number) {
+        if (position === undefined) return scrollPosition;
+        scrollPosition = position;
+      },
+      update() {
+        this.progress = (scrollPosition - this.start) / (this.end - this.start);
+      },
+    };
+    Object.defineProperty(scrubbed.timeline, "scrollTrigger", { value: trigger });
+    const scrubRegistration = registry.register(scrubbed.declaration);
+    const standard = registration("minimal-standard", "Minimal standard");
+    const standardRegistration = registry.register(standard.declaration);
+    const container = document.createElement("div");
+    container.style.height = "300px";
+    vi.spyOn(container, "getBoundingClientRect")
+      .mockReturnValue(bounds(0, 500, 600, 300));
+    document.body.append(container, scrubbed.root, standard.root);
+
+    const handle = mountEditorUi(container, { registry, initialTimelineId: "minimal-scroll" });
+    await flush();
+    const toggle = container.querySelector<HTMLButtonElement>(
+      "[data-action='toggle-timeline-visibility']",
+    )!;
+    const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
+    const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
+    const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
+    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
+    const hint = container.querySelector<HTMLElement>(".devtools-editor__transport-hint")!;
+    vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 200, 20));
+
+    toggle.click();
+    expect(container.style.height).toBe("75px");
+    expect(playback.hidden).toBe(true);
+    expect(hint.hidden).toBe(false);
+    ruler.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      pointerId: 11,
+    }));
+    expect(scrollPosition).toBe(300);
+    expect(handle.controller.getSnapshot().view.scrollTrigger?.progress).toBe(0.5);
+    expect(content.style.getPropertyValue("--editor-playhead-position"))
+      .toBe(playhead.style.left);
+
+    expect(handle.controller.selectTimeline("minimal-standard")).toBe(true);
+    await flush();
+    expect(container.style.height).toBe("102px");
+    expect(playback.hidden).toBe(false);
+    expect(hint.hidden).toBe(true);
+    expect(handle.controller.seek(1)).toBe(true);
+    expect(content.style.getPropertyValue("--editor-progress-position"))
+      .toBe("calc(100% + -12px)");
+    expect(content.style.getPropertyValue("--editor-minimal-progress-position"))
+      .toBe("calc(100% + -10px)");
+    expect(content.style.getPropertyValue("--editor-minimal-icon-progress-position"))
+      .toBe("calc(100% + -16px)");
+    expect(ruler.getAttribute("aria-label"))
+      .toBe("Timeline progress ruler from 0% to 100%");
+    container.querySelector<HTMLButtonElement>("[data-action='play']")!.click();
+    expect(standard.timeline.paused()).toBe(false);
+
+    expect(handle.controller.selectTimeline("minimal-scroll")).toBe(true);
+    await flush();
+    expect(container.style.height).toBe("75px");
+    expect(playback.hidden).toBe(true);
+    expect(hint.hidden).toBe(false);
+    expect(handle.controller.getSnapshot().view.scrollTrigger?.progress).toBe(0.5);
+
+    toggle.click();
+    expect(container.style.height).toBe("300px");
+    handle.destroy();
+    scrubRegistration.destroy();
+    standardRegistration.destroy();
+    registry.destroy();
+  });
+
   it("renders a non-interactive selection overlay that follows the target", async () => {
     const registry = createTimelineRegistry();
     const fixture = registration("overlay", "Overlay sequence");

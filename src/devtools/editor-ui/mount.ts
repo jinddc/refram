@@ -12,7 +12,10 @@ import {
   createEditorUiElements,
   EDITOR_TIMELINE_EDGE_GUTTER,
 } from "./dom";
-import { createEditorHeightResize } from "./editor-height-resize";
+import {
+  createEditorHeightResize,
+  type EditorHeightResizeHandle,
+} from "./editor-height-resize";
 import { getTimelineRulerScale, renderEditorUi } from "./render";
 import { createSelectionHighlightOverlay } from "./selection-highlight-overlay";
 
@@ -35,6 +38,8 @@ const EDITOR_BASE_ZOOM = 1;
 const EDITOR_ZOOM_STEP = 0.05;
 const EDITOR_FORWARD_FOLLOW_CONTEXT = 0.25;
 const EDITOR_REVERSE_FOLLOW_CONTEXT = 0.75;
+const EDITOR_MINIMAL_HEIGHT = 75;
+const EDITOR_NARROW_MINIMAL_HEIGHT = 102;
 
 function normalizeTimelineZoom(zoom: number): number {
   const clamped = Math.min(EDITOR_MAX_ZOOM, Math.max(EDITOR_MIN_ZOOM, zoom));
@@ -75,6 +80,14 @@ export function mountEditorUi(
   let copyRequest = 0;
   let copyTrackKey: string | undefined;
   let copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+  let timelineCollapsed = false;
+  let heightResize: EditorHeightResizeHandle | undefined;
+
+  const minimalEditorHeight = (): number => {
+    const scrubbed = elements.timelinePane.dataset.timelineMode === "scroll-scrub";
+    const narrow = (container.ownerDocument.defaultView?.innerWidth ?? 1024) <= 700;
+    return narrow && !scrubbed ? EDITOR_NARROW_MINIMAL_HEIGHT : EDITOR_MINIMAL_HEIGHT;
+  };
 
   const clearCopyFeedbackTimer = (): void => {
     if (copyFeedbackTimer !== undefined) clearTimeout(copyFeedbackTimer);
@@ -153,6 +166,17 @@ export function mountEditorUi(
     elements.timelineListToggle.title = label;
   };
 
+  const setTimelineCollapsed = (collapsed: boolean): void => {
+    timelineCollapsed = collapsed;
+    elements.root.dataset.timelineCollapsed = String(collapsed);
+    const label = collapsed ? "Show timeline" : "Hide timeline";
+    elements.timelineVisibilityButton.setAttribute("aria-label", label);
+    elements.timelineVisibilityButton.setAttribute("aria-expanded", String(!collapsed));
+    elements.timelineVisibilityButton.title = label;
+    heightResize?.setCollapsed(collapsed, minimalEditorHeight());
+    if (heightResize) render(controller.getSnapshot());
+  };
+
   const setActivePane = (pane: EditorPane, focus = false): void => {
     closeInspector();
     elements.root.dataset.activePane = pane;
@@ -192,6 +216,10 @@ export function mountEditorUi(
     );
     renderEditorUi(elements, snapshot.view, timelineZoom);
     renderZoomControls();
+    if (timelineCollapsed && snapshot.view.scrollTrigger?.scrubbed !== true) {
+      elements.ruler.setAttribute("aria-label", "Timeline progress ruler from 0% to 100%");
+    }
+    if (timelineCollapsed) heightResize?.setCollapsed(true, minimalEditorHeight());
     if (snapshot.view.transport.playState === "running") schedulePlayheadFollow();
   };
 
@@ -321,6 +349,9 @@ export function mountEditorUi(
       case "toggle-timelines":
         setTimelineListVisible(!timelineListVisible);
         break;
+      case "toggle-timeline-visibility":
+        setTimelineCollapsed(!timelineCollapsed);
+        break;
       case "copy-debug-json":
         void copySelectedTrackDebugJson();
         break;
@@ -381,6 +412,9 @@ export function mountEditorUi(
     const snapshot = controller.getSnapshot();
     if (snapshot.view.scrollTrigger?.scrubbed) return contentProgress;
     const time = snapshot.timeWindow;
+    if (timelineCollapsed && time) {
+      return contentProgress * time.sourceDuration / time.duration;
+    }
     const duration = time?.duration ?? 12;
     const scale = getTimelineRulerScale(duration, timelineZoom);
     const progress = Math.min(
@@ -487,7 +521,12 @@ export function mountEditorUi(
       const view = controller.getSnapshot().view;
       const progress = view.scrollTrigger?.scrubbed
         ? view.scrollTrigger.progress
-        : view.time?.progress ?? 0;
+        : timelineCollapsed && view.time
+          ? Math.min(1, Math.max(
+            0,
+            (view.time.time - view.time.start) / view.time.sourceDuration,
+          ))
+          : view.time?.progress ?? 0;
       const next = event.code === "ArrowLeft" || event.code === "ArrowDown"
         ? progress - 0.01
         : event.code === "ArrowRight" || event.code === "ArrowUp"
@@ -500,7 +539,13 @@ export function mountEditorUi(
       if (next !== undefined) {
         event.preventDefault();
         controller.pause();
-        controller.seek(Math.min(1, Math.max(0, next)));
+        const clamped = Math.min(1, Math.max(0, next));
+        const seekProgress = timelineCollapsed
+          && view.scrollTrigger?.scrubbed !== true
+          && view.time
+          ? clamped * view.time.sourceDuration / view.time.duration
+          : clamped;
+        controller.seek(seekProgress);
         return;
       }
     }
@@ -528,9 +573,10 @@ export function mountEditorUi(
   };
 
   setTimelineListVisible(true);
+  setTimelineCollapsed(false);
   setActivePane("timeline");
   container.append(elements.root);
-  const heightResize = createEditorHeightResize(
+  heightResize = createEditorHeightResize(
     container,
     elements.root,
     elements.heightSeparator,
@@ -575,7 +621,7 @@ export function mountEditorUi(
       playheadFollowFrame = undefined;
       eventController.abort();
       unsubscribe();
-      heightResize.destroy();
+      heightResize?.destroy();
       selectionHighlight.destroy();
       elements.root.remove();
       if (ownsController) controller.destroy();

@@ -6,6 +6,7 @@ const KEYBOARD_STEP = 16;
 const KEYBOARD_LARGE_STEP = 64;
 
 export interface EditorHeightResizeHandle {
+  setCollapsed(collapsed: boolean, collapsedHeight: number): void;
   destroy(): void;
 }
 
@@ -82,6 +83,8 @@ export function createEditorHeightResize(
   let resizeFrame: number | undefined;
   let overrideRatio = readStoredRatio(storage);
   let currentHeight = MIN_EDITOR_HEIGHT;
+  let expandedHeight = MIN_EDITOR_HEIGHT;
+  let collapsed = false;
 
   const measuredHeight = (): number => {
     const measured = target.getBoundingClientRect().height
@@ -100,6 +103,7 @@ export function createEditorHeightResize(
 
   const applyHeight = (height: number, persist = false): void => {
     currentHeight = clamp(height, MIN_EDITOR_HEIGHT, maximumHeight(target));
+    expandedHeight = currentHeight;
     target.style.setProperty(EDITOR_HEIGHT_PROPERTY, `${currentHeight}px`);
     overrideRatio = currentHeight / viewportHeight(target);
     updateSemantics(currentHeight);
@@ -139,7 +143,7 @@ export function createEditorHeightResize(
   };
 
   const onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) return;
+    if (collapsed || event.button !== 0) return;
     event.preventDefault();
     pointerId = event.pointerId;
     separator.dataset.resizeState = "active";
@@ -160,7 +164,7 @@ export function createEditorHeightResize(
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (collapsed || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
     event.preventDefault();
     const direction = event.key === "ArrowUp" ? 1 : -1;
     const step = event.shiftKey ? KEYBOARD_LARGE_STEP : KEYBOARD_STEP;
@@ -182,6 +186,16 @@ export function createEditorHeightResize(
   };
 
   const onViewportResize = (): void => {
+    if (collapsed) {
+      if (overrideRatio !== undefined) {
+        expandedHeight = clamp(
+          viewportHeight(target) * overrideRatio,
+          MIN_EDITOR_HEIGHT,
+          maximumHeight(target),
+        );
+      }
+      return;
+    }
     if (overrideRatio !== undefined) {
       applyHeight(viewportHeight(target) * overrideRatio);
     } else {
@@ -207,6 +221,32 @@ export function createEditorHeightResize(
   }
 
   return {
+    setCollapsed(nextCollapsed: boolean, collapsedHeight: number): void {
+      if (destroyed) return;
+      if (nextCollapsed === collapsed) {
+        if (collapsed) {
+          target.style.setProperty(EDITOR_HEIGHT_PROPERTY, `${collapsedHeight}px`);
+        }
+        return;
+      }
+      collapsed = nextCollapsed;
+      cancelPendingFrame();
+      pendingHeight = undefined;
+      if (pointerId !== undefined && separator.hasPointerCapture?.(pointerId)) {
+        separator.releasePointerCapture(pointerId);
+      }
+      pointerId = undefined;
+      separator.dataset.resizeState = "idle";
+      separator.hidden = collapsed;
+      separator.tabIndex = collapsed ? -1 : 0;
+      separator.setAttribute("aria-hidden", String(collapsed));
+      if (collapsed) {
+        expandedHeight = currentHeight;
+        target.style.setProperty(EDITOR_HEIGHT_PROPERTY, `${collapsedHeight}px`);
+      } else {
+        applyHeight(expandedHeight);
+      }
+    },
     destroy(): void {
       if (destroyed) return;
       destroyed = true;

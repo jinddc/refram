@@ -38,6 +38,9 @@ async function verify({ artifactDirectory, send }) {
   const scrollScrubNarrow = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-narrow.png");
   const scrollScrubDpr2 = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-dpr2.png");
   const scrollScrubNarrowDpr2 = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-narrow-dpr2.png");
+  const scrollScrubMinimal = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-minimal.png");
+  const standardMinimalNarrow = join(artifactDirectory, "devtools-editor-v2-standard-minimal-narrow.png");
+  const scrollScrubMinimalNarrow = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-minimal-narrow.png");
 
   await waitFor(
     () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:01.640" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
@@ -353,6 +356,98 @@ async function verify({ artifactDirectory, send }) {
     `The real window ScrollTrigger inspection mode is incorrect: ${JSON.stringify(windowScrollState)}`,
   );
   await screenshot(send, scrollScrub);
+  const desktopScrollExpandedHeight = await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`);
+  const desktopScrollMinimalState = await evaluate(send, `(() => {
+    const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
+    const expandedToggleBounds = toggle.getBoundingClientRect();
+    const expandedZoomInBounds = window.__devtoolsEditorV2Harness
+      .query("[data-action='zoom-in']").getBoundingClientRect();
+    const expandedSeparatorLeft = expandedToggleBounds.left
+      + Number.parseFloat(getComputedStyle(toggle, "::before").left);
+    toggle.click();
+    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
+    const host = document.querySelector("motion-devtools-editor");
+    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
+    const ruler = window.__devtoolsEditorV2Harness.query("[data-role='ruler']");
+    const toggleBounds = toggle.getBoundingClientRect();
+    const transportBounds = transport.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
+    const rulerBounds = ruler.getBoundingClientRect();
+    const railStyle = getComputedStyle(ruler, "::after");
+    return {
+      collapsed: root.dataset.timelineCollapsed,
+      rootHeight: root.getBoundingClientRect().height,
+      hostHeight: host.getBoundingClientRect().height,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      transportHeight: transportBounds.height,
+      viewportHeight: viewportBounds.height,
+      playheadHeight: playhead.getBoundingClientRect().height,
+      toggleRightGap: transportBounds.right - toggleBounds.right,
+      toggleBorderLeft: getComputedStyle(toggle).borderLeftWidth,
+      toggleSeparatorWidth: getComputedStyle(toggle, "::before").width,
+      toggleSeparatorLeft: getComputedStyle(toggle, "::before").left,
+      zoomToSeparatorGap: expandedSeparatorLeft - expandedZoomInBounds.right,
+      separatorToToggleGap: expandedToggleBounds.left - expandedSeparatorLeft,
+      iconStrokeWidth: getComputedStyle(toggle.querySelector("path")).strokeWidth,
+      label: toggle.getAttribute("aria-label"),
+      expanded: toggle.getAttribute("aria-expanded"),
+      separatorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='height-separator']")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
+      inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
+      trackLabelsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='track-labels']")).display,
+      trackLanesDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='track-lanes']")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
+      railProgressWidth: Number.parseFloat(getComputedStyle(ruler, "::before").width),
+      railProgressColor: getComputedStyle(ruler, "::before").backgroundColor,
+      railTop: railStyle.top,
+      railTopGap: rulerBounds.top + Number.parseFloat(railStyle.top) - transportBounds.bottom,
+    };
+  })()`);
+  assert(
+    desktopScrollMinimalState.collapsed === "true"
+      && Math.abs(desktopScrollMinimalState.rootHeight - 75) <= 1
+      && Math.abs(desktopScrollMinimalState.hostHeight - 75) <= 1
+      && desktopScrollMinimalState.documentWidth <= desktopScrollMinimalState.viewportWidth
+      && Math.abs(desktopScrollMinimalState.transportHeight - 48) <= 1
+      && Math.abs(desktopScrollMinimalState.viewportHeight - 20) <= 1
+      && Math.abs(desktopScrollMinimalState.playheadHeight - 20) <= 1
+      && Math.abs(desktopScrollMinimalState.toggleRightGap - 10) <= 1
+      && desktopScrollMinimalState.toggleBorderLeft === "0px"
+      && desktopScrollMinimalState.toggleSeparatorWidth === "1px"
+      && desktopScrollMinimalState.toggleSeparatorLeft === "-6px"
+      && Math.abs(desktopScrollMinimalState.zoomToSeparatorGap - 4) <= 0.5
+      && Math.abs(desktopScrollMinimalState.separatorToToggleGap - 6) <= 0.5
+      && Number.parseFloat(desktopScrollMinimalState.iconStrokeWidth) >= 0.6
+      && desktopScrollMinimalState.label === "Show timeline"
+      && desktopScrollMinimalState.expanded === "false"
+      && desktopScrollMinimalState.separatorDisplay === "none"
+      && desktopScrollMinimalState.playbackDisplay === "none"
+      && desktopScrollMinimalState.hintDisplay !== "none"
+      && desktopScrollMinimalState.inspectorDisplay === "none"
+      && desktopScrollMinimalState.trackLabelsDisplay === "none"
+      && desktopScrollMinimalState.trackLanesDisplay === "none"
+      && desktopScrollMinimalState.progressPillDisplay === "flex"
+      && desktopScrollMinimalState.zoomDisplay === "none"
+      && desktopScrollMinimalState.resetDisplay === "none"
+      && desktopScrollMinimalState.railProgressWidth > 0
+      && desktopScrollMinimalState.railProgressColor === "rgb(85, 173, 255)"
+      && desktopScrollMinimalState.railTop === "10px"
+      && Math.abs(desktopScrollMinimalState.railTopGap - 10) <= 0.5,
+    `The desktop ScrollTrigger minimal layout is incorrect: ${JSON.stringify(desktopScrollMinimalState)}`,
+  );
+  await screenshot(send, scrollScrubMinimal);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
+  await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
+  assert(
+    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - desktopScrollExpandedHeight) <= 1,
+    "Expanding the desktop ScrollTrigger timeline did not restore its height.",
+  );
   const customScrollState = await evaluate(send, `(() => {
     document.querySelector("#devtools-v2-custom-trigger").className =
       "section-with-an-intentionally-long-class-name feature-panel-active-with-extra-detail";
@@ -1448,6 +1543,68 @@ async function verify({ artifactDirectory, send }) {
       && closedInspectorState.highlightedTargets === 0,
     `Closing the mobile inspector did not restore an idle timeline: ${JSON.stringify(closedInspectorState)}`,
   );
+  const narrowStandardMinimalState = await evaluate(send, `(() => {
+    const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
+    toggle.click();
+    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']");
+    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
+    const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
+    const playheadIcon = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-icon");
+    const contentBounds = content.getBoundingClientRect();
+    const playheadBounds = playhead.getBoundingClientRect();
+    const playheadIconBounds = playheadIcon.getBoundingClientRect();
+    return {
+      rootHeight: root.getBoundingClientRect().height,
+      hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
+      timelineHeight: timeline.getBoundingClientRect().height,
+      transportHeight: transport.getBoundingClientRect().height,
+      viewportHeight: viewport.getBoundingClientRect().height,
+      documentWidth: document.documentElement.scrollWidth,
+      rootWidth: root.getBoundingClientRect().width,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      playheadIconDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-icon")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
+      progressPosition: content.style.getPropertyValue("--editor-progress-position"),
+      progressPercentage: Number.parseFloat(
+        content.style.getPropertyValue("--editor-progress-position").slice(5),
+      ),
+      playheadRightInset: contentBounds.right
+        - (playheadBounds.left + playheadBounds.width / 2),
+      playheadIconRightInset: contentBounds.right - playheadIconBounds.right,
+      label: toggle.getAttribute("aria-label"),
+    };
+  })()`);
+  assert(
+    Math.abs(narrowStandardMinimalState.rootHeight - 102) <= 1
+      && Math.abs(narrowStandardMinimalState.hostHeight - 102) <= 1
+      && Math.abs(narrowStandardMinimalState.timelineHeight - 102) <= 1
+      && Math.abs(narrowStandardMinimalState.transportHeight - 82) <= 1
+      && Math.abs(narrowStandardMinimalState.viewportHeight - 20) <= 1
+      && narrowStandardMinimalState.documentWidth <= 640
+      && narrowStandardMinimalState.rootWidth <= 640
+      && narrowStandardMinimalState.playbackDisplay !== "none"
+      && narrowStandardMinimalState.playheadIconDisplay === "block"
+      && narrowStandardMinimalState.progressPillDisplay === "none"
+      && narrowStandardMinimalState.zoomDisplay === "none"
+      && narrowStandardMinimalState.resetDisplay === "none"
+      && narrowStandardMinimalState.progressPercentage >= 99.9
+      && Math.abs(narrowStandardMinimalState.playheadRightInset - 16) <= 0.5
+      && Math.abs(narrowStandardMinimalState.playheadIconRightInset - 10) <= 0.5
+      && narrowStandardMinimalState.label === "Show timeline",
+    `The narrow standard minimal layout overflowed or hid playback: ${JSON.stringify(narrowStandardMinimalState)}`,
+  );
+  await screenshot(send, standardMinimalNarrow);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
+  await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
+  assert(
+    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - expectedNarrowHeight) <= 2,
+    "Expanding the narrow standard timeline did not restore its persisted height.",
+  );
   const narrowScrollState = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll");
     const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
@@ -1581,6 +1738,46 @@ async function verify({ artifactDirectory, send }) {
     `The narrow Inspector did not wrap the long selector safely: ${JSON.stringify(narrowInspectorState)}`,
   );
   await screenshot(send, scrollScrubNarrow);
+  const narrowScrollExpandedHeight = await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`);
+  const narrowScrollMinimalState = await evaluate(send, `(() => {
+    const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
+    toggle.click();
+    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
+    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
+    return {
+      rootHeight: root.getBoundingClientRect().height,
+      hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
+      transportHeight: transport.getBoundingClientRect().height,
+      viewportHeight: viewport.getBoundingClientRect().height,
+      documentWidth: document.documentElement.scrollWidth,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      label: toggle.getAttribute("aria-label"),
+    };
+  })()`);
+  assert(
+    Math.abs(narrowScrollMinimalState.rootHeight - 75) <= 1
+      && Math.abs(narrowScrollMinimalState.hostHeight - 75) <= 1
+      && Math.abs(narrowScrollMinimalState.transportHeight - 48) <= 1
+      && Math.abs(narrowScrollMinimalState.viewportHeight - 20) <= 1
+      && narrowScrollMinimalState.documentWidth <= 640
+      && narrowScrollMinimalState.playbackDisplay === "none"
+      && narrowScrollMinimalState.hintDisplay !== "none"
+      && narrowScrollMinimalState.progressPillDisplay === "flex"
+      && narrowScrollMinimalState.zoomDisplay === "none"
+      && narrowScrollMinimalState.label === "Show timeline",
+    `The narrow ScrollTrigger minimal layout overflowed or lost its hint: ${JSON.stringify(narrowScrollMinimalState)}`,
+  );
+  await screenshot(send, scrollScrubMinimalNarrow);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
+  await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
+  assert(
+    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - narrowScrollExpandedHeight) <= 2,
+    "Expanding the narrow ScrollTrigger timeline did not restore its height.",
+  );
   await send("Emulation.setDeviceMetricsOverride", {
     width: 640,
     height: 820,
@@ -1706,6 +1903,10 @@ async function verify({ artifactDirectory, send }) {
       "narrow-layout",
       "scrolltrigger-narrow-layout",
       "scrolltrigger-endpoint-join-dpr2",
+      "timeline-minimal-desktop-scrolltrigger",
+      "timeline-minimal-narrow-standard",
+      "timeline-minimal-narrow-scrolltrigger",
+      "timeline-minimal-height-restoration",
       "mobile-track-triggered-inspector",
       "inspector-close",
       "inspector-close-clears-selection",
@@ -1719,6 +1920,9 @@ async function verify({ artifactDirectory, send }) {
       "artifacts/visual/devtools-editor-v2-scroll-scrub-narrow.png",
       "artifacts/visual/devtools-editor-v2-scroll-scrub-dpr2.png",
       "artifacts/visual/devtools-editor-v2-scroll-scrub-narrow-dpr2.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub-minimal.png",
+      "artifacts/visual/devtools-editor-v2-standard-minimal-narrow.png",
+      "artifacts/visual/devtools-editor-v2-scroll-scrub-minimal-narrow.png",
     ],
   }));
 }
