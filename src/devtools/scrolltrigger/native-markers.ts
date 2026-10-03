@@ -9,6 +9,8 @@ const SELECTED_ATTRIBUTE = "data-motion-devtools-marker-selected";
 const VIEWPORT_SCROLLER_ATTRIBUTE = "data-motion-devtools-marker-viewport-scroller";
 const INLINE_END_PROPERTY = "--motion-devtools-marker-inline-end";
 const SCROLLER_WIDTH_PROPERTY = "--motion-devtools-marker-scroller-width";
+const SCROLLER_START_TOP_PROPERTY = "--motion-devtools-marker-scroller-start-top";
+const SCROLLER_END_TOP_PROPERTY = "--motion-devtools-marker-scroller-end-top";
 
 interface OriginalMarkerState {
   readonly text: string | null;
@@ -19,6 +21,10 @@ interface OriginalMarkerState {
   readonly inlineEndPriority: string;
   readonly scrollerWidthProperty: string;
   readonly scrollerWidthPriority: string;
+  readonly scrollerStartTopProperty: string;
+  readonly scrollerStartTopPriority: string;
+  readonly scrollerEndTopProperty: string;
+  readonly scrollerEndTopPriority: string;
 }
 
 export interface NativeMarkerReconciliation {
@@ -33,7 +39,11 @@ export interface ScrollTriggerNativeMarkers {
     trigger: MarkerTriggerLike | undefined,
   ): readonly HTMLElement[];
   reconcile(entries: readonly NativeMarkerReconciliation[]): void;
-  sampleVisible(trigger: MarkerTriggerLike, nodes: readonly HTMLElement[]): void;
+  sampleVisible(
+    trigger: MarkerTriggerLike,
+    nodes: readonly HTMLElement[],
+    viewportScrollerAnchor: HTMLElement | undefined,
+  ): void;
   destroy(): void;
 }
 
@@ -104,6 +114,10 @@ export function createScrollTriggerNativeMarkers(
       inlineEndPriority: marker.style.getPropertyPriority(INLINE_END_PROPERTY),
       scrollerWidthProperty: marker.style.getPropertyValue(SCROLLER_WIDTH_PROPERTY),
       scrollerWidthPriority: marker.style.getPropertyPriority(SCROLLER_WIDTH_PROPERTY),
+      scrollerStartTopProperty: marker.style.getPropertyValue(SCROLLER_START_TOP_PROPERTY),
+      scrollerStartTopPriority: marker.style.getPropertyPriority(SCROLLER_START_TOP_PROPERTY),
+      scrollerEndTopProperty: marker.style.getPropertyValue(SCROLLER_END_TOP_PROPERTY),
+      scrollerEndTopPriority: marker.style.getPropertyPriority(SCROLLER_END_TOP_PROPERTY),
     });
   };
 
@@ -138,6 +152,24 @@ export function createScrollTriggerNativeMarkers(
     } else {
       marker.style.removeProperty(SCROLLER_WIDTH_PROPERTY);
     }
+    if (original.scrollerStartTopProperty) {
+      marker.style.setProperty(
+        SCROLLER_START_TOP_PROPERTY,
+        original.scrollerStartTopProperty,
+        original.scrollerStartTopPriority,
+      );
+    } else {
+      marker.style.removeProperty(SCROLLER_START_TOP_PROPERTY);
+    }
+    if (original.scrollerEndTopProperty) {
+      marker.style.setProperty(
+        SCROLLER_END_TOP_PROPERTY,
+        original.scrollerEndTopProperty,
+        original.scrollerEndTopPriority,
+      );
+    } else {
+      marker.style.removeProperty(SCROLLER_END_TOP_PROPERTY);
+    }
     originals.delete(marker);
   };
 
@@ -160,7 +192,10 @@ export function createScrollTriggerNativeMarkers(
             VIEWPORT_SCROLLER_ATTRIBUTE,
             visible
               && !(trigger?.scroller instanceof Element)
-              && marker.classList.contains("gsap-marker-scroller-start"),
+              && (
+                marker.classList.contains("gsap-marker-scroller-start")
+                  || marker.classList.contains("gsap-marker-scroller-end")
+              ),
           );
         }
       }
@@ -169,7 +204,7 @@ export function createScrollTriggerNativeMarkers(
         if (!current.has(marker)) restore(marker);
       }
     },
-    sampleVisible(trigger, nodes) {
+    sampleVisible(trigger, nodes, viewportScrollerAnchor) {
       const scrollerStart = nodes.find((marker) => (
         marker.classList.contains("gsap-marker-scroller-start")
       ));
@@ -190,6 +225,14 @@ export function createScrollTriggerNativeMarkers(
       scrollerEnd.style.setProperty(SCROLLER_WIDTH_PROPERTY, `${geometry.scrollerWidth}px`);
       trigger.markerStart?.style.setProperty(INLINE_END_PROPERTY, `${geometry.startInlineEnd}px`);
       trigger.markerEnd?.style.setProperty(INLINE_END_PROPERTY, `${geometry.endInlineEnd}px`);
+      const anchorRect = viewportScrollerAnchor?.getBoundingClientRect();
+      if (anchorRect && [anchorRect.top, anchorRect.bottom].every(Number.isFinite)) {
+        scrollerStart.style.setProperty(SCROLLER_START_TOP_PROPERTY, `${anchorRect.bottom}px`);
+        scrollerEnd.style.setProperty(SCROLLER_END_TOP_PROPERTY, `${anchorRect.top}px`);
+      } else {
+        scrollerStart.style.removeProperty(SCROLLER_START_TOP_PROPERTY);
+        scrollerEnd.style.removeProperty(SCROLLER_END_TOP_PROPERTY);
+      }
     },
     destroy() {
       for (const marker of [...originals.keys()]) restore(marker);

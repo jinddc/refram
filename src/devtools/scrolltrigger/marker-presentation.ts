@@ -10,6 +10,19 @@ function scrollTriggerOf(timeline: gsap.core.Timeline): MarkerTriggerLike | unde
   }).scrollTrigger;
 }
 
+function viewportScrollerAnchorOf(
+  registration: MotionTimelineRegistration,
+  trigger: MarkerTriggerLike,
+): HTMLElement | undefined {
+  if (trigger.scroller instanceof Element) return undefined;
+  const triggerElement = trigger.trigger;
+  return triggerElement
+    && registration.root !== triggerElement
+    && registration.root.contains(triggerElement)
+    ? registration.root
+    : undefined;
+}
+
 export interface ScrollTriggerMarkerPresentation {
   activate(timelineId: string, timeline: gsap.core.Timeline): boolean;
   canPresent(timeline: gsap.core.Timeline): boolean;
@@ -118,13 +131,22 @@ export function createScrollTriggerMarkerPresentation(): ScrollTriggerMarkerPres
       let applyDocumentGeometry = (): void => {};
       if (selected && visibilityByTimeline.get(selected.id) === true) {
         if (selectedTrigger) {
+          const viewportScrollerAnchor = viewportScrollerAnchorOf(selected, selectedTrigger);
           if (selectedNodes.length > 0) {
             applyDocumentGeometry = ownedMarkers.measureDocument(
               selectedNodes[0]?.ownerDocument,
             );
-            nativeMarkers.sampleVisible(selectedTrigger, selectedNodes);
+            nativeMarkers.sampleVisible(
+              selectedTrigger,
+              selectedNodes,
+              viewportScrollerAnchor,
+            );
           } else {
-            ownedMarkers.sampleVisible(selected.timeline, selectedTrigger);
+            ownedMarkers.sampleVisible(
+              selected.timeline,
+              selectedTrigger,
+              viewportScrollerAnchor,
+            );
           }
         }
       }

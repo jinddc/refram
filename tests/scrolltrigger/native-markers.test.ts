@@ -111,6 +111,11 @@ describe("native ScrollTrigger marker ownership", () => {
     markerStart.setAttribute("data-motion-devtools-marker-viewport-scroller", "authored-viewport");
     markerStart.style.setProperty("--motion-devtools-marker-inline-end", "12px", "important");
     scrollerEnd.style.setProperty("--motion-devtools-marker-scroller-width", "99px", "important");
+    scrollerEnd.style.setProperty(
+      "--motion-devtools-marker-scroller-end-top",
+      "23px",
+      "important",
+    );
     Object.defineProperty(fixture.timeline, "scrollTrigger", {
       value: {
         start: 0,
@@ -143,6 +148,10 @@ describe("native ScrollTrigger marker ownership", () => {
     expect(scrollerEnd.style.getPropertyValue("--motion-devtools-marker-scroller-width"))
       .toBe("99px");
     expect(scrollerEnd.style.getPropertyPriority("--motion-devtools-marker-scroller-width"))
+      .toBe("important");
+    expect(scrollerEnd.style.getPropertyValue("--motion-devtools-marker-scroller-end-top"))
+      .toBe("23px");
+    expect(scrollerEnd.style.getPropertyPriority("--motion-devtools-marker-scroller-end-top"))
       .toBe("important");
     expect(disconnect).toHaveBeenCalledOnce();
     expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
@@ -183,6 +192,64 @@ describe("native ScrollTrigger marker ownership", () => {
     ))).toHaveLength(0);
     expect(markerStart.style.getPropertyValue("--motion-devtools-marker-inline-end"))
       .toBe("4px");
+    presentation.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("anchors native scroller markers without taking over content-marker motion", () => {
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("native-vertical-motion");
+    const markerStart = nativeMarker("start", "Native vertical motion");
+    const markerEnd = nativeMarker("end", "Native vertical motion");
+    const scrollerStart = nativeMarker("scroller-start", "Native vertical motion");
+    const scrollerEnd = nativeMarker("scroller-end", "Native vertical motion");
+    let anchorTop = 360;
+    vi.spyOn(fixture.root, "getBoundingClientRect").mockImplementation(() => (
+      bounds(0, anchorTop, 1200, 420)
+    ));
+    markerEnd.style.position = "absolute";
+    markerEnd.style.top = "500px";
+    scrollerEnd.style.position = "fixed";
+    scrollerEnd.style.top = "0px";
+    Object.defineProperty(fixture.timeline, "scrollTrigger", {
+      value: {
+        start: 0,
+        end: 500,
+        trigger: fixture.target,
+        markerStart,
+        markerEnd,
+        scroller: window,
+        vars: { id: "Native vertical motion", markers: true },
+        scroll: () => 0,
+      },
+    });
+    const registration = registry.register(fixture);
+    const presentation = createScrollTriggerMarkerPresentation();
+    presentation.activate(registration.id, registration.timeline);
+    presentation.sync([registration], registration.id);
+    expect(scrollerStart.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-start-top",
+    )).toBe("780px");
+    expect(scrollerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-end-top",
+    )).toBe("360px");
+
+    anchorTop = 280;
+    markerEnd.style.top = "420px";
+    presentation.sync([registration], registration.id);
+
+    expect(markerEnd.style.position).toBe("absolute");
+    expect(markerEnd.style.top).toBe("420px");
+    expect(scrollerEnd.style.position).toBe("fixed");
+    expect(scrollerEnd.style.top).toBe("0px");
+    expect(scrollerStart.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-start-top",
+    )).toBe("700px");
+    expect(scrollerEnd.style.getPropertyValue(
+      "--motion-devtools-marker-scroller-end-top",
+    )).toBe("280px");
+
     presentation.destroy();
     registration.destroy();
     registry.destroy();
@@ -259,14 +326,14 @@ describe("native ScrollTrigger marker ownership", () => {
     const style = document.querySelector<HTMLStyleElement>(
       "[data-motion-devtools-marker-visibility]",
     );
-    expect(style?.textContent).toContain("top: 798px !important");
+    expect(style?.textContent).toContain(", 798px) !important");
 
     const editor = document.createElement("motion-devtools-editor");
     vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));
     document.body.append(editor);
     presentation.sync([registration], registration.id);
 
-    expect(style?.textContent).toContain("top: 598px !important");
+    expect(style?.textContent).toContain(", 598px) !important");
     expect(observe).toHaveBeenCalledWith(editor);
 
     presentation.destroy();

@@ -14,7 +14,8 @@ const OWNED_TYPE_ATTRIBUTE = "data-motion-devtools-owned-marker-type";
 const EDITOR_SELECTOR = "motion-devtools-editor";
 const INLINE_END_PROPERTY = "--motion-devtools-marker-inline-end";
 const SCROLLER_WIDTH_PROPERTY = "--motion-devtools-marker-scroller-width";
-const OWNED_MARKER_HEIGHT = 15;
+const SCROLLER_START_TOP_PROPERTY = "--motion-devtools-marker-scroller-start-top";
+const SCROLLER_END_TOP_PROPERTY = "--motion-devtools-marker-scroller-end-top";
 
 interface OwnedMarkerSet {
   readonly document: Document;
@@ -37,7 +38,11 @@ export interface ScrollTriggerOwnedMarkers {
   ): void;
   removeMissing(timelines: ReadonlySet<gsap.core.Timeline>): void;
   measureDocument(document: Document | undefined): () => void;
-  sampleVisible(timeline: gsap.core.Timeline, trigger: MarkerTriggerLike): void;
+  sampleVisible(
+    timeline: gsap.core.Timeline,
+    trigger: MarkerTriggerLike,
+    viewportScrollerAnchor: HTMLElement | undefined,
+  ): void;
   destroy(): void;
 }
 
@@ -63,30 +68,31 @@ export function createScrollTriggerOwnedMarkers(): ScrollTriggerOwnedMarkers {
   ): void => {
     const scrollerStartRule = measuredVisibleBottom === undefined
       ? ""
-      : `[${SELECTED_ATTRIBUTE}][${VIEWPORT_SCROLLER_ATTRIBUTE}].gsap-marker-scroller-start { top: ${Math.max(0, measuredVisibleBottom - 2)}px !important; }`;
+      : `[${SELECTED_ATTRIBUTE}][${VIEWPORT_SCROLLER_ATTRIBUTE}].gsap-marker-scroller-start { top: var(${SCROLLER_START_TOP_PROPERTY}, ${Math.max(0, measuredVisibleBottom - 2)}px) !important; }`;
     state.style.textContent = `
 [${HIDDEN_ATTRIBUTE}] { display: none !important; }
 [${OWNED_ATTRIBUTE}] {
   position: fixed;
   z-index: 2147483646;
-  box-sizing: border-box;
+  box-sizing: content-box;
   width: max-content;
-  min-width: 44px;
-  height: ${OWNED_MARKER_HEIGHT}px;
-  padding-left: 8px;
+  height: auto;
+  padding: 4px 8px;
   border-top: 1px solid currentColor;
   pointer-events: none;
-  font: 600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  text-align: right;
-  color: #22c55e;
+  white-space: nowrap;
+  font: normal 16px/normal sans-serif, Arial;
+  color: green;
 }
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="end"],
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="scroller-end"] {
-  color: #ef4444;
+  color: red;
 }
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}^="scroller-"] {
+  box-sizing: border-box;
   border-top-style: dashed;
   opacity: 0.8;
+  text-align: left;
 }
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="start"],
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="scroller-start"] {
@@ -107,6 +113,9 @@ export function createScrollTriggerOwnedMarkers(): ScrollTriggerOwnedMarkers {
   width: var(${SCROLLER_WIDTH_PROPERTY}, auto) !important;
 }
 ${scrollerStartRule}
+[${SELECTED_ATTRIBUTE}][${VIEWPORT_SCROLLER_ATTRIBUTE}].gsap-marker-scroller-end {
+  top: var(${SCROLLER_END_TOP_PROPERTY}, 0px) !important;
+}
 `;
   };
 
@@ -208,7 +217,7 @@ ${scrollerStartRule}
         if (state) renderStyle(state, measuredVisibleBottom);
       };
     },
-    sampleVisible(timeline, trigger) {
+    sampleVisible(timeline, trigger, viewportScrollerAnchor) {
       const owned = ownedByTimeline.get(timeline);
       const view = owned?.document.defaultView;
       if (!owned || !view || typeof trigger.scroll !== "function") return;
@@ -221,15 +230,19 @@ ${scrollerStartRule}
       const scrollerRect = trigger.scroller instanceof Element
         ? trigger.scroller.getBoundingClientRect()
         : undefined;
+      const viewportScrollerAnchorRect = viewportScrollerAnchor?.getBoundingClientRect();
       const scrollerMarkerWidth = Math.max(
         owned.nodes["scroller-start"].getBoundingClientRect().width,
         owned.nodes["scroller-end"].getBoundingClientRect().width,
       );
+      owned.nodes["scroller-start"].style.width = `${scrollerMarkerWidth}px`;
+      owned.nodes["scroller-end"].style.width = `${scrollerMarkerWidth}px`;
       const geometry = calculateOwnedMarkerGeometry({
         viewportWidth: view.innerWidth,
         viewportHeight: view.innerHeight,
         editorTop,
         scrollerRect,
+        viewportScrollerAnchorRect,
         scroll,
         start: start!,
         end: end!,

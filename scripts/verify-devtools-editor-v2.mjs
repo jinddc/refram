@@ -777,11 +777,10 @@ async function verify({ artifactDirectory, send }) {
   })()`, true);
   assert(
     elementScrollerBoundaryState.scrollerBottom > elementScrollerBoundaryState.editorTop
-      && elementScrollerBoundaryState.markerTop >= -0.5
       && Math.abs(
-        elementScrollerBoundaryState.markerBottom - elementScrollerBoundaryState.editorTop,
+        elementScrollerBoundaryState.markerBottom - elementScrollerBoundaryState.scrollerBottom,
       ) <= 0.5,
-    `The element-scroller start marker was not fully visible above DevTools: ${JSON.stringify(elementScrollerBoundaryState)}`,
+    `The element-scroller start marker did not follow its live scroller boundary: ${JSON.stringify(elementScrollerBoundaryState)}`,
   );
   const scrubPillDragStart = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.seek(0.5);

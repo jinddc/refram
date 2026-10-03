@@ -27,6 +27,7 @@ export interface OwnedMarkerGeometryInput {
   readonly viewportHeight: number;
   readonly editorTop?: number;
   readonly scrollerRect?: MarkerRect;
+  readonly viewportScrollerAnchorRect?: MarkerRect;
   readonly scroll: number;
   readonly start: number;
   readonly end: number;
@@ -63,16 +64,30 @@ export function calculateOwnedMarkerGeometry(
   if (![scrollerRect.top, scrollerRect.right, scrollerRect.bottom].every(Number.isFinite)) {
     return undefined;
   }
+  if (input.viewportScrollerAnchorRect
+    && ![
+      input.viewportScrollerAnchorRect.top,
+      input.viewportScrollerAnchorRect.right,
+      input.viewportScrollerAnchorRect.bottom,
+    ].every(Number.isFinite)) {
+    return undefined;
+  }
 
-  const top = Math.max(0, scrollerRect.top);
-  const bottom = Math.min(visibleBottom, scrollerRect.bottom);
-  const scrollerInlineEnd = Math.max(0, input.viewportWidth - scrollerRect.right);
+  const top = input.scrollerRect ? scrollerRect.top : Math.max(0, scrollerRect.top);
+  const bottom = input.scrollerRect
+    ? scrollerRect.bottom
+    : Math.min(visibleBottom, scrollerRect.bottom);
+  const contentBottom = input.scrollerRect ? bottom : input.viewportHeight;
+  const markerScrollerRect = input.viewportScrollerAnchorRect ?? scrollerRect;
+  const markerTop = input.viewportScrollerAnchorRect ? markerScrollerRect.top : top;
+  const markerBottom = input.viewportScrollerAnchorRect ? markerScrollerRect.bottom : bottom;
+  const scrollerInlineEnd = Math.max(0, input.viewportWidth - markerScrollerRect.right);
   return {
     positions: {
-      start: bottom + (input.start - input.scroll),
+      start: contentBottom + (input.start - input.scroll),
       end: top + (input.end - input.scroll),
-      "scroller-start": bottom,
-      "scroller-end": top,
+      "scroller-start": markerBottom,
+      "scroller-end": markerTop,
     },
     scrollerInlineEnd,
     contentInlineEnd: scrollerInlineEnd + input.scrollerMarkerWidth + MARKER_PAIR_GAP,
