@@ -1,4 +1,4 @@
-import type { EditorController } from "../editor-controller";
+import type { EditorController } from "../controller";
 import editorStyles from "./editor.css?raw";
 import { mountEditorUi, type EditorUiHandle } from "./mount";
 

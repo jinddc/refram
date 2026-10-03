@@ -4,7 +4,7 @@ import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mountMotionDevTools } from "../playground/motion-devtools";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+import { createTimelineRegistry } from "../src/devtools/timeline/registry";
 
 let nextFrame = 0;
 let frames = new Map<number, FrameRequestCallback>();

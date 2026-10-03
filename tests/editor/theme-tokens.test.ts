@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const editorUiDirectory = fileURLToPath(
-  new URL("../src/devtools/editor-ui/", import.meta.url),
+  new URL("../../src/devtools/editor/ui/", import.meta.url),
 );
 
 describe("DevTools editor CSS variables", () => {

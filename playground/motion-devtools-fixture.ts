@@ -5,7 +5,7 @@ import {
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
-} from "../src/devtools/timeline-registry";
+} from "../src/devtools/timeline/registry";
 import { registerContainerAnimationSequence } from "./timelines/container-animation-sequence";
 import { registerCanvasParticlesSequence } from "./timelines/canvas-particles-sequence";
 import { registerDetailSequence } from "./timelines/detail-sequence";

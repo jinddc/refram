@@ -3,7 +3,7 @@
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createScrollTriggerMarkerPresentation } from "../../src/devtools/scrolltrigger/marker-presentation";
-import { createTimelineRegistry } from "../../src/devtools/timeline-registry";
+import { createTimelineRegistry } from "../../src/devtools/timeline/registry";
 import { bounds, directTimeline, nativeMarker, ownedMarkers } from "../helpers/editor-test-fixtures";
 
 beforeEach(() => {

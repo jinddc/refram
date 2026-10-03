@@ -1,4 +1,4 @@
-import type { EditorController } from "../editor-controller";
+import type { EditorController } from "../controller";
 import {
   defineMotionDevtoolsEditor,
   MOTION_DEVTOOLS_EDITOR_TAG,

@@ -1,5 +1,5 @@
 import type { gsap } from "gsap";
-import type { TimelineInspectionItem, TimelineInspectionSnapshot } from "./timeline-session";
+import type { TimelineInspectionItem, TimelineInspectionSnapshot } from "../timeline/session";
 
 export const DEFAULT_FINITE_TIMELINE_DURATION = 12;
 

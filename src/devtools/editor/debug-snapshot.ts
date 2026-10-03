@@ -1,8 +1,8 @@
-import type { EditorSnapshot } from "./editor-controller";
+import type { EditorSnapshot } from "./controller";
 import type {
   TimelineScrollTriggerMarkerConfig,
   TimelineScrollTriggerMarkers,
-} from "./timeline-session";
+} from "../timeline/session";
 
 const DEBUG_SNAPSHOT_SCHEMA_VERSION = 1;
 

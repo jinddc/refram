@@ -2,11 +2,11 @@
 
 import { gsap } from "gsap";
 import { SplitText } from "gsap/SplitText";
-import { registerTimeline } from "../src/devtools/timeline-registry";
+import { registerTimeline } from "../src/devtools/timeline/registry";
 import type {
   MotionTimelineTrack,
   RebuildableMotionTimelineRuntime,
-} from "../src/devtools/timeline-control";
+} from "../src/devtools/timeline/control";
 
 gsap.registerPlugin(SplitText);
 

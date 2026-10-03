@@ -4,7 +4,7 @@ import { SplitText } from "gsap/SplitText";
 import {
   registerTimeline,
   type MotionTimelineRegistration,
-} from "../../src/devtools/timeline-registry";
+} from "../../src/devtools/timeline/registry";
 
 gsap.registerPlugin(SplitText);
 

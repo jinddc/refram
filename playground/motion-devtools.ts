@@ -4,13 +4,13 @@ import {
   type TimelineInspectionItem,
   type TimelineInspectionSnapshot,
   type TimelineSessionAttachment,
-} from "../src/devtools/timeline-session";
+} from "../src/devtools/timeline/session";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
   type MotionTimelineRegistry,
   type MotionTimelineRegistrySnapshot,
-} from "../src/devtools/timeline-registry";
+} from "../src/devtools/timeline/registry";
 
 const DEFAULT_TIMELINE_RATIO = 0.38;
 const MIN_PREVIEW_HEIGHT = 280;

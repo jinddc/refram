@@ -1,7 +1,7 @@
 export {
   MotionDevtoolsEditor,
   type MotionDevtoolsEditorOptions,
-} from "./devtools/editor-ui/editor";
+} from "./devtools/editor/ui/editor";
 export {
   createTimelineRegistry,
   defaultTimelineRegistry,
@@ -9,7 +9,7 @@ export {
   type MotionTimelineRegistration,
   type MotionTimelineRegistry,
   type MotionTimelineRegistrySnapshot,
-} from "./devtools/timeline-registry";
+} from "./devtools/timeline/registry";
 export type {
   DirectMotionTimelineDeclaration,
   MotionTimelineDeclaration,
@@ -19,4 +19,4 @@ export type {
   MotionTimelineTrackDeclaration,
   RebuildableMotionTimelineDeclaration,
   RebuildableMotionTimelineRuntime,
-} from "./devtools/timeline-control";
+} from "./devtools/timeline/control";

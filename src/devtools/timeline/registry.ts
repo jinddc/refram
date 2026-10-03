@@ -4,7 +4,7 @@ import {
   type MotionTimelineControlEvent,
   type MotionTimelineDeclaration,
   type MotionTimelineReplayStrategy,
-} from "./timeline-control";
+} from "./control";
 
 export interface MotionTimelineRegistration {
   readonly id: string;

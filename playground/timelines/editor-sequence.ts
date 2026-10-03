@@ -3,7 +3,7 @@ import { gsap } from "gsap";
 import {
   registerTimeline,
   type MotionTimelineRegistration,
-} from "../../src/devtools/timeline-registry";
+} from "../../src/devtools/timeline/registry";
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);

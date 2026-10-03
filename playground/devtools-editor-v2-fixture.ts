@@ -1,11 +1,11 @@
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-import { MotionDevtoolsEditor } from "../src/devtools/editor-ui/editor";
+import { MotionDevtoolsEditor } from "../src/devtools/editor/ui/editor";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
-} from "../src/devtools/timeline-registry";
+} from "../src/devtools/timeline/registry";
 
 gsap.registerPlugin(ScrollTrigger);
 

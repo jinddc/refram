@@ -2,10 +2,10 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEditorController } from "../src/devtools/editor-controller";
-import { DEFAULT_FINITE_TIMELINE_DURATION } from "../src/devtools/editor-time";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
-import { directTimeline } from "./helpers/editor-test-fixtures";
+import { createEditorController } from "../../src/devtools/editor/controller";
+import { DEFAULT_FINITE_TIMELINE_DURATION } from "../../src/devtools/editor/time";
+import { createTimelineRegistry } from "../../src/devtools/timeline/registry";
+import { directTimeline } from "../helpers/editor-test-fixtures";
 
 beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));

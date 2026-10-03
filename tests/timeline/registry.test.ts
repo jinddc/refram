@@ -8,7 +8,7 @@ import {
   defaultTimelineRegistry,
   registerTimeline,
   type MotionTimelineRegistrySnapshot,
-} from "../src/devtools/timeline-registry";
+} from "../../src/devtools/timeline/registry";
 
 afterEach(() => {
   gsap.globalTimeline.clear();

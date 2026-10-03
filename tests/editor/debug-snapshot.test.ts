@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createScrollTriggerMarkersConfig,
   createSelectedTrackDebugJson,
-} from "../src/devtools/editor-debug-snapshot";
-import { createEditorController } from "../src/devtools/editor-controller";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+} from "../../src/devtools/editor/debug-snapshot";
+import { createEditorController } from "../../src/devtools/editor/controller";
+import { createTimelineRegistry } from "../../src/devtools/timeline/registry";
 
 beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));

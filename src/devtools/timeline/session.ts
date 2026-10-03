@@ -1,5 +1,5 @@
 import type { gsap } from "gsap";
-import type { MotionTimelineTrack } from "./timeline-control";
+import type { MotionTimelineTrack } from "./control";
 
 // Read-only sampling and transport for one live GSAP timeline instance.
 

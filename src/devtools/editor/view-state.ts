@@ -1,12 +1,12 @@
 import type { gsap } from "gsap";
-import type { MotionTimelineReplayState } from "./timeline-control";
-import type { EditorTimeWindow } from "./editor-time";
+import type { MotionTimelineReplayState } from "../timeline/control";
+import type { EditorTimeWindow } from "./time";
 import type {
   TimelineInspectionItem,
   TimelineInspectionSnapshot,
   TimelinePlayState,
   TimelineScrollTriggerSnapshot,
-} from "./timeline-session";
+} from "../timeline/session";
 
 export interface EditorViewTimeline {
   readonly id: string;

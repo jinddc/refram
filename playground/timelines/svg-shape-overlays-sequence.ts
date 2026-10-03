@@ -3,7 +3,7 @@ import { gsap } from "gsap";
 import {
   registerTimeline,
   type MotionTimelineRegistration,
-} from "../../src/devtools/timeline-registry";
+} from "../../src/devtools/timeline/registry";
 
 const POINT_COUNT = 10;
 const POINT_DELAY_MAX = 0.3;

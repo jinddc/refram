@@ -7,7 +7,7 @@ import {
   calculateNativeMarkerGeometry,
   calculateOwnedMarkerGeometry,
 } from "../../src/devtools/scrolltrigger/marker-geometry";
-import { createTimelineRegistry } from "../../src/devtools/timeline-registry";
+import { createTimelineRegistry } from "../../src/devtools/timeline/registry";
 import {
   bounds,
   directTimeline,

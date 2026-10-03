@@ -3,7 +3,7 @@
 import { gsap } from "gsap";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+import { createTimelineRegistry } from "../../../src/devtools/timeline/registry";
 
 afterEach(() => {
   gsap.globalTimeline.clear();

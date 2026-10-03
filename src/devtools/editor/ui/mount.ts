@@ -3,11 +3,11 @@ import {
   type EditorController,
   type EditorControllerOptions,
   type EditorSnapshot,
-} from "../editor-controller";
+} from "../controller";
 import {
   copyTextToClipboard,
   createSelectedTrackDebugJson,
-} from "../editor-debug-snapshot";
+} from "../debug-snapshot";
 import {
   createEditorUiElements,
   EDITOR_TIMELINE_EDGE_GUTTER,

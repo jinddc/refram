@@ -1,4 +1,4 @@
-import type { EditorViewState, EditorViewTrack } from "../editor-view-state";
+import type { EditorViewState, EditorViewTrack } from "../view-state";
 import {
   EDITOR_TIMELINE_EDGE_GUTTER,
   type EditorUiElements,

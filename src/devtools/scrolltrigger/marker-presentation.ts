@@ -1,5 +1,5 @@
 import type { gsap } from "gsap";
-import type { MotionTimelineRegistration } from "../timeline-registry";
+import type { MotionTimelineRegistration } from "../timeline/registry";
 import type { MarkerTriggerLike } from "./marker-geometry";
 import { createScrollTriggerNativeMarkers } from "./native-markers";
 import { createScrollTriggerOwnedMarkers } from "./owned-markers";

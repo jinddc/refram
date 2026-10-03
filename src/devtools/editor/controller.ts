@@ -1,25 +1,25 @@
 import type { gsap } from "gsap";
-import { readEditorTimeWindow } from "./editor-time";
-import { createScrollTriggerMarkerPresentation } from "./scrolltrigger/marker-presentation";
+import { readEditorTimeWindow } from "./time";
+import { createScrollTriggerMarkerPresentation } from "../scrolltrigger/marker-presentation";
 import {
   buildEditorViewState,
   editorTrackKey,
   type EditorViewInput,
   type EditorViewState,
-} from "./editor-view-state";
+} from "./view-state";
 import {
   attachGsapTimelineSession,
   readTimelineScrollTrigger,
   type TimelineInspectionItem,
   type TimelineInspectionSnapshot,
   type TimelineSessionAttachment,
-} from "./timeline-session";
+} from "../timeline/session";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
   type MotionTimelineRegistry,
   type MotionTimelineRegistrySnapshot,
-} from "./timeline-registry";
+} from "../timeline/registry";
 
 export interface EditorSnapshot extends EditorViewInput {
   readonly previewRoot: HTMLElement | undefined;

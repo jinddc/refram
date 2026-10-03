@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from "vitest";
-import { createEditorUiElements } from "../src/devtools/editor-ui/dom";
+import { createEditorUiElements } from "../../src/devtools/editor/ui/dom";
 
 describe("editor DOM contract", () => {
   it("emits stable landmarks, pane relationships, and semantic group order", () => {

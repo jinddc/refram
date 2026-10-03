@@ -3,8 +3,8 @@
 import { gsap } from "gsap";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
-import { attachGsapTimelineSession } from "../src/devtools/timeline-session";
+import { createTimelineRegistry } from "../../../src/devtools/timeline/registry";
+import { attachGsapTimelineSession } from "../../../src/devtools/timeline/session";
 
 interface Particle {
   x: number;

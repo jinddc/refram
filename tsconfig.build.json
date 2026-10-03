@@ -8,6 +8,6 @@
     "rootDir": "src",
     "types": []
   },
-  "include": ["src/index.ts", "src/devtools/editor-ui/styles.d.ts"],
+  "include": ["src/index.ts", "src/devtools/editor/ui/styles.d.ts"],
   "exclude": ["tests", "playground"]
 }

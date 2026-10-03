@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   attachGsapTimelineSession,
   readTimelineScrollTrigger,
-} from "../src/devtools/timeline-session";
+} from "../../src/devtools/timeline/session";
 
 interface FakeTriggerOptions {
   readonly start?: number;

@@ -2,18 +2,18 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MotionDevtoolsEditor } from "../src/devtools/editor-ui/editor";
+import { MotionDevtoolsEditor } from "../../src/devtools/editor/ui/editor";
 import {
   defineMotionDevtoolsEditor,
   MOTION_DEVTOOLS_EDITOR_TAG,
   type MotionDevtoolsEditorElement,
-} from "../src/devtools/editor-ui/element";
-import { mountEditorUi } from "../src/devtools/editor-ui/mount";
-import { DEFAULT_FINITE_TIMELINE_DURATION } from "../src/devtools/editor-time";
+} from "../../src/devtools/editor/ui/element";
+import { mountEditorUi } from "../../src/devtools/editor/ui/mount";
+import { DEFAULT_FINITE_TIMELINE_DURATION } from "../../src/devtools/editor/time";
 import {
   createTimelineRegistry,
   defaultTimelineRegistry,
-} from "../src/devtools/timeline-registry";
+} from "../../src/devtools/timeline/registry";
 
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;

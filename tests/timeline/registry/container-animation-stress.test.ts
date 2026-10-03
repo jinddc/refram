@@ -4,7 +4,7 @@ import { gsap } from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+import { createTimelineRegistry } from "../../../src/devtools/timeline/registry";
 
 gsap.registerPlugin(SplitText);
 

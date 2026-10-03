@@ -2,9 +2,9 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEditorController } from "../src/devtools/editor-controller";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
-import { directTimeline } from "./helpers/editor-test-fixtures";
+import { createEditorController } from "../../src/devtools/editor/controller";
+import { createTimelineRegistry } from "../../src/devtools/timeline/registry";
+import { directTimeline } from "../helpers/editor-test-fixtures";
 
 let frames: FrameRequestCallback[];
 
