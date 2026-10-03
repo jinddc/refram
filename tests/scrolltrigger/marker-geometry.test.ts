@@ -2,14 +2,18 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createScrollTriggerMarkerPresentation } from "../src/devtools/scrolltrigger-marker-presentation";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
+import { createScrollTriggerMarkerPresentation } from "../../src/devtools/scrolltrigger/marker-presentation";
+import {
+  calculateNativeMarkerGeometry,
+  calculateOwnedMarkerGeometry,
+} from "../../src/devtools/scrolltrigger/marker-geometry";
+import { createTimelineRegistry } from "../../src/devtools/timeline-registry";
 import {
   bounds,
   directTimeline,
   markerPositions,
   ownedMarkers,
-} from "./helpers/editor-test-fixtures";
+} from "../helpers/editor-test-fixtures";
 
 beforeEach(() => {
   vi.stubGlobal("innerWidth", 1200);
@@ -56,6 +60,55 @@ function presentGeometry(options: {
 }
 
 describe("ScrollTrigger marker geometry", () => {
+  it("calculates viewport, custom-scroller, and native pair geometry without DOM access", () => {
+    expect(calculateOwnedMarkerGeometry({
+      viewportWidth: 1200,
+      viewportHeight: 800,
+      editorTop: 600,
+      scroll: 100,
+      start: 100,
+      end: 500,
+      scrollerMarkerWidth: 0,
+    })).toEqual({
+      positions: {
+        start: 600,
+        end: 400,
+        "scroller-start": 600,
+        "scroller-end": 0,
+      },
+      scrollerInlineEnd: 0,
+      contentInlineEnd: 4,
+    });
+    expect(calculateOwnedMarkerGeometry({
+      viewportWidth: 1200,
+      viewportHeight: 800,
+      editorTop: 700,
+      scrollerRect: { top: 50, right: 700, bottom: 650 },
+      scroll: 300,
+      start: 100,
+      end: 500,
+      scrollerMarkerWidth: 44,
+    })).toEqual({
+      positions: {
+        start: 450,
+        end: 250,
+        "scroller-start": 650,
+        "scroller-end": 50,
+      },
+      scrollerInlineEnd: 500,
+      contentInlineEnd: 548,
+    });
+    expect(calculateNativeMarkerGeometry({
+      scrollerStartWidth: 44,
+      scrollerStartInlineEnd: 2,
+      scrollerEndInlineEnd: 6,
+    })).toEqual({
+      scrollerWidth: 44,
+      startInlineEnd: 50,
+      endInlineEnd: 54,
+    });
+  });
+
   it("positions viewport markers against the editor-clamped visible bottom", () => {
     const editor = document.createElement("motion-devtools-editor");
     vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));

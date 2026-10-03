@@ -2,9 +2,9 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createScrollTriggerMarkerPresentation } from "../src/devtools/scrolltrigger-marker-presentation";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
-import { bounds, directTimeline, nativeMarker } from "./helpers/editor-test-fixtures";
+import { createScrollTriggerMarkerPresentation } from "../../src/devtools/scrolltrigger/marker-presentation";
+import { createTimelineRegistry } from "../../src/devtools/timeline-registry";
+import { bounds, directTimeline, nativeMarker, ownedMarkers } from "../helpers/editor-test-fixtures";
 
 beforeEach(() => {
   vi.stubGlobal("innerWidth", 1200);
@@ -147,6 +147,129 @@ describe("native ScrollTrigger marker ownership", () => {
     expect(disconnect).toHaveBeenCalledOnce();
     expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
 
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("samples visible geometry without repeating structural marker discovery", () => {
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("sampling");
+    const markerStart = nativeMarker("start", "Sampling");
+    const markerEnd = nativeMarker("end", "Sampling");
+    nativeMarker("scroller-start", "Sampling");
+    nativeMarker("scroller-end", "Sampling");
+    Object.defineProperty(fixture.timeline, "scrollTrigger", {
+      value: {
+        start: 0,
+        end: 400,
+        trigger: fixture.target,
+        markerStart,
+        markerEnd,
+        scroller: window,
+        vars: { id: "Sampling", markers: true },
+        scroll: () => 0,
+      },
+    });
+    const registration = registry.register(fixture);
+    const presentation = createScrollTriggerMarkerPresentation();
+    presentation.activate(registration.id, registration.timeline);
+    presentation.sync([registration], registration.id);
+    const discovery = vi.spyOn(document, "querySelectorAll");
+
+    presentation.sync([registration], registration.id);
+
+    expect(discovery.mock.calls.filter(([selector]) => (
+      String(selector).startsWith(".gsap-marker-")
+    ))).toHaveLength(0);
+    expect(markerStart.style.getPropertyValue("--motion-devtools-marker-inline-end"))
+      .toBe("4px");
+    presentation.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("replaces fallback nodes when native markers appear after the first sync", () => {
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("late-native");
+    const trigger = {
+      start: 0,
+      end: 400,
+      trigger: fixture.target,
+      markerStart: undefined as HTMLElement | undefined,
+      markerEnd: undefined as HTMLElement | undefined,
+      scroller: window,
+      vars: { id: "Late native", markers: true },
+      scroll: () => 0,
+    };
+    Object.defineProperty(fixture.timeline, "scrollTrigger", { value: trigger });
+    const registration = registry.register(fixture);
+    const presentation = createScrollTriggerMarkerPresentation();
+    presentation.activate(registration.id, registration.timeline);
+    presentation.sync([registration], registration.id);
+    expect(ownedMarkers()).toHaveLength(4);
+
+    trigger.markerStart = nativeMarker("start", "Late native");
+    trigger.markerEnd = nativeMarker("end", "Late native");
+    const scrollerStart = nativeMarker("scroller-start", "Late native");
+    const scrollerEnd = nativeMarker("scroller-end", "Late native");
+    presentation.sync([registration], registration.id);
+
+    expect(ownedMarkers()).toHaveLength(0);
+    expect([
+      trigger.markerStart,
+      trigger.markerEnd,
+      scrollerStart,
+      scrollerEnd,
+    ].every((marker) => marker.hasAttribute("data-motion-devtools-marker-selected")))
+      .toBe(true);
+
+    presentation.destroy();
+    registration.destroy();
+    registry.destroy();
+  });
+
+  it("binds the editor clamp when an editor mounts after marker activation", () => {
+    const observe = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      observe = observe;
+      disconnect = vi.fn();
+    });
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("late-editor");
+    const markerStart = nativeMarker("start", "Late editor");
+    const markerEnd = nativeMarker("end", "Late editor");
+    nativeMarker("scroller-start", "Late editor");
+    nativeMarker("scroller-end", "Late editor");
+    Object.defineProperty(fixture.timeline, "scrollTrigger", {
+      value: {
+        start: 0,
+        end: 400,
+        trigger: fixture.target,
+        markerStart,
+        markerEnd,
+        scroller: window,
+        vars: { id: "Late editor", markers: true },
+        scroll: () => 0,
+      },
+    });
+    const registration = registry.register(fixture);
+    const presentation = createScrollTriggerMarkerPresentation();
+    presentation.activate(registration.id, registration.timeline);
+    presentation.sync([registration], registration.id);
+    const style = document.querySelector<HTMLStyleElement>(
+      "[data-motion-devtools-marker-visibility]",
+    );
+    expect(style?.textContent).toContain("top: 798px !important");
+
+    const editor = document.createElement("motion-devtools-editor");
+    vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));
+    document.body.append(editor);
+    presentation.sync([registration], registration.id);
+
+    expect(style?.textContent).toContain("top: 598px !important");
+    expect(observe).toHaveBeenCalledWith(editor);
+
+    presentation.destroy();
     registration.destroy();
     registry.destroy();
   });

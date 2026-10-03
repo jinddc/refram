@@ -2,9 +2,9 @@
 
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createScrollTriggerMarkerPresentation } from "../src/devtools/scrolltrigger-marker-presentation";
-import { createTimelineRegistry } from "../src/devtools/timeline-registry";
-import { directTimeline, ownedMarkers } from "./helpers/editor-test-fixtures";
+import { createScrollTriggerMarkerPresentation } from "../../src/devtools/scrolltrigger/marker-presentation";
+import { createTimelineRegistry } from "../../src/devtools/timeline-registry";
+import { directTimeline, ownedMarkers } from "../helpers/editor-test-fixtures";
 
 beforeEach(() => {
   vi.stubGlobal("innerWidth", 1200);

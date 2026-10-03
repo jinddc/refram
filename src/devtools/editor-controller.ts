@@ -1,6 +1,6 @@
 import type { gsap } from "gsap";
 import { readEditorTimeWindow } from "./editor-time";
-import { createScrollTriggerMarkerPresentation } from "./scrolltrigger-marker-presentation";
+import { createScrollTriggerMarkerPresentation } from "./scrolltrigger/marker-presentation";
 import {
   buildEditorViewState,
   editorTrackKey,
