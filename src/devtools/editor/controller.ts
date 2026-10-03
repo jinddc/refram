@@ -8,11 +8,9 @@ import {
   type EditorViewState,
 } from "./view-state";
 import {
-  attachGsapTimelineSession,
   readTimelineScrollTrigger,
   type TimelineInspectionItem,
   type TimelineInspectionSnapshot,
-  type TimelineSessionAttachment,
 } from "../timeline/session";
 import {
   defaultTimelineRegistry,
@@ -20,6 +18,18 @@ import {
   type MotionTimelineRegistry,
   type MotionTimelineRegistrySnapshot,
 } from "../timeline/registry";
+import { createEditorActiveSession } from "./active-session";
+import { resolveTimelineTarget } from "./target-resolution";
+import {
+  canControlEditorTransport,
+  captureReplayTransport,
+  continueEditorLoop,
+  playEditorTransport,
+  playInReverseFromStart,
+  restoreReplayTransport,
+  seekEditorTransport,
+  type ReplayTransportState,
+} from "./transport";
 
 export interface EditorSnapshot extends EditorViewInput {
   readonly previewRoot: HTMLElement | undefined;
@@ -59,20 +69,6 @@ function selectedItem(
     ?? inspection?.items.find((item) => item.animation === animation);
 }
 
-function scrollTriggerTarget(timeline: gsap.core.Timeline): Element | undefined {
-  const trigger = (timeline as gsap.core.Timeline & {
-    readonly scrollTrigger?: { readonly trigger?: unknown };
-  }).scrollTrigger;
-  return trigger?.trigger instanceof Element ? trigger.trigger : undefined;
-}
-
-function timelineTarget(
-  registration: MotionTimelineRegistration,
-  hasScrollTrigger: boolean,
-): Element | undefined {
-  return hasScrollTrigger ? scrollTriggerTarget(registration.timeline) : registration.root;
-}
-
 export function createEditorController(
   options: EditorControllerOptions = {},
 ): EditorController {
@@ -83,20 +79,14 @@ export function createEditorController(
   let registrySnapshot = registry.getSnapshot();
   let active: MotionTimelineRegistration | undefined;
   let activeIndex = 0;
-  let controlSubscription: (() => void) | undefined;
-  let attachment: TimelineSessionAttachment | undefined;
-  let inspection: TimelineInspectionSnapshot | undefined;
-  let timeOrigin = 0;
   let trackKey: string | undefined;
   let animation: gsap.core.Animation | undefined;
   let error: unknown;
-  let replayDirection: boolean | undefined;
-  let replayTimeScale: number | undefined;
+  let replayTransport: ReplayTransportState | undefined;
   let looping = false;
   let rebuilding = false;
   let replayInProgress = false;
   let destroyed = false;
-  let generation = 0;
   let markerTimelineId: string | undefined;
   let current: EditorSnapshot;
 
@@ -132,23 +122,24 @@ export function createEditorController(
       replayState: active?.replayState,
       rebuilding,
       previewRoot: active?.root,
-      inspection,
-      timeWindow: active && inspection
-        ? readEditorTimeWindow(active.timeline, inspection, timeOrigin)
+      inspection: activeSession.inspection,
+      timeWindow: active && activeSession.inspection
+        ? readEditorTimeWindow(active.timeline, activeSession.inspection, activeSession.timeOrigin)
         : undefined,
-      selectedItem: selectedItem(inspection, trackKey, animation),
+      selectedItem: selectedItem(activeSession.inspection, trackKey, animation),
       error,
       looping,
       canJumpToScrollTriggerTarget: Boolean(
-        inspection && active && timelineTarget(active, inspection.scrollTrigger !== undefined),
+        activeSession.inspection && active
+          && resolveTimelineTarget(active, activeSession.inspection.scrollTrigger !== undefined),
       ),
       canToggleScrollTriggerMarkers: Boolean(
-        inspection?.scrollTrigger
+        activeSession.inspection?.scrollTrigger
           && active
           && markerPresentation.canPresent(active.timeline),
       ),
       scrollTriggerMarkersVisible: Boolean(
-        inspection?.scrollTrigger
+        activeSession.inspection?.scrollTrigger
           && active
           && active.id === markerTimelineId
           && markerPresentation.isVisible(active.id),
@@ -163,94 +154,60 @@ export function createEditorController(
     for (const listener of [...listeners]) listener(current);
   };
 
-  const detach = (): void => {
-    generation += 1;
-    controlSubscription?.();
-    controlSubscription = undefined;
-    attachment?.detach();
-    attachment = undefined;
-    inspection = undefined;
-  };
-
-  const attach = (registration: MotionTimelineRegistration): void => {
-    const token = ++generation;
-    timeOrigin = registration.timeline.totalTime();
-    const next = attachGsapTimelineSession(
-      registration.timeline,
-      (snapshot) => {
-        if (destroyed || active !== registration || token !== generation) return;
-        const wasRunning = inspection?.playState === "running";
-        inspection = snapshot;
-        const reachedLoopBoundary = wasRunning && looping && snapshot.playState !== "running"
-          && (snapshot.reversed ? snapshot.progress <= 0 : snapshot.playState === "finished");
-        if (reachedLoopBoundary) {
-          registration.timeline.totalProgress(snapshot.reversed ? 1 : 0, true);
-          if (snapshot.reversed) registration.timeline.reverse();
-          else registration.timeline.play();
-          if (attachment) inspection = attachment.read();
-        }
-        const item = selectedItem(snapshot, trackKey, animation);
-        if (item) {
-          trackKey = editorTrackKey(item);
-          animation = item.animation;
-        }
-        syncMarkers();
-        publish();
-      },
-      registration.tracks,
-    );
-    if (destroyed || active !== registration || token !== generation) {
-      next.detach();
-      return;
-    }
-    attachment = next;
-    syncMarkers();
-  };
+  const activeSession = createEditorActiveSession({
+    isCurrent: (registration) => !destroyed && active === registration,
+    onSnapshot(snapshot, previous) {
+      const next = active
+        ? continueEditorLoop(
+            previous?.playState === "running",
+            looping,
+            snapshot,
+            active.timeline,
+            activeSession.attachment,
+          )
+        : snapshot;
+      activeSession.setInspection(next);
+      const item = selectedItem(next, trackKey, animation);
+      if (item) {
+        trackKey = editorTrackKey(item);
+        animation = item.animation;
+      }
+      syncMarkers();
+      publish();
+    },
+    onReplayStart() {
+      rebuilding = true;
+      publish();
+    },
+    onTimeline(registration) {
+      rebuilding = false;
+      error = undefined;
+      timelineLabels.delete(registration);
+    },
+    onError(cause) {
+      rebuilding = false;
+      error = cause;
+      publish();
+    },
+    onDestroy() {
+      rebuilding = false;
+      publish();
+    },
+  });
 
   const activate = (registration: MotionTimelineRegistration | undefined): void => {
     if (active === registration) return;
-    detach();
+    activeSession.detach();
     active = registration;
-    replayDirection = undefined;
-    replayTimeScale = undefined;
+    replayTransport = undefined;
     rebuilding = false;
     trackKey = undefined;
     animation = undefined;
     error = undefined;
     if (registration) {
       activeIndex = registrySnapshot.registrations.indexOf(registration);
-      controlSubscription = registration.subscribe((event) => {
-        if (destroyed || active !== registration) return;
-        switch (event.type) {
-          case "replay-start":
-            rebuilding = true;
-            attachment?.detach();
-            attachment = undefined;
-            inspection = undefined;
-            publish();
-            break;
-          case "timeline":
-            rebuilding = false;
-            error = undefined;
-            timelineLabels.delete(registration);
-            attach(registration);
-            break;
-          case "error":
-            rebuilding = false;
-            error = event.error;
-            publish();
-            break;
-          case "destroy":
-            rebuilding = false;
-            attachment?.detach();
-            attachment = undefined;
-            inspection = undefined;
-            publish();
-            break;
-        }
-      });
       try {
-        attach(registration);
+        activeSession.activate(registration);
       } catch (cause) {
         error = cause;
       }
@@ -282,19 +239,13 @@ export function createEditorController(
   current = makeSnapshot();
   const unsubscribeRegistry = registry.subscribe(handleRegistry);
 
-  const canControl = (): boolean => Boolean(
-    !destroyed && active && attachment && inspection?.driver === "manual"
-      && inspection.readiness === "ready" && error === undefined,
+  const canControl = (): boolean => canControlEditorTransport(
+    destroyed,
+    active !== undefined,
+    activeSession.attachment,
+    activeSession.inspection,
+    error,
   );
-
-  const playInReverseFromStart = (): void => {
-    const window = current.timeWindow;
-    active?.timeline.totalTime(
-      window ? window.start + window.sourceDuration : active.timeline.totalDuration(),
-      true,
-    );
-    active?.timeline.reverse();
-  };
 
   return {
     getSnapshot: () => current,
@@ -318,7 +269,9 @@ export function createEditorController(
     },
     selectTrack(key) {
       if (destroyed) return false;
-      const item = inspection?.items.find((candidate) => editorTrackKey(candidate) === key);
+      const item = activeSession.inspection?.items.find(
+        (candidate) => editorTrackKey(candidate) === key,
+      );
       if (!item) return false;
       trackKey = editorTrackKey(item);
       animation = item.animation;
@@ -327,7 +280,7 @@ export function createEditorController(
     },
     selectItem(index) {
       if (destroyed) return false;
-      const item = inspection?.items.find((candidate) => candidate.index === index);
+      const item = activeSession.inspection?.items.find((candidate) => candidate.index === index);
       if (!item) return false;
       trackKey = editorTrackKey(item);
       animation = item.animation;
@@ -342,25 +295,25 @@ export function createEditorController(
       return true;
     },
     play() {
-      if (!canControl()) return false;
-      if (inspection?.reversed) {
-        if ((current.view.time?.progress ?? 0) <= 0) {
-          playInReverseFromStart();
-        } else {
-          active?.timeline.reverse();
-        }
-      } else {
-        if (inspection?.playState === "finished" && !this.replay()) return false;
-        active?.timeline.play();
+      if (!canControl() || !active || !activeSession.inspection) return false;
+      if (!playEditorTransport(
+        () => active!.timeline,
+        activeSession.inspection,
+        current.timeWindow,
+        () => this.replay(),
+      )) return false;
+      if (activeSession.attachment) {
+        activeSession.setInspection(activeSession.attachment.read());
       }
-      if (attachment) inspection = attachment.read();
       publish();
       return true;
     },
     pause() {
       if (!canControl()) return false;
       active?.timeline.pause();
-      if (attachment) inspection = attachment.read();
+      if (activeSession.attachment) {
+        activeSession.setInspection(activeSession.attachment.read());
+      }
       publish();
       return true;
     },
@@ -368,24 +321,16 @@ export function createEditorController(
       if (destroyed || !active || replayInProgress) return false;
       if (active.replayState === "blocked") return false;
       replayInProgress = true;
-      if (inspection) {
-        replayDirection = inspection.reversed;
-        replayTimeScale = inspection.timeScale;
-      }
+      replayTransport = captureReplayTransport(activeSession.inspection) ?? replayTransport;
       try {
         active.replay();
-        if (!attachment) attach(active);
-        if (attachment && replayTimeScale !== undefined
-          && attachment.read().timeScale !== replayTimeScale) {
-          attachment.setTimeScale(replayTimeScale);
+        activeSession.ensureAttached(active);
+        if (activeSession.attachment) {
+          activeSession.setInspection(
+            restoreReplayTransport(activeSession.attachment, replayTransport),
+          );
         }
-        if (attachment && replayDirection !== undefined
-          && attachment.read().reversed !== replayDirection) {
-          attachment.setReversed(replayDirection);
-        }
-        if (attachment) inspection = attachment.read();
-        replayDirection = undefined;
-        replayTimeScale = undefined;
+        replayTransport = undefined;
         error = undefined;
         publish();
         return true;
@@ -398,54 +343,42 @@ export function createEditorController(
       }
     },
     seek(progress) {
+      const attachment = activeSession.attachment;
+      const inspection = activeSession.inspection;
       if (destroyed || !attachment || inspection?.readiness !== "ready"
         || !Number.isFinite(progress) || progress < 0 || progress > 1
         || !active || !inspection) return false;
-      if (inspection.driver === "scroll") {
-        const sought = attachment.seek(progress);
-        if (sought) inspection = attachment.read();
-        publish();
-        return sought;
+      if (inspection.driver !== "scroll" && !canControl()) return false;
+      const next = seekEditorTransport(
+        progress,
+        active.timeline,
+        attachment,
+        inspection,
+        readEditorTimeWindow(active.timeline, inspection, activeSession.timeOrigin),
+      );
+      if (!next) {
+        if (inspection.driver === "scroll") publish();
+        return false;
       }
-      if (!canControl()) return false;
-      const window = readEditorTimeWindow(active.timeline, inspection, timeOrigin);
-      if (!window) return false;
-      if (inspection.playState === "finished") active.timeline.pause();
-      if (!window.repeating) {
-        const requestedTime = window.start + progress * window.duration;
-        const seekTime = Math.min(requestedTime, inspection.totalDuration);
-        active.timeline.totalTime(seekTime, false);
-        inspection = attachment!.read();
-        publish();
-        return true;
-      }
-      const requestedTime = progress * window.duration;
-      const remainder = requestedTime % window.sourceDuration;
-      const atPositiveBoundary = requestedTime > 0 && Math.abs(remainder) < 0.000001;
-      const phase = atPositiveBoundary
-        ? window.sourceDuration - Math.min(0.000001, window.sourceDuration / 2)
-        : remainder;
-      const time = window.start + phase;
-      active.timeline.totalTime(time, false);
-      inspection = attachment!.read();
+      activeSession.setInspection(next);
       publish();
       return true;
     },
     setTimeScale(value) {
       if (!canControl()) return false;
-      return attachment!.setTimeScale(value);
+      return activeSession.attachment!.setTimeScale(value);
     },
     setReversed(value) {
       if (!canControl()) return false;
-      if (value && inspection?.playState === "running"
+      if (value && activeSession.inspection?.playState === "running"
         && current.timeWindow !== undefined
         && current.timeWindow.time <= current.timeWindow.start) {
-        playInReverseFromStart();
-        inspection = attachment!.read();
+        playInReverseFromStart(active!.timeline, current.timeWindow);
+        activeSession.setInspection(activeSession.attachment!.read());
         publish();
         return true;
       }
-      return attachment!.setReversed(value);
+      return activeSession.attachment!.setReversed(value);
     },
     setLooping(value) {
       if (!canControl() || current.timeWindow === undefined || current.timeWindow.repeating) {
@@ -457,8 +390,11 @@ export function createEditorController(
       return true;
     },
     jumpToScrollTriggerTarget() {
-      if (destroyed || !active || !inspection) return false;
-      const target = timelineTarget(active, inspection.scrollTrigger !== undefined);
+      if (destroyed || !active || !activeSession.inspection) return false;
+      const target = resolveTimelineTarget(
+        active,
+        activeSession.inspection.scrollTrigger !== undefined,
+      );
       if (!target) return false;
       target.scrollIntoView({
         block: "center",
@@ -468,7 +404,7 @@ export function createEditorController(
       return true;
     },
     toggleScrollTriggerMarkers() {
-      if (destroyed || !active || !inspection?.scrollTrigger) return false;
+      if (destroyed || !active || !activeSession.inspection?.scrollTrigger) return false;
       const nextVisible = !(active.id === markerTimelineId
         && markerPresentation.isVisible(active.id));
       if (!markerPresentation.setVisible(active.id, active.timeline, nextVisible)) return false;
@@ -481,7 +417,7 @@ export function createEditorController(
       if (destroyed) return;
       destroyed = true;
       unsubscribeRegistry();
-      detach();
+      activeSession.detach();
       markerPresentation.destroy();
       active = undefined;
       listeners.clear();
