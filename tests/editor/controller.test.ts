@@ -796,12 +796,12 @@ describe("headless editor controller", () => {
     const scrollerStart = marker("scroller-start");
     const scrollerEnd = marker("scroller-end");
     markerStart.style.setProperty(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
       "12px",
       "important",
     );
     scrollerEnd.style.setProperty(
-      "--motion-devtools-marker-scroller-width",
+      "--rf-marker-scroller-width",
       "99px",
       "important",
     );
@@ -833,7 +833,7 @@ describe("headless editor controller", () => {
     const editor = createEditorController({ registry });
 
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(editor.selectTimeline("marked-scroll")).toBe(true);
     expect(editor.getSnapshot().view.transport).toMatchObject({
@@ -848,10 +848,10 @@ describe("headless editor controller", () => {
       behavior: "auto",
     });
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-selected",
+      "data-rf-marker-selected",
     ))).toBe(true);
     expect(markers.map((node) => node.textContent)).toEqual([
       "start",
@@ -860,13 +860,13 @@ describe("headless editor controller", () => {
       "scroller end",
     ]);
     expect(markerStart.style.getPropertyValue(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
     )).toBe("4px");
     expect(markerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
     )).toBe("4px");
     expect(scrollerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-width",
+      "--rf-marker-scroller-width",
     )).toBe("0px");
 
     expect(editor.toggleScrollTriggerMarkers()).toBe(true);
@@ -876,7 +876,7 @@ describe("headless editor controller", () => {
     expect(markedTrigger.vars.markers).toBe(authoredMarkers);
     expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(false);
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
 
     expect(editor.selectTimeline("standard")).toBe(true);
@@ -893,24 +893,24 @@ describe("headless editor controller", () => {
     });
     expect(editor.toggleScrollTriggerMarkers()).toBe(false);
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-selected",
+      "data-rf-marker-selected",
     ))).toBe(true);
     expect(editor.selectTimeline("marked-scroll")).toBe(true);
     expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(false);
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(editor.toggleScrollTriggerMarkers()).toBe(true);
     expect(editor.getSnapshot().view.transport.scrollTriggerMarkersVisible).toBe(true);
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     editor.destroy();
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(markers.map((node) => node.textContent)).toEqual([
       `start-${markerId}`,
@@ -919,24 +919,24 @@ describe("headless editor controller", () => {
       `scroller-end-${markerId}`,
     ]);
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-selected",
+      "data-rf-marker-selected",
     ))).toBe(true);
     expect(markerStart.style.getPropertyValue(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
     )).toBe("12px");
     expect(markerStart.style.getPropertyPriority(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
     )).toBe("important");
     expect(markerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-inline-end",
+      "--rf-marker-inline-end",
     )).toBe("");
     expect(scrollerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-width",
+      "--rf-marker-scroller-width",
     )).toBe("99px");
     expect(scrollerEnd.style.getPropertyPriority(
-      "--motion-devtools-marker-scroller-width",
+      "--rf-marker-scroller-width",
     )).toBe("important");
-    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+    expect(document.querySelector("[data-rf-marker-visibility]")).toBeNull();
 
     markedRegistration.destroy();
     standardRegistration.destroy();
@@ -982,12 +982,12 @@ describe("headless editor controller", () => {
       scrollTriggerMarkersVisible: true,
     });
     const owned = () => [...document.querySelectorAll<HTMLElement>(
-      "[data-motion-devtools-owned-marker]",
+      "[data-rf-marker-owned]",
     )];
     expect(owned()).toHaveLength(4);
     expect(owned().every((marker) => marker.getAttribute("aria-hidden") === "true")).toBe(true);
     expect(Object.fromEntries(owned().map((marker) => [
-      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.dataset.rfMarkerOwnedType,
       marker.style.top,
     ]))).toEqual({
       start: "650px",
@@ -1003,7 +1003,7 @@ describe("headless editor controller", () => {
     trigger.update();
     expect(editor.selectTimeline("marker-free")).toBe(true);
     expect(Object.fromEntries(owned().map((marker) => [
-      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.dataset.rfMarkerOwnedType,
       marker.style.top,
     ]))).toEqual({
       start: "450px",
@@ -1018,7 +1018,7 @@ describe("headless editor controller", () => {
 
     editor.destroy();
     expect(owned()).toHaveLength(0);
-    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+    expect(document.querySelector("[data-rf-marker-visibility]")).toBeNull();
     expect(vars.markers).toBe(false);
     registration.destroy();
     registry.destroy();
@@ -1054,11 +1054,11 @@ describe("headless editor controller", () => {
     });
     const editor = createEditorController({ registry });
     expect(editor.selectTimeline("rebuilt-marker-free")).toBe(true);
-    const before = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")];
+    const before = [...document.querySelectorAll("[data-rf-marker-owned]")];
     expect(before).toHaveLength(4);
 
     expect(editor.replay()).toBe(true);
-    const after = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")];
+    const after = [...document.querySelectorAll("[data-rf-marker-owned]")];
     expect(after).toHaveLength(4);
     expect(after.every((marker) => !before.includes(marker))).toBe(true);
     expect(before.every((marker) => !marker.isConnected)).toBe(true);
@@ -1066,7 +1066,7 @@ describe("headless editor controller", () => {
     expect(markerSets.every(({ vars }) => vars.markers === false)).toBe(true);
 
     editor.destroy();
-    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    expect(document.querySelectorAll("[data-rf-marker-owned]")).toHaveLength(0);
     registration.destroy();
     registry.destroy();
   });

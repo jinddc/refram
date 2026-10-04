@@ -70,7 +70,7 @@ export type TransportIconName = keyof typeof transportIcons;
 export function createTransportIcon(name: TransportIconName): SVGSVGElement {
   const definition: TransportIconDefinition = transportIcons[name];
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
-  svg.classList.add("devtools-editor__transport-icon");
+  svg.classList.add("rf__transport-icon");
   svg.dataset.icon = name;
   svg.setAttribute("width", "16");
   svg.setAttribute("height", "16");
@@ -91,7 +91,7 @@ export function createTransportIcon(name: TransportIconName): SVGSVGElement {
 
 export function createPlayheadIcon(): SVGSVGElement {
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
-  svg.classList.add("devtools-editor__playhead-icon");
+  svg.classList.add("rf__playhead-icon");
   svg.setAttribute("width", "12");
   svg.setAttribute("height", "18");
   svg.setAttribute("viewBox", "0 0 12 18");
@@ -99,7 +99,7 @@ export function createPlayheadIcon(): SVGSVGElement {
   svg.setAttribute("aria-hidden", "true");
 
   const mask = document.createElementNS(SVG_NAMESPACE, "mask");
-  mask.id = "devtools-editor-playhead-mask";
+  mask.id = "rf-playhead-mask";
   mask.setAttribute("fill", "white");
   const maskPath = document.createElementNS(SVG_NAMESPACE, "path");
   maskPath.setAttribute(
@@ -109,14 +109,14 @@ export function createPlayheadIcon(): SVGSVGElement {
   mask.append(maskPath);
 
   const background = maskPath.cloneNode() as SVGPathElement;
-  background.classList.add("devtools-editor__playhead-icon-background");
+  background.classList.add("rf__playhead-icon-background");
   const border = document.createElementNS(SVG_NAMESPACE, "path");
-  border.classList.add("devtools-editor__playhead-icon-border");
+  border.classList.add("rf__playhead-icon-border");
   border.setAttribute(
     "d",
     "M6 18L4.76457 19.5728L6 20.5432L7.23543 19.5728L6 18ZM1.14686 14.1879L-0.0885728 15.7607L1.14686 14.1879ZM10.8531 14.1879L12.0886 15.7607L10.8531 14.1879ZM3 2H9V-2H3V2ZM10 3V11.8287H14V3H10ZM2 11.8287V3H-2V11.8287H2ZM9.61771 12.6151L4.76457 16.4272L7.23543 19.5728L12.0886 15.7607L9.61771 12.6151ZM7.23543 16.4272L2.38228 12.6151L-0.0885728 15.7607L4.76457 19.5728L7.23543 16.4272ZM-2 11.8287C-2 13.3632 -1.29534 14.8128 -0.0885728 15.7607L2.38228 12.6151C2.14093 12.4255 2 12.1356 2 11.8287H-2ZM10 11.8287C10 12.1356 9.85907 12.4255 9.61771 12.6151L12.0886 15.7607C13.2953 14.8128 14 13.3632 14 11.8287H10ZM9 2C9.55228 2 10 2.44772 10 3H14C14 0.238577 11.7614 -2 9 -2V2ZM3 -2C0.238579 -2 -2 0.23857 -2 3H2C2 2.44771 2.44771 2 3 2V-2Z",
   );
-  border.setAttribute("mask", "url(#devtools-editor-playhead-mask)");
+  border.setAttribute("mask", "url(#rf-playhead-mask)");
   svg.append(mask, background, border);
   return svg;
 }

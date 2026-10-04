@@ -43,7 +43,7 @@ export function createActionButton({
   controls,
 }: ActionButtonOptions): HTMLButtonElement {
   const button = document.createElement("button");
-  button.className = "devtools-editor__action";
+  button.className = "rf__action";
   button.textContent = label;
   button.type = "button";
   button.dataset.action = action;

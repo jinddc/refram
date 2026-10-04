@@ -44,9 +44,9 @@ describe("native ScrollTrigger marker ownership", () => {
     expect(presentation.activate(registration.id, registration.timeline)).toBe(true);
     presentation.sync([registration], registration.id);
     expect([markerStart, markerEnd, scrollerStart, scrollerEnd].every((marker) => (
-      marker.hasAttribute("data-motion-devtools-marker-selected")
+      marker.hasAttribute("data-rf-marker-selected")
     ))).toBe(true);
-    expect(unrelated.hasAttribute("data-motion-devtools-marker-selected")).toBe(false);
+    expect(unrelated.hasAttribute("data-rf-marker-selected")).toBe(false);
     expect(unrelated.textContent).toBe("scroller-start-Other");
 
     presentation.destroy();
@@ -79,11 +79,11 @@ describe("native ScrollTrigger marker ownership", () => {
     presentation.activate(registration.id, registration.timeline);
     presentation.sync([registration], registration.id);
 
-    expect(markerStart.hasAttribute("data-motion-devtools-marker-selected")).toBe(true);
-    expect(markerEnd.hasAttribute("data-motion-devtools-marker-selected")).toBe(true);
-    expect(firstScrollerStart.hasAttribute("data-motion-devtools-marker-selected")).toBe(false);
-    expect(secondScrollerStart.hasAttribute("data-motion-devtools-marker-selected")).toBe(false);
-    expect(scrollerEnd.hasAttribute("data-motion-devtools-marker-selected")).toBe(true);
+    expect(markerStart.hasAttribute("data-rf-marker-selected")).toBe(true);
+    expect(markerEnd.hasAttribute("data-rf-marker-selected")).toBe(true);
+    expect(firstScrollerStart.hasAttribute("data-rf-marker-selected")).toBe(false);
+    expect(secondScrollerStart.hasAttribute("data-rf-marker-selected")).toBe(false);
+    expect(scrollerEnd.hasAttribute("data-rf-marker-selected")).toBe(true);
 
     presentation.destroy();
     registration.destroy();
@@ -97,7 +97,7 @@ describe("native ScrollTrigger marker ownership", () => {
       observe = observe;
       disconnect = disconnect;
     });
-    const editor = document.createElement("motion-devtools-editor");
+    const editor = document.createElement("rf-editor");
     vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));
     document.body.append(editor);
     const registry = createTimelineRegistry();
@@ -106,13 +106,13 @@ describe("native ScrollTrigger marker ownership", () => {
     const markerEnd = nativeMarker("end", "Restore");
     const scrollerStart = nativeMarker("scroller-start", "Restore");
     const scrollerEnd = nativeMarker("scroller-end", "Restore");
-    markerStart.setAttribute("data-motion-devtools-marker-hidden", "authored-hidden");
-    markerStart.setAttribute("data-motion-devtools-marker-selected", "authored-selected");
-    markerStart.setAttribute("data-motion-devtools-marker-viewport-scroller", "authored-viewport");
-    markerStart.style.setProperty("--motion-devtools-marker-inline-end", "12px", "important");
-    scrollerEnd.style.setProperty("--motion-devtools-marker-scroller-width", "99px", "important");
+    markerStart.setAttribute("data-rf-marker-hidden", "authored-hidden");
+    markerStart.setAttribute("data-rf-marker-selected", "authored-selected");
+    markerStart.setAttribute("data-rf-marker-viewport-scroller", "authored-viewport");
+    markerStart.style.setProperty("--rf-marker-inline-end", "12px", "important");
+    scrollerEnd.style.setProperty("--rf-marker-scroller-width", "99px", "important");
     scrollerEnd.style.setProperty(
-      "--motion-devtools-marker-scroller-end-top",
+      "--rf-marker-scroller-end-top",
       "23px",
       "important",
     );
@@ -132,29 +132,29 @@ describe("native ScrollTrigger marker ownership", () => {
     const presentation = createScrollTriggerMarkerPresentation();
     presentation.activate(registration.id, registration.timeline);
     presentation.sync([registration], registration.id);
-    expect(document.querySelectorAll("[data-motion-devtools-marker-visibility]")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-rf-marker-visibility]")).toHaveLength(1);
     expect(observe).toHaveBeenCalledWith(editor);
 
     presentation.destroy();
 
     expect(markerStart.textContent).toBe("start-Restore");
-    expect(markerStart.getAttribute("data-motion-devtools-marker-hidden")).toBe("authored-hidden");
-    expect(markerStart.getAttribute("data-motion-devtools-marker-selected")).toBe("authored-selected");
-    expect(markerStart.getAttribute("data-motion-devtools-marker-viewport-scroller"))
+    expect(markerStart.getAttribute("data-rf-marker-hidden")).toBe("authored-hidden");
+    expect(markerStart.getAttribute("data-rf-marker-selected")).toBe("authored-selected");
+    expect(markerStart.getAttribute("data-rf-marker-viewport-scroller"))
       .toBe("authored-viewport");
-    expect(markerStart.style.getPropertyValue("--motion-devtools-marker-inline-end")).toBe("12px");
-    expect(markerStart.style.getPropertyPriority("--motion-devtools-marker-inline-end"))
+    expect(markerStart.style.getPropertyValue("--rf-marker-inline-end")).toBe("12px");
+    expect(markerStart.style.getPropertyPriority("--rf-marker-inline-end"))
       .toBe("important");
-    expect(scrollerEnd.style.getPropertyValue("--motion-devtools-marker-scroller-width"))
+    expect(scrollerEnd.style.getPropertyValue("--rf-marker-scroller-width"))
       .toBe("99px");
-    expect(scrollerEnd.style.getPropertyPriority("--motion-devtools-marker-scroller-width"))
+    expect(scrollerEnd.style.getPropertyPriority("--rf-marker-scroller-width"))
       .toBe("important");
-    expect(scrollerEnd.style.getPropertyValue("--motion-devtools-marker-scroller-end-top"))
+    expect(scrollerEnd.style.getPropertyValue("--rf-marker-scroller-end-top"))
       .toBe("23px");
-    expect(scrollerEnd.style.getPropertyPriority("--motion-devtools-marker-scroller-end-top"))
+    expect(scrollerEnd.style.getPropertyPriority("--rf-marker-scroller-end-top"))
       .toBe("important");
     expect(disconnect).toHaveBeenCalledOnce();
-    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+    expect(document.querySelector("[data-rf-marker-visibility]")).toBeNull();
 
     registration.destroy();
     registry.destroy();
@@ -190,7 +190,7 @@ describe("native ScrollTrigger marker ownership", () => {
     expect(discovery.mock.calls.filter(([selector]) => (
       String(selector).startsWith(".gsap-marker-")
     ))).toHaveLength(0);
-    expect(markerStart.style.getPropertyValue("--motion-devtools-marker-inline-end"))
+    expect(markerStart.style.getPropertyValue("--rf-marker-inline-end"))
       .toBe("4px");
     presentation.destroy();
     registration.destroy();
@@ -229,10 +229,10 @@ describe("native ScrollTrigger marker ownership", () => {
     presentation.activate(registration.id, registration.timeline);
     presentation.sync([registration], registration.id);
     expect(scrollerStart.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-start-top",
+      "--rf-marker-scroller-start-top",
     )).toBe("780px");
     expect(scrollerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-end-top",
+      "--rf-marker-scroller-end-top",
     )).toBe("360px");
 
     anchorTop = 280;
@@ -244,10 +244,10 @@ describe("native ScrollTrigger marker ownership", () => {
     expect(scrollerEnd.style.position).toBe("fixed");
     expect(scrollerEnd.style.top).toBe("0px");
     expect(scrollerStart.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-start-top",
+      "--rf-marker-scroller-start-top",
     )).toBe("700px");
     expect(scrollerEnd.style.getPropertyValue(
-      "--motion-devtools-marker-scroller-end-top",
+      "--rf-marker-scroller-end-top",
     )).toBe("280px");
 
     presentation.destroy();
@@ -287,7 +287,7 @@ describe("native ScrollTrigger marker ownership", () => {
       trigger.markerEnd,
       scrollerStart,
       scrollerEnd,
-    ].every((marker) => marker.hasAttribute("data-motion-devtools-marker-selected")))
+    ].every((marker) => marker.hasAttribute("data-rf-marker-selected")))
       .toBe(true);
 
     presentation.destroy();
@@ -324,11 +324,11 @@ describe("native ScrollTrigger marker ownership", () => {
     presentation.activate(registration.id, registration.timeline);
     presentation.sync([registration], registration.id);
     const style = document.querySelector<HTMLStyleElement>(
-      "[data-motion-devtools-marker-visibility]",
+      "[data-rf-marker-visibility]",
     );
     expect(style?.textContent).toContain(", 798px) !important");
 
-    const editor = document.createElement("motion-devtools-editor");
+    const editor = document.createElement("rf-editor");
     vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));
     document.body.append(editor);
     presentation.sync([registration], registration.id);

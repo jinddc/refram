@@ -153,7 +153,7 @@ describe("ScrollTrigger marker geometry", () => {
   });
 
   it("keeps viewport content geometry while clamping its scroller label above the editor", () => {
-    const editor = document.createElement("motion-devtools-editor");
+    const editor = document.createElement("rf-editor");
     vi.spyOn(editor, "getBoundingClientRect").mockReturnValue(bounds(0, 600, 1200, 200));
     document.body.append(editor);
     const harness = presentGeometry({
@@ -227,12 +227,12 @@ describe("ScrollTrigger marker geometry", () => {
     }
     harness.sync();
     const markerStyle = document.querySelector<HTMLStyleElement>(
-      "[data-motion-devtools-marker-visibility]",
+      "[data-rf-marker-visibility]",
     );
     expect(markerStyle?.textContent).toContain("font: normal 16px/normal sans-serif, Arial");
     expect(markerStyle?.textContent).toContain("padding: 4px 8px");
     expect(markerStyle?.textContent).toMatch(
-      /owned-marker-type="start"[\s\S]*transform: translateY\(-100%\)/,
+      /marker-owned-type="start"[\s\S]*transform: translateY\(-100%\)/,
     );
     expect(markerPositions()).toEqual({
       start: { top: "650px", right: "548px" },

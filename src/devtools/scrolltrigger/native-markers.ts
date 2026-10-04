@@ -4,13 +4,13 @@ import {
   type MarkerTriggerLike,
 } from "./marker-geometry";
 
-const HIDDEN_ATTRIBUTE = "data-motion-devtools-marker-hidden";
-const SELECTED_ATTRIBUTE = "data-motion-devtools-marker-selected";
-const VIEWPORT_SCROLLER_ATTRIBUTE = "data-motion-devtools-marker-viewport-scroller";
-const INLINE_END_PROPERTY = "--motion-devtools-marker-inline-end";
-const SCROLLER_WIDTH_PROPERTY = "--motion-devtools-marker-scroller-width";
-const SCROLLER_START_TOP_PROPERTY = "--motion-devtools-marker-scroller-start-top";
-const SCROLLER_END_TOP_PROPERTY = "--motion-devtools-marker-scroller-end-top";
+const HIDDEN_ATTRIBUTE = "data-rf-marker-hidden";
+const SELECTED_ATTRIBUTE = "data-rf-marker-selected";
+const VIEWPORT_SCROLLER_ATTRIBUTE = "data-rf-marker-viewport-scroller";
+const INLINE_END_PROPERTY = "--rf-marker-inline-end";
+const SCROLLER_WIDTH_PROPERTY = "--rf-marker-scroller-width";
+const SCROLLER_START_TOP_PROPERTY = "--rf-marker-scroller-start-top";
+const SCROLLER_END_TOP_PROPERTY = "--rf-marker-scroller-end-top";
 
 interface OriginalMarkerState {
   readonly text: string | null;

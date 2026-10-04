@@ -11,16 +11,16 @@ import {
 
 function readLaneState(send) {
   return evaluate(send, `(() => {
-    const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
-    const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block");
+    const lanes = window.__devtoolsEditorV2Harness.queryAll(".rf__track-lane");
+    const block = window.__devtoolsEditorV2Harness.query(".rf__track-block");
     const lane = lanes[0];
     const alternateLane = lanes[1];
-    const label = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-label");
-    const speed = window.__devtoolsEditorV2Harness.query(".devtools-editor__speed");
+    const label = window.__devtoolsEditorV2Harness.query(".rf__track-label");
+    const speed = window.__devtoolsEditorV2Harness.query(".rf__speed");
     const speedOption = speed.options[0];
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
-    const editor = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
-    const marks = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark");
+    const editor = window.__devtoolsEditorV2Harness.query("[data-rf]");
+    const marks = window.__devtoolsEditorV2Harness.queryAll(".rf__ruler-mark");
     const laneBounds = lane.getBoundingClientRect();
     const blockBounds = block.getBoundingClientRect();
     const contentBounds = content.getBoundingClientRect();
@@ -60,7 +60,7 @@ function readLaneState(send) {
         laneBounds.left + span.end * laneBounds.width
       ),
       selected: block.dataset.selected,
-      theme: document.querySelector("motion-devtools-editor").dataset.theme,
+      theme: document.querySelector("rf-editor").dataset.theme,
       editorBackground: getComputedStyle(editor).backgroundColor,
       speedWidth: speed.getBoundingClientRect().width,
       speedColorScheme: speedStyle.colorScheme,
@@ -86,14 +86,14 @@ async function verify({ artifactDirectory, send }) {
     () => evaluate(
       send,
       `Boolean(window.__devtoolsEditorV2Harness)
-        && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`,
+        && window.__devtoolsEditorV2Harness.queryAll(".rf__track-block").length === 3`,
     ),
     "the DevTools editor lanes",
   );
 
   const typographyState = await evaluate(send, `(() => {
     const nodes = Array.from(window.__devtoolsEditorV2Harness.queryAll(
-      "[data-devtools-editor], [data-devtools-editor] *",
+      "[data-rf], [data-rf] *",
     ));
     const styles = nodes.map((node) => getComputedStyle(node));
     return {
@@ -147,7 +147,7 @@ async function verify({ artifactDirectory, send }) {
 
   const blockCenter = await evaluate(send, `(() => {
     const bounds = window.__devtoolsEditorV2Harness
-      .query(".devtools-editor__track-block")
+      .query(".rf__track-block")
       .getBoundingClientRect();
     return { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
   })()`);
@@ -165,7 +165,7 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(
     send,
-    `window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block").click()`,
+    `window.__devtoolsEditorV2Harness.query(".rf__track-block").click()`,
   );
   const darkSelectedState = await readLaneState(send);
   assert(
@@ -183,7 +183,7 @@ async function verify({ artifactDirectory, send }) {
   await screenshot(send, darkSelected);
 
   const focusState = await evaluate(send, `(() => {
-    const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block");
+    const block = window.__devtoolsEditorV2Harness.query(".rf__track-block");
     block.focus({ focusVisible: true });
     const style = getComputedStyle(block);
     return { outlineColor: style.outlineColor, outlineWidth: style.outlineWidth };
@@ -196,7 +196,7 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(
     send,
-    `document.querySelector("motion-devtools-editor").setAttribute("theme", "light")`,
+    `document.querySelector("rf-editor").setAttribute("theme", "light")`,
   );
   const lightSelectedState = await readLaneState(send);
   assert(

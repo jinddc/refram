@@ -183,15 +183,15 @@ function renderTimelines(elements: EditorUiElements, view: EditorViewState): voi
   if (elements.timelineList.dataset.signature === signature) return;
   elements.timelineList.dataset.signature = signature;
   const entries: HTMLElement[] = view.timelines.map(({ id, label }) => {
-    const button = node("button", "devtools-editor__timeline-item");
+    const button = node("button", "rf__timeline-item");
     button.type = "button";
     button.dataset.timelineId = id;
     button.setAttribute("aria-current", String(id === view.activeTimelineId));
-    button.append(node("span", "devtools-editor__timeline-item-label", label));
+    button.append(node("span", "rf__timeline-item-label", label));
     return button;
   });
   if (entries.length === 0) {
-    entries.push(node("p", "devtools-editor__timeline-empty", "No timelines registered."));
+    entries.push(node("p", "rf__timeline-empty", "No timelines registered."));
   }
   elements.timelineList.replaceChildren(...entries);
 }
@@ -270,22 +270,22 @@ function renderTransport(
   const playheadPosition = timelinePosition(timelineProgress);
   elements.playhead.style.left = playheadPosition;
   elements.timelineContent.style.setProperty(
-    "--editor-playhead-position",
+    "--rf-playhead-position",
     playheadPosition,
   );
   elements.timelineContent.style.setProperty(
-    "--editor-progress-position",
+    "--rf-progress-position",
     timelinePosition(displayedProgress),
   );
   elements.timelineContent.style.setProperty(
-    "--editor-minimal-progress-position",
+    "--rf-minimal-progress-position",
     timelinePosition(
       displayedProgress,
       EDITOR_MINIMAL_TIMELINE_EDGE_GUTTER,
     ),
   );
   elements.timelineContent.style.setProperty(
-    "--editor-minimal-icon-progress-position",
+    "--rf-minimal-icon-progress-position",
     timelinePosition(
       displayedProgress,
       EDITOR_MINIMAL_TIMELINE_EDGE_GUTTER + EDITOR_MINIMAL_PLAYHEAD_ICON_HALF_WIDTH,
@@ -303,16 +303,16 @@ function renderTransport(
   elements.playheadProgress.textContent = `${percentage}%`;
   if (scrubbed) {
     elements.playheadProgress.style.setProperty(
-      "--editor-playhead-pill-translate",
+      "--rf-playhead-pill-translate",
       scrubPillTranslate(displayedProgress),
     );
     elements.playheadProgress.style.setProperty(
-      "--editor-playhead-pill-overlap",
+      "--rf-playhead-pill-overlap",
       scrubPillOverlap(displayedProgress),
     );
   } else {
-    elements.playheadProgress.style.removeProperty("--editor-playhead-pill-translate");
-    elements.playheadProgress.style.removeProperty("--editor-playhead-pill-overlap");
+    elements.playheadProgress.style.removeProperty("--rf-playhead-pill-translate");
+    elements.playheadProgress.style.removeProperty("--rf-playhead-pill-overlap");
   }
 }
 
@@ -347,7 +347,7 @@ function renderRuler(
   const marks = Array.from(
     { length: markCount + 1 },
     (_, index) => {
-      const mark = node("span", "devtools-editor__ruler-mark");
+      const mark = node("span", "rf__ruler-mark");
       const progress = index * minorStep / domainDuration;
       mark.style.left = timelinePosition(progress);
       mark.dataset.major = String(index % subdivisions === 0);
@@ -357,7 +357,7 @@ function renderRuler(
   );
   const tickCount = Math.floor(domainDuration / majorStep + Number.EPSILON);
   const ticks = Array.from({ length: tickCount + 1 }, (_, index) => {
-    const tick = node("span", "devtools-editor__tick");
+    const tick = node("span", "rf__tick");
     const seconds = index * majorStep;
     const progress = seconds / domainDuration;
     tick.style.left = timelinePosition(progress);
@@ -400,21 +400,21 @@ function renderTrack(
   track: EditorViewTrack,
   timelineScale: number,
 ): [HTMLButtonElement, HTMLElement] {
-  const label = node("button", "devtools-editor__track-label");
+  const label = node("button", "rf__track-label");
   label.type = "button";
   label.dataset.trackKey = track.key;
   label.dataset.selected = String(track.selected);
   label.setAttribute("aria-pressed", String(track.selected));
   label.title = track.fullLabel;
   label.setAttribute("aria-label", track.fullLabel);
-  label.append(node("span", "devtools-editor__track-label-text", track.label));
-  const lane = node("div", "devtools-editor__track-lane");
+  label.append(node("span", "rf__track-label-text", track.label));
+  const lane = node("div", "rf__track-lane");
   if (track.spans.length === 0) {
-    const unavailable = node("span", "devtools-editor__track-unavailable", "Timing unavailable");
+    const unavailable = node("span", "rf__track-unavailable", "Timing unavailable");
     lane.append(unavailable);
   } else {
     for (const span of track.spans) {
-      const block = node("button", "devtools-editor__track-block");
+      const block = node("button", "rf__track-block");
       block.type = "button";
       block.dataset.trackKey = track.key;
       block.dataset.selected = String(track.selected);
@@ -447,7 +447,7 @@ function renderTracks(
   const count = view.tracks.length;
   const labels: HTMLElement[] = [node(
     "div",
-    "devtools-editor__track-heading",
+    "rf__track-heading",
     `${count} ${count === 1 ? "track" : "tracks"}`,
   )];
   labels[0]!.dataset.role = "track-count";
@@ -458,8 +458,8 @@ function renderTracks(
     lanes.push(lane);
   }
   if (view.tracks.length === 0) {
-    labels.push(node("div", "devtools-editor__track-empty", "No tracks"));
-    lanes.push(node("div", "devtools-editor__track-lane devtools-editor__track-lane--empty", "Select a timeline with inspectable motion."));
+    labels.push(node("div", "rf__track-empty", "No tracks"));
+    lanes.push(node("div", "rf__track-lane rf__track-lane--empty", "Select a timeline with inspectable motion."));
   }
   elements.trackLabels.replaceChildren(...labels);
   elements.trackLanes.replaceChildren(...lanes);
@@ -470,14 +470,14 @@ function inspectorField(
   value: string,
   truncate = false,
 ): HTMLDivElement {
-  const field = node("div", "devtools-editor__inspector-field");
-  const valueNode = node("dd", "devtools-editor__inspector-value", value);
+  const field = node("div", "rf__inspector-field");
+  const valueNode = node("dd", "rf__inspector-value", value);
   if (truncate) {
-    valueNode.classList.add("devtools-editor__inspector-value--truncate");
+    valueNode.classList.add("rf__inspector-value--truncate");
     valueNode.title = value;
   }
   field.append(
-    node("dt", "devtools-editor__inspector-term", label),
+    node("dt", "rf__inspector-term", label),
     valueNode,
   );
   return field;
@@ -549,11 +549,11 @@ function renderInspector(elements: EditorUiElements, view: EditorViewState): voi
   if (elements.inspectorContent.dataset.signature === signature) return;
   elements.inspectorContent.dataset.signature = signature;
 
-  const identity = node("div", "devtools-editor__inspector-identity");
-  const heading = node("div", "devtools-editor__inspector-label", inspector.label);
+  const identity = node("div", "rf__inspector-identity");
+  const heading = node("div", "rf__inspector-label", inspector.label);
   identity.append(heading);
 
-  const details = node("dl", "devtools-editor__inspector-details");
+  const details = node("dl", "rf__inspector-details");
   const targetFields = inspector.animatedTargetCount === inspector.visualTargetCount
     ? [inspectorField("Targets", String(inspector.animatedTargetCount))]
     : [

@@ -63,31 +63,31 @@ function element<K extends keyof HTMLElementTagNameMap>(
 }
 
 function paneTab(label: string, pane: string, selected = false): HTMLButtonElement {
-  const button = element("button", "devtools-editor__pane-tab", label);
+  const button = element("button", "rf__pane-tab", label);
   button.type = "button";
-  button.id = `devtools-editor-tab-${pane}`;
+  button.id = `rf-tab-${pane}`;
   button.dataset.paneTarget = pane;
   button.setAttribute("role", "tab");
-  button.setAttribute("aria-controls", `devtools-editor-pane-${pane}`);
+  button.setAttribute("aria-controls", `rf-pane-${pane}`);
   button.setAttribute("aria-selected", String(selected));
   button.tabIndex = selected ? 0 : -1;
   return button;
 }
 
 function configurePane(node: HTMLElement, pane: string, active = false): void {
-  node.id = `devtools-editor-pane-${pane}`;
+  node.id = `rf-pane-${pane}`;
   node.dataset.pane = pane;
   node.dataset.active = String(active);
   node.setAttribute("role", "tabpanel");
-  node.setAttribute("aria-labelledby", `devtools-editor-tab-${pane}`);
+  node.setAttribute("aria-labelledby", `rf-tab-${pane}`);
 }
 
 export function createEditorUiElements(): EditorUiElements {
-  const root = element("section", "devtools-editor");
-  root.dataset.devtoolsEditor = "";
+  const root = element("section", "rf");
+  root.dataset.rf = "";
   root.tabIndex = -1;
 
-  const heightSeparator = element("div", "devtools-editor__height-separator");
+  const heightSeparator = element("div", "rf__height-separator");
   heightSeparator.dataset.role = "height-separator";
   heightSeparator.dataset.resizeState = "idle";
   heightSeparator.tabIndex = 0;
@@ -95,7 +95,7 @@ export function createEditorUiElements(): EditorUiElements {
   heightSeparator.setAttribute("aria-label", "Resize DevTools editor height");
   heightSeparator.setAttribute("aria-orientation", "horizontal");
 
-  const paneSwitcher = element("div", "devtools-editor__pane-switcher");
+  const paneSwitcher = element("div", "rf__pane-switcher");
   paneSwitcher.dataset.role = "pane-switcher";
   paneSwitcher.setAttribute("role", "tablist");
   paneSwitcher.setAttribute("aria-label", "DevTools panels");
@@ -104,48 +104,48 @@ export function createEditorUiElements(): EditorUiElements {
     paneTab("Timeline", "timeline", true),
   ];
   paneSwitcher.append(...paneTabs);
-  const workspace = element("div", "devtools-editor__workspace");
+  const workspace = element("div", "rf__workspace");
   workspace.dataset.role = "workspace";
 
   const timelineListPane = element(
     "section",
-    "devtools-editor__pane devtools-editor__timeline-list-pane",
+    "rf__pane rf__timeline-list-pane",
   );
   configurePane(timelineListPane, "timelines");
-  const timelineListHeading = element("header", "devtools-editor__pane-heading");
-  timelineListHeading.append(element("span", "devtools-editor__pane-heading-label", "Timelines"));
+  const timelineListHeading = element("header", "rf__pane-heading");
+  timelineListHeading.append(element("span", "rf__pane-heading-label", "Timelines"));
   const timelineListToggle = createActionButton({
     action: "toggle-timelines",
     accessibleLabel: "Hide timelines pane",
     title: "Hide timelines pane",
     icon: "previous",
     variants: [
-      "devtools-editor__timeline-list-toggle",
-      "devtools-editor__action--compact",
+      "rf__timeline-list-toggle",
+      "rf__action--compact",
     ],
     expanded: true,
-    controls: "devtools-editor-pane-timelines",
+    controls: "rf-pane-timelines",
   });
   timelineListHeading.append(timelineListToggle);
-  const timelineList = element("div", "devtools-editor__timeline-list");
+  const timelineList = element("div", "rf__timeline-list");
   timelineList.dataset.role = "timeline-list";
   timelineListPane.append(timelineListHeading, timelineList);
 
   const timeline = element(
     "section",
-    "devtools-editor__pane devtools-editor__timeline",
+    "rf__pane rf__timeline",
   );
   configurePane(timeline, "timeline", true);
   timeline.setAttribute("aria-label", "Timeline inspector");
-  const transport = element("div", "devtools-editor__transport");
+  const transport = element("div", "rf__transport");
   const transportHint = element(
     "p",
-    "devtools-editor__transport-hint",
+    "rf__transport-hint",
     "Scroll the page to preview",
   );
   transportHint.hidden = true;
-  const transportSettings = element("div", "devtools-editor__transport-settings");
-  transportSettings.classList.add("devtools-editor__transport-group");
+  const transportSettings = element("div", "rf__transport-settings");
+  transportSettings.classList.add("rf__transport-group");
   transportSettings.setAttribute("role", "group");
   transportSettings.setAttribute("aria-label", "Timeline actions");
   transportSettings.setAttribute("aria-hidden", "true");
@@ -154,7 +154,7 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Jump to target",
     title: "Jump to target",
     icon: "jump-to-target",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
   });
   jumpToTargetButton.hidden = true;
   const toggleMarkersButton = createActionButton({
@@ -162,12 +162,12 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Show ScrollTrigger markers",
     title: "Show ScrollTrigger markers",
     icon: "markers",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
     pressed: false,
   });
   toggleMarkersButton.hidden = true;
   transportSettings.append(jumpToTargetButton, toggleMarkersButton);
-  const speedSelect = element("select", "devtools-editor__speed");
+  const speedSelect = element("select", "rf__speed");
   speedSelect.dataset.action = "set-speed";
   speedSelect.setAttribute("aria-label", "Playback speed");
   for (const speed of [0.1, 0.25, 0.5, 1, 2]) {
@@ -181,7 +181,7 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Reverse",
     title: "Reverse (R)",
     icon: "reverse",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
     pressed: false,
   });
   const loopButton = createActionButton({
@@ -189,16 +189,16 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Loop",
     title: "Loop (L)",
     icon: "loop",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
     pressed: false,
   });
-  const playback = element("div", "devtools-editor__transport-group devtools-editor__playback");
+  const playback = element("div", "rf__transport-group rf__playback");
   playback.setAttribute("role", "group");
   playback.setAttribute("aria-label", "Playback controls");
   const playButton = createActionButton({
     action: "toggle-play",
     accessibleLabel: "Play",
-    variants: ["devtools-editor__action--primary"],
+    variants: ["rf__action--primary"],
   });
   const playIcon = createTransportIcon("play");
   const pauseIcon = createTransportIcon("pause");
@@ -209,19 +209,19 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Replay",
     title: "Replay",
     icon: "replay",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
   });
-  const clock = element("div", "devtools-editor__clock");
-  const currentTime = element("output", "devtools-editor__time", "00:00.000");
+  const clock = element("div", "rf__clock");
+  const currentTime = element("output", "rf__time", "00:00.000");
   currentTime.dataset.role = "current-time";
-  const separator = element("span", "devtools-editor__time-separator", "/");
-  const duration = element("output", "devtools-editor__duration", "00:00.000");
+  const separator = element("span", "rf__time-separator", "/");
+  const duration = element("output", "rf__duration", "00:00.000");
   duration.dataset.role = "duration";
   clock.append(currentTime, separator, duration);
-  const playbackActions = element("div", "devtools-editor__playback-actions");
+  const playbackActions = element("div", "rf__playback-actions");
   playbackActions.append(replayButton, playButton, loopButton, reverseButton);
   playback.append(playbackActions, clock, speedSelect);
-  const viewportControls = element("div", "devtools-editor__transport-group devtools-editor__viewport-controls");
+  const viewportControls = element("div", "rf__transport-group rf__viewport-controls");
   viewportControls.setAttribute("role", "group");
   viewportControls.setAttribute("aria-label", "Timeline viewport");
   const resetButton = createActionButton({
@@ -235,9 +235,9 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Zoom out timeline",
     title: "Zoom out timeline",
     icon: "zoom-out",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
   });
-  const zoomRange = element("input", "devtools-editor__zoom-range");
+  const zoomRange = element("input", "rf__zoom-range");
   zoomRange.type = "range";
   zoomRange.step = "0.05";
   zoomRange.value = "1";
@@ -248,9 +248,9 @@ export function createEditorUiElements(): EditorUiElements {
     accessibleLabel: "Zoom in timeline",
     title: "Zoom in timeline",
     icon: "zoom-in",
-    variants: ["devtools-editor__action--icon"],
+    variants: ["rf__action--icon"],
   });
-  const zoomControl = element("div", "devtools-editor__zoom-control");
+  const zoomControl = element("div", "rf__zoom-control");
   zoomControl.append(zoomOutButton, zoomRange, zoomInButton);
   const timelineVisibilityButton = createActionButton({
     action: "toggle-timeline-visibility",
@@ -258,37 +258,37 @@ export function createEditorUiElements(): EditorUiElements {
     title: "Hide timeline",
     icon: "timeline-visibility",
     variants: [
-      "devtools-editor__action--icon",
-      "devtools-editor__timeline-visibility",
+      "rf__action--icon",
+      "rf__timeline-visibility",
     ],
     expanded: true,
-    controls: "devtools-editor-timeline-body",
+    controls: "rf-timeline-body",
   });
   viewportControls.append(resetButton, zoomControl, timelineVisibilityButton);
   transport.append(transportSettings, playback, transportHint, viewportControls);
 
-  const timelineBody = element("div", "devtools-editor__timeline-body");
-  timelineBody.id = "devtools-editor-timeline-body";
-  const trackLabels = element("div", "devtools-editor__track-labels");
+  const timelineBody = element("div", "rf__timeline-body");
+  timelineBody.id = "rf-timeline-body";
+  const trackLabels = element("div", "rf__track-labels");
   trackLabels.dataset.role = "track-labels";
-  const timelineViewport = element("div", "devtools-editor__timeline-viewport");
+  const timelineViewport = element("div", "rf__timeline-viewport");
   timelineViewport.dataset.role = "timeline-viewport";
-  const timelineContent = element("div", "devtools-editor__timeline-content");
+  const timelineContent = element("div", "rf__timeline-content");
   timelineContent.dataset.role = "timeline-content";
-  const ruler = element("div", "devtools-editor__ruler");
+  const ruler = element("div", "rf__ruler");
   ruler.dataset.role = "ruler";
   ruler.setAttribute("role", "img");
-  const trackLanes = element("div", "devtools-editor__track-lanes");
+  const trackLanes = element("div", "rf__track-lanes");
   trackLanes.dataset.role = "track-lanes";
-  const postDurationRegion = element("div", "devtools-editor__post-duration");
+  const postDurationRegion = element("div", "rf__post-duration");
   postDurationRegion.dataset.role = "post-duration";
   postDurationRegion.hidden = true;
   postDurationRegion.setAttribute("aria-hidden", "true");
-  const timelineEndMarker = element("div", "devtools-editor__timeline-end-marker");
+  const timelineEndMarker = element("div", "rf__timeline-end-marker");
   timelineEndMarker.dataset.role = "timeline-end-marker";
   timelineEndMarker.hidden = true;
   timelineEndMarker.setAttribute("role", "img");
-  const playhead = element("div", "devtools-editor__playhead");
+  const playhead = element("div", "rf__playhead");
   playhead.dataset.role = "playhead";
   playhead.dataset.dragState = "idle";
   playhead.setAttribute("aria-label", "Timeline playhead");
@@ -296,7 +296,7 @@ export function createEditorUiElements(): EditorUiElements {
   playhead.setAttribute("aria-valuemax", "100");
   playhead.setAttribute("role", "slider");
   playhead.tabIndex = 0;
-  const playheadProgress = element("span", "devtools-editor__playhead-progress", "0%");
+  const playheadProgress = element("span", "rf__playhead-progress", "0%");
   playheadProgress.hidden = true;
   playheadProgress.setAttribute("aria-hidden", "true");
   playhead.append(createPlayheadIcon(), playheadProgress);
@@ -307,41 +307,41 @@ export function createEditorUiElements(): EditorUiElements {
 
   const inspectorPane = element(
     "aside",
-    "devtools-editor__inspector",
+    "rf__inspector",
   );
   inspectorPane.dataset.role = "inspector";
   inspectorPane.setAttribute("aria-label", "Track inspector");
   inspectorPane.hidden = true;
-  const inspectorHeading = element("header", "devtools-editor__pane-heading");
-  inspectorHeading.append(element("span", "devtools-editor__pane-heading-label", "Inspector"));
+  const inspectorHeading = element("header", "rf__pane-heading");
+  inspectorHeading.append(element("span", "rf__pane-heading-label", "Inspector"));
   const inspectorCloseButton = createActionButton({
     action: "close-inspector",
     accessibleLabel: "Close inspector",
     title: "Close inspector",
     icon: "close",
-    variants: ["devtools-editor__inspector-close"],
+    variants: ["rf__inspector-close"],
   });
   inspectorHeading.append(inspectorCloseButton);
   const inspectorEmpty = element(
     "p",
-    "devtools-editor__inspector-empty",
+    "rf__inspector-empty",
     "Select a track to inspect it.",
   );
   inspectorEmpty.dataset.role = "inspector-empty";
-  const inspectorContent = element("div", "devtools-editor__inspector-content");
+  const inspectorContent = element("div", "rf__inspector-content");
   inspectorContent.dataset.role = "inspector-content";
   inspectorContent.hidden = true;
-  const inspectorActions = element("footer", "devtools-editor__inspector-actions");
+  const inspectorActions = element("footer", "rf__inspector-actions");
   inspectorActions.hidden = true;
   const copyDebugButton = createActionButton({
     action: "copy-debug-json",
     label: "Copy debug JSON",
-    variants: ["devtools-editor__copy-debug"],
+    variants: ["rf__copy-debug"],
   });
   copyDebugButton.disabled = true;
-  const copyDebugStatus = element("output", "devtools-editor__copy-status");
+  const copyDebugStatus = element("output", "rf__copy-status");
   copyDebugStatus.dataset.role = "copy-debug-status";
-  copyDebugStatus.id = "devtools-editor-copy-debug-status";
+  copyDebugStatus.id = "rf-copy-debug-status";
   copyDebugStatus.setAttribute("aria-live", "polite");
   copyDebugButton.setAttribute("aria-describedby", copyDebugStatus.id);
   inspectorActions.append(copyDebugButton, copyDebugStatus);

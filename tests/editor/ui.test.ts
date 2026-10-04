@@ -294,7 +294,7 @@ describe("DevTools editor UI v2", () => {
 
     const handle = mountEditorUi(container, { registry });
     await flush();
-    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const root = container.querySelector<HTMLElement>("[data-rf]")!;
     const separator = container.querySelector<HTMLElement>("[data-role='height-separator']")!;
     const toggle = container.querySelector<HTMLButtonElement>(
       "[data-action='toggle-timeline-visibility']",
@@ -313,7 +313,7 @@ describe("DevTools editor UI v2", () => {
       "motion-lab-devtools-editor-height-ratio",
     );
     container.querySelector<HTMLButtonElement>(
-      ".devtools-editor__track-block[data-track-key='track:opening']",
+      ".rf__track-block[data-track-key='track:opening']",
     )!.click();
     expect(handle.controller.seek(0.25)).toBe(true);
     const selectedTrackKey = handle.controller.getSnapshot().view.selectedTrackKey;
@@ -337,7 +337,7 @@ describe("DevTools editor UI v2", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.title).toBe("Show timeline");
     expect(container.style.height).toBe("75px");
-    expect(content.style.getPropertyValue("--editor-playhead-position"))
+    expect(content.style.getPropertyValue("--rf-playhead-position"))
       .toBe(playhead.style.left);
     expect(ruler.getAttribute("aria-label"))
       .toBe("Timeline progress ruler from 0% to 100%");
@@ -378,7 +378,7 @@ describe("DevTools editor UI v2", () => {
     expect(container.style.height).toBe("340px");
     const remounted = mountEditorUi(container, { registry });
     await flush();
-    expect(container.querySelector<HTMLElement>("[data-devtools-editor]")
+    expect(container.querySelector<HTMLElement>("[data-rf]")
       ?.dataset.timelineCollapsed).toBe("false");
     expect(container.style.height).toBe("356px");
     expect(container.querySelector("[data-action='toggle-timeline-visibility']")
@@ -427,8 +427,8 @@ describe("DevTools editor UI v2", () => {
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
-    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
-    const hint = container.querySelector<HTMLElement>(".devtools-editor__transport-hint")!;
+    const playback = container.querySelector<HTMLElement>(".rf__playback")!;
+    const hint = container.querySelector<HTMLElement>(".rf__transport-hint")!;
     vi.spyOn(content, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 200, 20));
 
     toggle.click();
@@ -443,7 +443,7 @@ describe("DevTools editor UI v2", () => {
     }));
     expect(scrollPosition).toBe(300);
     expect(handle.controller.getSnapshot().view.scrollTrigger?.progress).toBe(0.5);
-    expect(content.style.getPropertyValue("--editor-playhead-position"))
+    expect(content.style.getPropertyValue("--rf-playhead-position"))
       .toBe(playhead.style.left);
 
     expect(handle.controller.selectTimeline("minimal-standard")).toBe(true);
@@ -452,11 +452,11 @@ describe("DevTools editor UI v2", () => {
     expect(playback.hidden).toBe(false);
     expect(hint.hidden).toBe(true);
     expect(handle.controller.seek(1)).toBe(true);
-    expect(content.style.getPropertyValue("--editor-progress-position"))
+    expect(content.style.getPropertyValue("--rf-progress-position"))
       .toBe("calc(100% + -12px)");
-    expect(content.style.getPropertyValue("--editor-minimal-progress-position"))
+    expect(content.style.getPropertyValue("--rf-minimal-progress-position"))
       .toBe("calc(100% + -10px)");
-    expect(content.style.getPropertyValue("--editor-minimal-icon-progress-position"))
+    expect(content.style.getPropertyValue("--rf-minimal-icon-progress-position"))
       .toBe("calc(100% + -16px)");
     expect(ruler.getAttribute("aria-label"))
       .toBe("Timeline progress ruler from 0% to 100%");
@@ -486,7 +486,7 @@ describe("DevTools editor UI v2", () => {
     document.body.append(container, fixture.root);
     fixture.first.style.outline = "3px dashed tomato";
     const originalOutline = fixture.first.style.outline;
-    fixture.first.setAttribute("data-devtools-editor-selected", "consumer");
+    fixture.first.setAttribute("data-rf-selected", "consumer");
     let targetBounds = bounds(24, 36, 120, 48);
     vi.spyOn(fixture.first, "getBoundingClientRect")
       .mockImplementation(() => targetBounds);
@@ -494,14 +494,14 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     await flush();
     container.querySelector<HTMLButtonElement>(
-      ".devtools-editor__track-block[data-track-key='track:opening']",
+      ".rf__track-block[data-track-key='track:opening']",
     )?.click();
 
     const overlayRoot = document.querySelector<HTMLElement>(
-      "[data-devtools-editor-highlight-root]",
+      "[data-rf-highlight-root]",
     )!;
     const overlay = overlayRoot.querySelector<HTMLElement>(
-      "[data-devtools-editor-highlight]",
+      "[data-rf-highlight]",
     )!;
     expect(overlayRoot.style.pointerEvents).toBe("none");
     expect(overlayRoot.style.zIndex).toBe("2147483646");
@@ -513,7 +513,7 @@ describe("DevTools editor UI v2", () => {
     expect(overlay.textContent).toContain("Opening");
     expect(overlay.textContent).toContain("article#overlay-first");
     expect(fixture.first.style.outline).toBe(originalOutline);
-    expect(fixture.first.getAttribute("data-devtools-editor-selected")).toBe("true");
+    expect(fixture.first.getAttribute("data-rf-selected")).toBe("true");
 
     targetBounds = bounds(80, 92, 180, 64);
     await flush();
@@ -523,8 +523,8 @@ describe("DevTools editor UI v2", () => {
     expect(overlay.style.height).toBe("64px");
 
     container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
-    expect(document.querySelector("[data-devtools-editor-highlight-root]")).toBeNull();
-    expect(fixture.first.getAttribute("data-devtools-editor-selected")).toBe("consumer");
+    expect(document.querySelector("[data-rf-highlight-root]")).toBeNull();
+    expect(fixture.first.getAttribute("data-rf-selected")).toBe("consumer");
     expect(fixture.first.style.outline).toBe(originalOutline);
 
     handle.destroy();
@@ -609,35 +609,35 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     await flush();
     expect(container.querySelector("[data-role='status']")).toBeNull();
-    expect(container.querySelector(".devtools-editor__header")).toBeNull();
-    expect(container.querySelector(".devtools-editor__identity")).toBeNull();
+    expect(container.querySelector(".rf__header")).toBeNull();
+    expect(container.querySelector(".rf__identity")).toBeNull();
     expect(container.querySelector("[data-role='pane-switcher']")?.parentElement)
-      .toBe(container.querySelector("[data-devtools-editor]"));
-    expect(container.querySelectorAll(".devtools-editor__track-block")).toHaveLength(2);
+      .toBe(container.querySelector("[data-rf]"));
+    expect(container.querySelectorAll(".rf__track-block")).toHaveLength(2);
     expect(container.querySelector("[data-role='track-count']")?.textContent)
       .toBe("2 tracks");
     expect(container.querySelector("[data-role='duration']")?.textContent)
       .toBe("00:01.500");
-    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+    expect(container.querySelectorAll(".rf__tick").item(12).textContent)
       .toBe("12s");
-    expect(container.querySelectorAll<HTMLElement>(".devtools-editor__track-block")[0]
+    expect(container.querySelectorAll<HTMLElement>(".rf__track-block")[0]
       ?.style.width)
       .toContain("8.333333333333332%");
     expect(container.querySelectorAll("[data-timeline-id]")).toHaveLength(2);
-    const playback = container.querySelector(".devtools-editor__playback")!;
+    const playback = container.querySelector(".rf__playback")!;
     expect([...playback.children].map((child) => (
       (child as HTMLElement).dataset.action ?? (child as HTMLElement).className
     ))).toEqual([
-      "devtools-editor__playback-actions",
-      "devtools-editor__clock",
+      "rf__playback-actions",
+      "rf__clock",
       "set-speed",
     ]);
-    expect([...playback.querySelector(".devtools-editor__playback-actions")!.children].map((child) => (
+    expect([...playback.querySelector(".rf__playback-actions")!.children].map((child) => (
       (child as HTMLElement).dataset.action
     ))).toEqual(["replay", "play", "toggle-loop", "toggle-reverse"]);
     expect(container.querySelector("[data-action='set-speed']")?.parentElement)
       .toBe(playback);
-    expect([...container.querySelectorAll(".devtools-editor__transport-group")].map((group) => ({
+    expect([...container.querySelectorAll(".rf__transport-group")].map((group) => ({
       role: group.getAttribute("role"),
       label: group.getAttribute("aria-label"),
     }))).toEqual([
@@ -670,14 +670,14 @@ describe("DevTools editor UI v2", () => {
       .toBe("Close inspector");
     expect(container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.title)
       .toBe("Close inspector");
-    expect(container.querySelector(".devtools-editor__timeline-item-id")).toBeNull();
+    expect(container.querySelector(".rf__timeline-item-id")).toBeNull();
     expect(container.querySelector("[data-timeline-id='first']")?.textContent)
       .toBe("First sequence");
-    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+    expect(container.querySelector("[data-rf]")?.getAttribute("data-active-pane"))
       .toBe("timeline");
     expect(container.querySelector("[data-timeline-id='first']")?.getAttribute("aria-current"))
       .toBe("true");
-    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const root = container.querySelector<HTMLElement>("[data-rf]")!;
     const inspectorPane = container.querySelector<HTMLElement>("[data-role='inspector']")!;
     expect(root.dataset.inspectorOpen).toBe("false");
     expect(inspectorPane.hidden).toBe(true);
@@ -686,9 +686,9 @@ describe("DevTools editor UI v2", () => {
     expect(sourceHome.contains(second.root)).toBe(true);
 
     container.querySelector<HTMLButtonElement>(
-      ".devtools-editor__track-block[data-track-key='track:opening']",
+      ".rf__track-block[data-track-key='track:opening']",
     )?.click();
-    expect(first.first.getAttribute("data-devtools-editor-selected")).toBe("true");
+    expect(first.first.getAttribute("data-rf-selected")).toBe("true");
     expect(handle.controller.getSnapshot().view.selectedTrackKey).toBe("track:opening");
     expect(root.dataset.inspectorOpen).toBe("true");
     expect(inspectorPane.hidden).toBe(false);
@@ -697,21 +697,21 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.textContent).toContain("Opening");
     expect(inspector.textContent).not.toContain("track:opening");
     expect(inspector.textContent).not.toContain("Authored");
-    expect(inspector.querySelector(".devtools-editor__inspector-key")).toBeNull();
-    expect(inspector.querySelector(".devtools-editor__inspector-mapping")).toBeNull();
-    expect(container.querySelector(".devtools-editor__track-heading")?.textContent)
+    expect(inspector.querySelector(".rf__inspector-key")).toBeNull();
+    expect(inspector.querySelector(".rf__inspector-mapping")).toBeNull();
+    expect(container.querySelector(".rf__track-heading")?.textContent)
       .toBe("2 tracks");
     expect(inspector.textContent).toContain("0.00s");
     expect(inspector.textContent).toContain("1.00s");
     expect(inspector.textContent).toContain("Targets1");
     expect(inspector.textContent).toContain("Propertiesx");
-    expect(inspectorPane.querySelector(".devtools-editor__pane-heading")?.textContent)
+    expect(inspectorPane.querySelector(".rf__pane-heading")?.textContent)
       .toContain("Inspector");
     const copyDebug = container.querySelector<HTMLButtonElement>(
       "[data-action='copy-debug-json']",
     )!;
     expect(copyDebug.disabled).toBe(false);
-    expect(copyDebug.getAttribute("aria-describedby")).toBe("devtools-editor-copy-debug-status");
+    expect(copyDebug.getAttribute("aria-describedby")).toBe("rf-copy-debug-status");
     const writeText = vi.fn().mockResolvedValue(undefined);
     const clipboard = vi.spyOn(window.navigator, "clipboard", "get").mockReturnValue({
       writeText,
@@ -760,13 +760,13 @@ describe("DevTools editor UI v2", () => {
     expect(root.dataset.inspectorOpen).toBe("false");
     expect(inspectorPane.hidden).toBe(true);
     expect(handle.controller.getSnapshot().view.selectedTrackKey).toBeUndefined();
-    expect(first.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
+    expect(first.first.hasAttribute("data-rf-selected")).toBe(false);
     expect(container.querySelector("[data-track-key='track:opening']")
       ?.getAttribute("aria-pressed")).toBe("false");
     expect((document.activeElement as HTMLElement | null)?.dataset.trackKey)
       .toBe("track:opening");
     container.querySelector<HTMLButtonElement>(
-      ".devtools-editor__track-block[data-track-key='track:opening']",
+      ".rf__track-block[data-track-key='track:opening']",
     )?.click();
     expect(inspectorPane.hidden).toBe(false);
 
@@ -845,7 +845,7 @@ describe("DevTools editor UI v2", () => {
       scrollWidth: { configurable: true, value: 800 },
     });
     const emptyLaneArea = container.querySelectorAll<HTMLElement>(
-      ".devtools-editor__track-lane",
+      ".rf__track-lane",
     )[1]!;
     expect(emptyLaneArea.dataset.trackKey).toBeUndefined();
     emptyLaneArea.dispatchEvent(new PointerEvent("pointerdown", {
@@ -894,12 +894,12 @@ describe("DevTools editor UI v2", () => {
     expect(first.timeline.paused()).toBe(true);
 
     container.querySelector<HTMLButtonElement>("[data-pane-target='timelines']")?.click();
-    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+    expect(container.querySelector("[data-rf]")?.getAttribute("data-active-pane"))
       .toBe("timelines");
     container.querySelector<HTMLButtonElement>("[data-timeline-id='second']")?.click();
     await flush();
     expect(handle.controller.getSnapshot().activeTimelineId).toBe("second");
-    expect(container.querySelector("[data-devtools-editor]")?.getAttribute("data-active-pane"))
+    expect(container.querySelector("[data-rf]")?.getAttribute("data-active-pane"))
       .toBe("timeline");
     expect(container.querySelector("[data-timeline-id='second']")?.getAttribute("aria-current"))
       .toBe("true");
@@ -911,7 +911,7 @@ describe("DevTools editor UI v2", () => {
     expect(first.root.nextSibling).toBe(firstNextSibling);
     expect(second.root.parentNode).toBe(sourceHome);
     expect(second.root.nextSibling).toBe(secondNextSibling);
-    expect(first.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
+    expect(first.first.hasAttribute("data-rf-selected")).toBe(false);
 
     const releasePointerCapture = vi
       .spyOn(playhead, "releasePointerCapture")
@@ -930,7 +930,7 @@ describe("DevTools editor UI v2", () => {
     expect(releasePointerCapture).toHaveBeenCalledWith(9);
     playButton.click();
     expect(play).not.toHaveBeenCalled();
-    expect(container.querySelector("[data-devtools-editor]")).toBeNull();
+    expect(container.querySelector("[data-rf]")).toBeNull();
     expect(sourceHome.contains(second.root)).toBe(true);
     firstRegistration.destroy();
     secondRegistration.destroy();
@@ -956,7 +956,7 @@ describe("DevTools editor UI v2", () => {
     const viewport = container.querySelector<HTMLElement>("[data-role='timeline-viewport']")!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
     const tickLabels = (): string[] => [
-      ...container.querySelectorAll<HTMLElement>(".devtools-editor__tick"),
+      ...container.querySelectorAll<HTMLElement>(".rf__tick"),
     ].map((tick) => tick.textContent ?? "");
 
     expect(range.type).toBe("range");
@@ -987,7 +987,7 @@ describe("DevTools editor UI v2", () => {
     }))).toEqual([
       {
         action: "zoom-out",
-        className: "devtools-editor__action devtools-editor__action--icon",
+        className: "rf__action rf__action--icon",
         label: "Zoom out timeline",
         title: "Zoom out timeline",
         text: "",
@@ -1001,7 +1001,7 @@ describe("DevTools editor UI v2", () => {
       },
       {
         action: "zoom-in",
-        className: "devtools-editor__action devtools-editor__action--icon",
+        className: "rf__action rf__action--icon",
         label: "Zoom in timeline",
         title: "Zoom in timeline",
         text: "",
@@ -1114,7 +1114,7 @@ describe("DevTools editor UI v2", () => {
       cancelable: true,
       code: "KeyF",
     });
-    container.querySelector<HTMLElement>("[data-devtools-editor]")!
+    container.querySelector<HTMLElement>("[data-rf]")!
       .dispatchEvent(fitShortcut);
     expect(fitShortcut.defaultPrevented).toBe(true);
     expect(range.value).toBe("1");
@@ -1180,7 +1180,7 @@ describe("DevTools editor UI v2", () => {
     const container = document.createElement("div");
     document.body.append(container, registered.root);
     const handle = mountEditorUi(container, { registry });
-    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const root = container.querySelector<HTMLElement>("[data-rf]")!;
     const reverse = container.querySelector<HTMLButtonElement>("[data-action='toggle-reverse']")!;
     const loop = container.querySelector<HTMLButtonElement>("[data-action='toggle-loop']")!;
     const play = container.querySelector<HTMLButtonElement>("[data-action='play']")!;
@@ -1316,11 +1316,11 @@ describe("DevTools editor UI v2", () => {
       contentWidth: content.style.width,
       contentMinWidth: content.style.minWidth,
       rulerSignature: ruler.dataset.signature,
-      startTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick")!.style.left,
-      endTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick:last-child")!
+      startTickLeft: container.querySelector<HTMLElement>(".rf__tick")!.style.left,
+      endTickLeft: container.querySelector<HTMLElement>(".rf__tick:last-child")!
         .style.left,
-      trackLeft: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.left,
-      trackWidth: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.width,
+      trackLeft: container.querySelector<HTMLElement>(".rf__track-block")!.style.left,
+      trackWidth: container.querySelector<HTMLElement>(".rf__track-block")!.style.width,
       playheadLeft: playhead.style.left,
     };
     const input = (value: number): void => {
@@ -1341,7 +1341,7 @@ describe("DevTools editor UI v2", () => {
     await flush();
 
     const labels = [
-      ...container.querySelectorAll<HTMLElement>(".devtools-editor__tick"),
+      ...container.querySelectorAll<HTMLElement>(".rf__tick"),
     ].map((tick) => tick.textContent);
     expect(range.value).toBe("4");
     expect(range.getAttribute("aria-valuetext")).toBe("400%");
@@ -1360,8 +1360,8 @@ describe("DevTools editor UI v2", () => {
     ]);
     expect(labels.at(-1)).toBe("720f");
     expect(new Set(labels).size).toBe(labels.length);
-    expect(container.querySelectorAll(".devtools-editor__tick")).toHaveLength(361);
-    expect(container.querySelectorAll(".devtools-editor__ruler-mark")).toHaveLength(721);
+    expect(container.querySelectorAll(".rf__tick")).toHaveLength(361);
+    expect(container.querySelectorAll(".rf__ruler-mark")).toHaveLength(721);
     expect(content.style.width).not.toContain("NaN");
     expect(content.style.width).not.toContain("Infinity");
 
@@ -1382,11 +1382,11 @@ describe("DevTools editor UI v2", () => {
       contentWidth: content.style.width,
       contentMinWidth: content.style.minWidth,
       rulerSignature: ruler.dataset.signature,
-      startTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick")!.style.left,
-      endTickLeft: container.querySelector<HTMLElement>(".devtools-editor__tick:last-child")!
+      startTickLeft: container.querySelector<HTMLElement>(".rf__tick")!.style.left,
+      endTickLeft: container.querySelector<HTMLElement>(".rf__tick:last-child")!
         .style.left,
-      trackLeft: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.left,
-      trackWidth: container.querySelector<HTMLElement>(".devtools-editor__track-block")!.style.width,
+      trackLeft: container.querySelector<HTMLElement>(".rf__track-block")!.style.left,
+      trackWidth: container.querySelector<HTMLElement>(".rf__track-block")!.style.width,
       playheadLeft: playhead.style.left,
     }).toEqual(defaultGeometry);
 
@@ -1456,9 +1456,9 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelector<HTMLButtonElement>("[data-action='play']")?.disabled).toBe(true);
     expect(container.querySelector("[data-role='timeline-list']")?.textContent)
       .toContain("No timelines registered.");
-    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+    expect(container.querySelectorAll(".rf__tick").item(12).textContent)
       .toBe("12s");
-    expect(container.querySelectorAll(".devtools-editor__ruler-mark")).toHaveLength(121);
+    expect(container.querySelectorAll(".rf__ruler-mark")).toHaveLength(121);
     expect(container.querySelector<HTMLElement>("[data-role='inspector-empty']")?.hidden)
       .toBe(false);
     expect(container.querySelector<HTMLElement>("[data-role='inspector']")?.hidden)
@@ -1478,7 +1478,7 @@ describe("DevTools editor UI v2", () => {
     document.body.append(container, root);
     const handle = mountEditorUi(container, { registry });
 
-    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+    expect(container.querySelectorAll(".rf__tick").item(12).textContent)
       .toBe("12s");
 
     const timeline = gsap.timeline({ paused: true });
@@ -1488,9 +1488,9 @@ describe("DevTools editor UI v2", () => {
 
     expect(container.querySelector("[data-role='duration']")?.textContent)
       .toBe("00:01.000");
-    expect(container.querySelectorAll(".devtools-editor__tick").item(12).textContent)
+    expect(container.querySelectorAll(".rf__tick").item(12).textContent)
       .toBe("12s");
-    expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")
+    expect(container.querySelector<HTMLElement>(".rf__track-block")
       ?.style.width)
       .toContain("8.333333333333332%");
     const endMarker = container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")!;
@@ -1521,7 +1521,7 @@ describe("DevTools editor UI v2", () => {
     const timelineRegistration = registry.register({ id: "full-duration", root, timeline });
     await flush();
 
-    const block = container.querySelector<HTMLElement>(".devtools-editor__track-block")!;
+    const block = container.querySelector<HTMLElement>(".rf__track-block")!;
     expect(block.style.left).toBe("0%");
     expect(block.style.width).toBe("100%");
     expect(container.querySelector<HTMLElement>("[data-role='timeline-end-marker']")?.hidden)
@@ -1550,10 +1550,10 @@ describe("DevTools editor UI v2", () => {
     expect(handle.controller.getSnapshot().timeWindow?.duration).toBe(16);
     expect(content.style.width).toContain("calc(133.33333333333331%");
     expect(content.style.minWidth).toBe("");
-    expect(container.querySelectorAll(".devtools-editor__tick")).toHaveLength(17);
-    expect(container.querySelectorAll(".devtools-editor__tick").item(16).textContent)
+    expect(container.querySelectorAll(".rf__tick")).toHaveLength(17);
+    expect(container.querySelectorAll(".rf__tick").item(16).textContent)
       .toBe("16s");
-    expect(container.querySelector<HTMLElement>(".devtools-editor__track-block")?.style.width)
+    expect(container.querySelector<HTMLElement>(".rf__track-block")?.style.width)
       .toBe("100%");
 
     const contentWidth = 1600;
@@ -1670,7 +1670,7 @@ describe("DevTools editor UI v2", () => {
     const handle = mountEditorUi(container, { registry });
     await flush();
 
-    const root = container.querySelector<HTMLElement>("[data-devtools-editor]")!;
+    const root = container.querySelector<HTMLElement>("[data-rf]")!;
     const timelines = container.querySelector<HTMLButtonElement>(
       "[data-pane-target='timelines']",
     )!;
@@ -1928,6 +1928,8 @@ describe("DevTools editor UI v2", () => {
 
   it("isolates editor styles and reconnects through the custom element lifecycle", async () => {
     defineMotionDevtoolsEditor();
+    expect(MOTION_DEVTOOLS_EDITOR_TAG).toBe("rf-editor");
+    expect(customElements.get("rf-editor")).toBe(defineMotionDevtoolsEditor());
     const sourceHome = document.createElement("div");
     const fixture = registration("element", "Element sequence");
     fixture.root.slot = "application-slot";
@@ -1943,8 +1945,8 @@ describe("DevTools editor UI v2", () => {
     const firstController = editor.controller;
     expect(firstController).toBeDefined();
     expect(shadow.querySelector("style")).not.toBeNull();
-    expect(shadow.querySelector("[data-devtools-editor]")).not.toBeNull();
-    expect(document.querySelector(".devtools-editor")).toBeNull();
+    expect(shadow.querySelector("[data-rf]")).not.toBeNull();
+    expect(document.querySelector(".rf")).toBeNull();
     expect(fixture.root.parentNode).toBe(sourceHome);
     expect(fixture.root.slot).toBe("application-slot");
     expect(shadow.querySelector("slot")).toBeNull();
@@ -1959,13 +1961,13 @@ describe("DevTools editor UI v2", () => {
     }));
     const resizedHeight = editor.style.getPropertyValue("height");
     expect(Number.parseFloat(resizedHeight)).toBeCloseTo(initialHeight + 16, 0);
-    expect(shadow.querySelector<HTMLElement>("[data-devtools-editor]")
+    expect(shadow.querySelector<HTMLElement>("[data-rf]")
       ?.style.getPropertyValue("height")).toBe("");
 
     shadow.querySelector<HTMLButtonElement>(
-      ".devtools-editor__track-block[data-track-key='track:opening']",
+      ".rf__track-block[data-track-key='track:opening']",
     )?.click();
-    expect(document.querySelectorAll("[data-devtools-editor-highlight]")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-rf-highlight]")).toHaveLength(1);
     expect(fixture.first.style.outline).toBe("");
 
     editor.remove();
@@ -1974,8 +1976,8 @@ describe("DevTools editor UI v2", () => {
     expect(sourceHome.contains(fixture.root)).toBe(true);
     expect(fixture.root.slot).toBe("application-slot");
     expect(fixture.first.style.outline).toBe("");
-    expect(fixture.first.hasAttribute("data-devtools-editor-selected")).toBe(false);
-    expect(document.querySelector("[data-devtools-editor-highlight-root]")).toBeNull();
+    expect(fixture.first.hasAttribute("data-rf-selected")).toBe(false);
+    expect(document.querySelector("[data-rf-highlight-root]")).toBeNull();
 
     document.body.append(editor);
     await flush();
@@ -2120,14 +2122,14 @@ describe("DevTools editor UI v2", () => {
     await flush();
     container.querySelector<HTMLButtonElement>("[data-timeline-id='scroll-scrub']")!.click();
     await flush();
-    const transport = container.querySelector<HTMLElement>(".devtools-editor__transport")!;
+    const transport = container.querySelector<HTMLElement>(".rf__transport")!;
     const transportHint = container.querySelector<HTMLElement>(
-      ".devtools-editor__transport-hint",
+      ".rf__transport-hint",
     )!;
-    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
-    const viewportControls = container.querySelector<HTMLElement>(".devtools-editor__viewport-controls")!;
+    const playback = container.querySelector<HTMLElement>(".rf__playback")!;
+    const viewportControls = container.querySelector<HTMLElement>(".rf__viewport-controls")!;
     const scrollTriggerActions = container.querySelector<HTMLElement>(
-      ".devtools-editor__transport-settings",
+      ".rf__transport-settings",
     )!;
     const jumpToTarget = container.querySelector<HTMLButtonElement>(
       "[data-action='jump-to-scrolltrigger-target']",
@@ -2139,12 +2141,12 @@ describe("DevTools editor UI v2", () => {
       "[data-action='reset-timeline-zoom']",
     )!;
     const zoomControl = viewportControls.querySelector<HTMLElement>(
-      ".devtools-editor__zoom-control",
+      ".rf__zoom-control",
     )!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
     const content = container.querySelector<HTMLElement>("[data-role='timeline-content']")!;
     const playhead = container.querySelector<HTMLElement>("[data-role='playhead']")!;
-    const pill = container.querySelector<HTMLElement>(".devtools-editor__playhead-progress")!;
+    const pill = container.querySelector<HTMLElement>(".rf__playhead-progress")!;
     expect(container.querySelector("[data-timeline-id='scroll-scrub']")?.textContent)
       .toBe("Hero scroll");
     expect(transport.hidden).toBe(false);
@@ -2169,23 +2171,23 @@ describe("DevTools editor UI v2", () => {
     expect(toggleMarkers.getAttribute("aria-pressed")).toBe("false");
     expect(toggleMarkers.getAttribute("aria-label")).toBe("Show ScrollTrigger markers");
     expect(markers.every((node) => node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     toggleMarkers.click();
     expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(viewportControls.hidden).toBe(false);
     expect(resetZoom.hidden).toBe(true);
     expect(zoomControl.hidden).toBe(true);
     expect(ruler.getAttribute("aria-label")).toBe("Scroll progress ruler from 0% to 100%");
-    expect([...ruler.querySelectorAll(".devtools-editor__tick")].map((tick) => tick.textContent))
+    expect([...ruler.querySelectorAll(".rf__tick")].map((tick) => tick.textContent))
       .toEqual(["0%", "25%", "50%", "75%", "100%"]);
     expect(pill.hidden).toBe(false);
     expect(pill.textContent).toBe("0%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("0%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("-1px");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-translate")).toBe("0%");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-overlap")).toBe("-1px");
     expect(playhead.getAttribute("aria-label")).toBe("Scroll progress playhead");
     expect(playhead.getAttribute("aria-valuetext")).toBe("0%");
 
@@ -2198,8 +2200,8 @@ describe("DevTools editor UI v2", () => {
     }));
     expect(scrollPosition).toBe(300);
     expect(pill.textContent).toBe("50%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("-50%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("0px");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-translate")).toBe("-50%");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-overlap")).toBe("0px");
     expect(scrubbed.timeline.totalProgress()).toBe(0);
 
     const setPointerCapture = vi.spyOn(playhead, "setPointerCapture")
@@ -2237,24 +2239,24 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.textContent).toContain("Resolved end500.00px");
     expect(inspector.textContent).toContain("Scroll distance400.00px");
     expect(inspector.textContent).toContain("Scrub0.75s");
-    const triggerField = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+    const triggerField = [...inspector.querySelectorAll(".rf__inspector-field")]
       .find((field) => field.querySelector("dt")?.textContent === "Trigger")!;
-    expect(triggerField.querySelector(".devtools-editor__inspector-term")?.textContent)
+    expect(triggerField.querySelector(".rf__inspector-term")?.textContent)
       .toBe("Trigger");
     const triggerValue = triggerField.querySelector<HTMLElement>(
-      ".devtools-editor__inspector-value",
+      ".rf__inspector-value",
     )!;
     const fullTriggerValue =
       "article#scroll-scrub-first.hero.section-with-an-intentionally-long-class-name";
     expect(triggerValue.textContent).toBe(fullTriggerValue);
     expect(triggerValue.title).toBe(fullTriggerValue);
-    expect(triggerValue.classList.contains("devtools-editor__inspector-value--truncate")).toBe(true);
-    const scrollerValue = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+    expect(triggerValue.classList.contains("rf__inspector-value--truncate")).toBe(true);
+    const scrollerValue = [...inspector.querySelectorAll(".rf__inspector-field")]
       .find((field) => field.querySelector("dt")?.textContent === "Scroller")!
-      .querySelector<HTMLElement>(".devtools-editor__inspector-value")!;
+      .querySelector<HTMLElement>(".rf__inspector-value")!;
     expect(scrollerValue.textContent).toBe("main#scroll-shell");
     expect(scrollerValue.title).toBe("main#scroll-shell");
-    expect(scrollerValue.classList.contains("devtools-editor__inspector-value--truncate"))
+    expect(scrollerValue.classList.contains("rf__inspector-value--truncate"))
       .toBe(true);
     expect(inspector.textContent).toContain("Scrollermain#scroll-shell");
     expect(inspector.textContent).toContain("MarkersOn (custom)");
@@ -2264,22 +2266,22 @@ describe("DevTools editor UI v2", () => {
 
     expect(handle.controller.seek(0.025)).toBe(true);
     expect(Number.parseFloat(
-      pill.style.getPropertyValue("--editor-playhead-pill-translate"),
+      pill.style.getPropertyValue("--rf-playhead-pill-translate"),
     )).toBeCloseTo(-25);
     expect(Number.parseFloat(
-      pill.style.getPropertyValue("--editor-playhead-pill-overlap"),
+      pill.style.getPropertyValue("--rf-playhead-pill-overlap"),
     )).toBeCloseTo(-0.5);
     expect(handle.controller.seek(0.975)).toBe(true);
     expect(Number.parseFloat(
-      pill.style.getPropertyValue("--editor-playhead-pill-translate"),
+      pill.style.getPropertyValue("--rf-playhead-pill-translate"),
     )).toBeCloseTo(-75);
     expect(Number.parseFloat(
-      pill.style.getPropertyValue("--editor-playhead-pill-overlap"),
+      pill.style.getPropertyValue("--rf-playhead-pill-overlap"),
     )).toBeCloseTo(0.5);
     expect(handle.controller.seek(1)).toBe(true);
     expect(pill.textContent).toBe("100%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-translate")).toBe("-100%");
-    expect(pill.style.getPropertyValue("--editor-playhead-pill-overlap")).toBe("1px");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-translate")).toBe("-100%");
+    expect(pill.style.getPropertyValue("--rf-playhead-pill-overlap")).toBe("1px");
     expect(handle.controller.seek(0.5)).toBe(true);
 
     container.querySelector<HTMLButtonElement>("[data-timeline-id='standard']")!.click();
@@ -2300,12 +2302,12 @@ describe("DevTools editor UI v2", () => {
 
     handle.destroy();
     expect(markers.every((node) => !node.hasAttribute(
-      "data-motion-devtools-marker-hidden",
+      "data-rf-marker-hidden",
     ))).toBe(true);
     expect(cancelAnimationFrame).toHaveBeenCalled();
     const remounted = mountEditorUi(container, { registry, initialTimelineId: "scroll-scrub" });
     await flush();
-    expect(container.querySelector(".devtools-editor__playhead-progress")?.textContent).toBe("50%");
+    expect(container.querySelector(".rf__playhead-progress")?.textContent).toBe("50%");
     remounted.destroy();
     scrollRegistration.destroy();
     standardRegistration.destroy();
@@ -2378,9 +2380,9 @@ describe("DevTools editor UI v2", () => {
     const toggleMarkers = container.querySelector<HTMLButtonElement>(
       "[data-action='toggle-scrolltrigger-markers']",
     )!;
-    const playback = container.querySelector<HTMLElement>(".devtools-editor__playback")!;
+    const playback = container.querySelector<HTMLElement>(".rf__playback")!;
     const ruler = container.querySelector<HTMLElement>("[data-role='ruler']")!;
-    const pill = container.querySelector<HTMLElement>(".devtools-editor__playhead-progress")!;
+    const pill = container.querySelector<HTMLElement>(".rf__playhead-progress")!;
 
     container.querySelector<HTMLButtonElement>("[data-timeline-id='action-authored']")!.click();
     await flush();
@@ -2401,19 +2403,19 @@ describe("DevTools editor UI v2", () => {
     expect(toggleMarkers.hidden).toBe(false);
     expect(toggleMarkers.disabled).toBe(false);
     expect(toggleMarkers.getAttribute("aria-pressed")).toBe("true");
-    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(4);
+    expect(document.querySelectorAll("[data-rf-marker-owned]")).toHaveLength(4);
     expect(playback.hidden).toBe(false);
     expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
     expect(pill.hidden).toBe(true);
     toggleMarkers.click();
-    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    expect(document.querySelectorAll("[data-rf-marker-owned]")).toHaveLength(0);
     expect(markerFreeTrigger.vars).toBe(markerFreeVars);
     expect(markerFreeTrigger.vars.markers).toBe(false);
 
     container.querySelector<HTMLButtonElement>("[data-timeline-id='action-ordinary']")!.click();
     await flush();
     expect(toggleMarkers.hidden).toBe(true);
-    expect(document.querySelectorAll("[data-motion-devtools-owned-marker]")).toHaveLength(0);
+    expect(document.querySelectorAll("[data-rf-marker-owned]")).toHaveLength(0);
     expect(ruler.getAttribute("aria-label")).toContain("Timeline ruler:");
 
     handle.destroy();

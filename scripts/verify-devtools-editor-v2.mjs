@@ -43,43 +43,43 @@ async function verify({ artifactDirectory, send }) {
   const scrollScrubMinimalNarrow = join(artifactDirectory, "devtools-editor-v2-scroll-scrub-minimal-narrow.png");
 
   await waitFor(
-    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:01.640" && window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 3`),
+    () => evaluate(send, `Boolean(window.__devtoolsEditorV2Harness) && window.__devtoolsEditorV2Harness.query("[data-role='duration']")?.textContent === "00:01.640" && window.__devtoolsEditorV2Harness.queryAll(".rf__track-block").length === 3`),
     "the new DevTools editor",
   );
   const desktopState = await evaluate(send, `(() => ({
     timelines: window.__devtoolsEditorV2Harness.queryAll("[data-timeline-id]").length,
-    visibleTimelineIds: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__timeline-item-id").length,
+    visibleTimelineIds: window.__devtoolsEditorV2Harness.queryAll(".rf__timeline-item-id").length,
     hasPreviewSurface: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='preview-surface']")),
-    tracks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+    tracks: window.__devtoolsEditorV2Harness.queryAll(".rf__track-block").length,
     trackCount: window.__devtoolsEditorV2Harness.query("[data-role='track-count']")?.textContent,
     trackLabelWidth: window.__devtoolsEditorV2Harness.query("[data-role='track-labels']").getBoundingClientRect().width,
-    trackLabels: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-label")].map((label) => ({ text: label.textContent, title: label.title, ariaLabel: label.getAttribute("aria-label") })),
+    trackLabels: [...window.__devtoolsEditorV2Harness.queryAll(".rf__track-label")].map((label) => ({ text: label.textContent, title: label.title, ariaLabel: label.getAttribute("aria-label") })),
     endMarkerHidden: window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']").hidden,
     endMarkerLabel: window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']").getAttribute("aria-label"),
     postDurationHidden: window.__devtoolsEditorV2Harness.query("[data-role='post-duration']").hidden,
-    rulerEnd: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent,
-    rulerMarks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__ruler-mark").length,
+    rulerEnd: [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")].at(-1)?.textContent,
+    rulerMarks: window.__devtoolsEditorV2Harness.queryAll(".rf__ruler-mark").length,
     zeroTickInset: (() => {
       const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-      const tick = window.__devtoolsEditorV2Harness.query(".devtools-editor__tick").getBoundingClientRect();
+      const tick = window.__devtoolsEditorV2Harness.query(".rf__tick").getBoundingClientRect();
       return tick.left + tick.width / 2 - content.left;
     })(),
     firstBlockRatio: (() => {
       const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-      const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block").getBoundingClientRect();
+      const block = window.__devtoolsEditorV2Harness.query(".rf__track-block").getBoundingClientRect();
       return block.width / content.width;
     })(),
-    rootHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
-    hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
-    hostComputedHeight: getComputedStyle(document.querySelector("motion-devtools-editor")).height,
-    hostInlineHeight: document.querySelector("motion-devtools-editor").style.height,
-    rootComputedHeight: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).height,
-    userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]")).userSelect,
-    trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block")).pointerEvents,
+    rootHeight: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height,
+    hostHeight: document.querySelector("rf-editor").getBoundingClientRect().height,
+    hostComputedHeight: getComputedStyle(document.querySelector("rf-editor")).height,
+    hostInlineHeight: document.querySelector("rf-editor").style.height,
+    rootComputedHeight: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-rf]")).height,
+    userSelect: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-rf]")).userSelect,
+    trackPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__track-block")).pointerEvents,
     viewportPointerEvents: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']")).pointerEvents,
-    playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon")),
+    playheadIcon: Boolean(window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .rf__playhead-icon")),
     shadowStyle: Boolean(window.__devtoolsEditorV2Harness.editorRoot.querySelector("style")),
-    lightEditorRoot: Boolean(document.querySelector("[data-devtools-editor]")),
+    lightEditorRoot: Boolean(document.querySelector("[data-rf]")),
     applicationDisplay: getComputedStyle(document.querySelector("#devtools-v2-finite .devtools-v2-panel")).display,
     finiteParent: document.querySelector("#devtools-v2-finite").parentElement?.id,
     finiteNextSibling: document.querySelector("#devtools-v2-finite").nextElementSibling?.id,
@@ -95,10 +95,10 @@ async function verify({ artifactDirectory, send }) {
     inspectorEmpty: !window.__devtoolsEditorV2Harness.query("[data-role='inspector-empty']").hidden,
     inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
     inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
-    inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
-    timelinesVisible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
-    hasHeader: Boolean(window.__devtoolsEditorV2Harness.query(".devtools-editor__header")),
-    transportGroups: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__transport-group")].map((group) => {
+    inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.inspectorOpen,
+    timelinesVisible: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.timelinesVisible,
+    hasHeader: Boolean(window.__devtoolsEditorV2Harness.query(".rf__header")),
+    transportGroups: [...window.__devtoolsEditorV2Harness.queryAll(".rf__transport-group")].map((group) => {
       const style = getComputedStyle(group);
       const bounds = group.getBoundingClientRect();
       return {
@@ -111,16 +111,16 @@ async function verify({ artifactDirectory, send }) {
       };
     }),
     speedParent: window.__devtoolsEditorV2Harness.query("[data-action='set-speed']").parentElement?.className,
-    playbackOrder: [...window.__devtoolsEditorV2Harness.query(".devtools-editor__playback").children].map((child) => child.dataset.action || child.className),
-    playbackActionOrder: [...window.__devtoolsEditorV2Harness.query(".devtools-editor__playback-actions").children].map((child) => child.dataset.action),
+    playbackOrder: [...window.__devtoolsEditorV2Harness.query(".rf__playback").children].map((child) => child.dataset.action || child.className),
+    playbackActionOrder: [...window.__devtoolsEditorV2Harness.query(".rf__playback-actions").children].map((child) => child.dataset.action),
     playbackCenterOffset: (() => {
-      const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect();
-      const playback = window.__devtoolsEditorV2Harness.query(".devtools-editor__playback").getBoundingClientRect();
+      const transport = window.__devtoolsEditorV2Harness.query(".rf__transport").getBoundingClientRect();
+      const playback = window.__devtoolsEditorV2Harness.query(".rf__playback").getBoundingClientRect();
       return Math.abs((transport.left + transport.width / 2) - (playback.left + playback.width / 2));
     })(),
-    playBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__action--primary")).backgroundColor,
+    playBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__action--primary")).backgroundColor,
     playButtonGeometry: (() => {
-      const button = window.__devtoolsEditorV2Harness.query(".devtools-editor__action--primary");
+      const button = window.__devtoolsEditorV2Harness.query(".rf__action--primary");
       const bounds = button.getBoundingClientRect();
       return {
         width: bounds.width,
@@ -138,7 +138,7 @@ async function verify({ artifactDirectory, send }) {
       return {
         action,
         label: button.getAttribute("aria-label"),
-        icons: [...button.querySelectorAll(".devtools-editor__transport-icon")].map((icon) => icon.dataset.icon),
+        icons: [...button.querySelectorAll(".rf__transport-icon")].map((icon) => icon.dataset.icon),
       };
     }),
     jumpAction: (() => {
@@ -151,7 +151,7 @@ async function verify({ artifactDirectory, send }) {
     })(),
     replayBackground: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).backgroundColor,
     replayBorderWidth: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='replay']")).borderTopWidth,
-    editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
+    editorTop: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().top,
     workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
   assert(desktopState.timelines === 5, "The new editor did not list all fixture timelines.");
@@ -195,8 +195,8 @@ async function verify({ artifactDirectory, send }) {
           && borderWidth === "0px"
           && backgroundColor === "rgba(0, 0, 0, 0)"
       ))
-      && desktopState.speedParent.includes("devtools-editor__playback")
-      && desktopState.playbackOrder.join("|") === "devtools-editor__playback-actions|devtools-editor__clock|set-speed"
+      && desktopState.speedParent.includes("rf__playback")
+      && desktopState.playbackOrder.join("|") === "rf__playback-actions|rf__clock|set-speed"
       && desktopState.playbackActionOrder.join("|") === "replay|play|toggle-loop|toggle-reverse"
       && desktopState.playbackCenterOffset <= 1
       && desktopState.playButtonGeometry.width === 32
@@ -272,10 +272,10 @@ async function verify({ artifactDirectory, send }) {
     const sought = window.__devtoolsEditorV2Harness.seek(0.5);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const markerTops = (types) => Object.fromEntries(
-      [...document.querySelectorAll("[data-motion-devtools-owned-marker]")]
-        .filter((marker) => types.includes(marker.dataset.motionDevtoolsOwnedMarkerType))
+      [...document.querySelectorAll("[data-rf-marker-owned]")]
+        .filter((marker) => types.includes(marker.dataset.rfMarkerOwnedType))
         .map((marker) => [
-          marker.dataset.motionDevtoolsOwnedMarkerType,
+          marker.dataset.rfMarkerOwnedType,
           marker.getBoundingClientRect().top,
         ]),
     );
@@ -289,11 +289,11 @@ async function verify({ artifactDirectory, send }) {
     trigger.scroll(expected);
     trigger.update();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const previewBottom = document.querySelector("motion-devtools-editor").getBoundingClientRect().top;
-    const ownedMarkers = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")].map((marker) => {
+    const previewBottom = document.querySelector("rf-editor").getBoundingClientRect().top;
+    const ownedMarkers = [...document.querySelectorAll("[data-rf-marker-owned]")].map((marker) => {
       const rect = marker.getBoundingClientRect();
       return {
-        type: marker.dataset.motionDevtoolsOwnedMarkerType,
+        type: marker.dataset.rfMarkerOwnedType,
         text: marker.textContent,
         display: getComputedStyle(marker).display,
         rect: {
@@ -320,7 +320,7 @@ async function verify({ artifactDirectory, send }) {
     ));
     markersButton.click();
     const markersCleanedAfterToggle = document.querySelectorAll(
-      "[data-motion-devtools-owned-marker]",
+      "[data-rf-marker-owned]",
     ).length === 0;
     const markersOffColor = getComputedStyle(markersButton).color;
     const markersPressedOff = markersButton.getAttribute("aria-pressed");
@@ -332,7 +332,7 @@ async function verify({ artifactDirectory, send }) {
       windowScroll: window.scrollY,
       label: window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']")?.textContent,
       ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
-      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].map((tick) => tick.textContent),
+      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")].map((tick) => tick.textContent),
       markerMotion: {
         content: Object.keys(contentBeforeScroll).map((label) => (
           contentAfterScroll[label] - contentBeforeScroll[label]
@@ -352,7 +352,7 @@ async function verify({ artifactDirectory, send }) {
       markersDoNotOverlap,
       markers: window.__devtoolsEditorV2Harness.view.scrollTrigger?.markers,
       actions: {
-        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
         jumpDisabled: jumpButton.disabled,
         jumpLabel: jumpButton.getAttribute("aria-label"),
         jumpIcon: jumpButton.querySelector("svg")?.dataset.icon,
@@ -368,13 +368,13 @@ async function verify({ artifactDirectory, send }) {
         markerConfigPreserved: trigger.vars.markers === markerConfig,
         triggerPreserved: window.__devtoolsEditorV2Harness.activeScrollTrigger === trigger,
       },
-      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__viewport-controls")).display,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
-      pill: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.textContent,
-      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
+      pill: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")?.textContent,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")?.hidden,
       playheadValue: window.__devtoolsEditorV2Harness.query("[data-role='playhead']")?.getAttribute("aria-valuetext"),
     };
   })()`, true);
@@ -425,13 +425,13 @@ async function verify({ artifactDirectory, send }) {
     `The real window ScrollTrigger inspection mode is incorrect: ${JSON.stringify(windowScrollState)}`,
   );
   await screenshot(send, scrollScrub);
-  const desktopScrollExpandedHeight = await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`);
+  const desktopScrollExpandedHeight = await evaluate(send, `document.querySelector("rf-editor").getBoundingClientRect().height`);
   const desktopScrollMinimalState = await evaluate(send, `(() => {
     const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
     toggle.click();
-    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
-    const host = document.querySelector("motion-devtools-editor");
-    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const root = window.__devtoolsEditorV2Harness.query("[data-rf]");
+    const host = document.querySelector("rf-editor");
+    const transport = window.__devtoolsEditorV2Harness.query(".rf__transport");
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
     const ruler = window.__devtoolsEditorV2Harness.query("[data-role='ruler']");
@@ -456,14 +456,14 @@ async function verify({ artifactDirectory, send }) {
       label: toggle.getAttribute("aria-label"),
       expanded: toggle.getAttribute("aria-expanded"),
       separatorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='height-separator']")).display,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
-      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-hint")).display,
       inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
       trackLabelsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='track-labels']")).display,
       trackLanesDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='track-lanes']")).display,
-      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
       railProgressWidth: Number.parseFloat(getComputedStyle(ruler, "::before").width),
       railProgressColor: getComputedStyle(ruler, "::before").backgroundColor,
@@ -505,7 +505,7 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
   await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
   assert(
-    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - desktopScrollExpandedHeight) <= 1,
+    Math.abs(await evaluate(send, `document.querySelector("rf-editor").getBoundingClientRect().height`) - desktopScrollExpandedHeight) <= 1,
     "Expanding the desktop ScrollTrigger timeline did not restore its height.",
   );
   const customScrollState = await evaluate(send, `(async () => {
@@ -516,9 +516,9 @@ async function verify({ artifactDirectory, send }) {
     const expected = trigger.start + (trigger.end - trigger.start) * 0.75;
     const sought = window.__devtoolsEditorV2Harness.seek(0.75);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const markerSelector = "[data-motion-devtools-owned-marker]";
+    const markerSelector = "[data-rf-marker-owned]";
     const markerTops = () => Object.fromEntries([...document.querySelectorAll(markerSelector)].map((marker) => [
-      marker.dataset.motionDevtoolsOwnedMarkerType,
+      marker.dataset.rfMarkerOwnedType,
       marker.getBoundingClientRect().top,
     ]));
     const ownedBeforeScroll = markerTops();
@@ -536,22 +536,22 @@ async function verify({ artifactDirectory, send }) {
     markersButton.click();
     window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
     const inspectorContent = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
-    const triggerField = [...inspectorContent.querySelectorAll(".devtools-editor__inspector-field")]
+    const triggerField = [...inspectorContent.querySelectorAll(".rf__inspector-field")]
       .find((field) => field.querySelector("dt")?.textContent === "Trigger");
-    const triggerTerm = triggerField.querySelector(".devtools-editor__inspector-term");
-    const triggerValue = triggerField.querySelector(".devtools-editor__inspector-value");
+    const triggerTerm = triggerField.querySelector(".rf__inspector-term");
+    const triggerValue = triggerField.querySelector(".rf__inspector-value");
     const inspectorBounds = inspectorContent.getBoundingClientRect();
     const triggerTermBounds = triggerTerm.getBoundingClientRect();
     const triggerValueBounds = triggerValue.getBoundingClientRect();
     const triggerValueStyle = getComputedStyle(triggerValue);
-    const transportElement = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
-    const hintElement = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint");
+    const transportElement = window.__devtoolsEditorV2Harness.query(".rf__transport");
+    const hintElement = window.__devtoolsEditorV2Harness.query(".rf__transport-hint");
     const transportBounds = transportElement.getBoundingClientRect();
     const hintBounds = hintElement.getBoundingClientRect();
     const viewportControlBounds = window.__devtoolsEditorV2Harness
-      .query(".devtools-editor__viewport-controls").getBoundingClientRect();
+      .query(".rf__viewport-controls").getBoundingClientRect();
     const actionBounds = window.__devtoolsEditorV2Harness
-      .query(".devtools-editor__transport-settings").getBoundingClientRect();
+      .query(".rf__transport-settings").getBoundingClientRect();
     return {
       sought,
       expected,
@@ -564,7 +564,7 @@ async function verify({ artifactDirectory, send }) {
       ownedMarkers: {
         count: document.querySelectorAll(markerSelector).length,
         types: [...document.querySelectorAll(markerSelector)].map((marker) => (
-          marker.dataset.motionDevtoolsOwnedMarkerType
+          marker.dataset.rfMarkerOwnedType
         )).sort(),
         contentMotion: ["start", "end"].map((type) => (
           ownedAfterScroll[type] - ownedBeforeScroll[type]
@@ -596,7 +596,7 @@ async function verify({ artifactDirectory, send }) {
         valueText: triggerValue.textContent,
         valueTitle: triggerValue.title,
         valueTruncated: triggerValue.classList.contains(
-          "devtools-editor__inspector-value--truncate",
+          "rf__inspector-value--truncate",
         ),
       },
       hint: {
@@ -609,12 +609,12 @@ async function verify({ artifactDirectory, send }) {
         actionsRight: actionBounds.right,
       },
       actions: {
-        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+        display: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
         jumpDisabled: window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']").disabled,
         markersDisabled: window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").disabled,
       },
       pillBounds: (() => {
-        const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        const bounds = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
         return { left: bounds.left, right: bounds.right, width: bounds.width };
       })(),
       viewportBounds: (() => {
@@ -623,7 +623,7 @@ async function verify({ artifactDirectory, send }) {
       })(),
       endMarkerDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']")).display,
       transport: (() => {
-        const element = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+        const element = window.__devtoolsEditorV2Harness.query(".rf__transport");
         const bounds = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return {
@@ -635,17 +635,17 @@ async function verify({ artifactDirectory, send }) {
           right: bounds.right,
         };
       })(),
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__viewport-controls")).display,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
-      viewportControlsRight: window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls").getBoundingClientRect().right,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
+      viewportControlsRight: window.__devtoolsEditorV2Harness.query(".rf__viewport-controls").getBoundingClientRect().right,
       playhead: (() => {
         const element = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
         const bounds = element.getBoundingClientRect();
         const line = getComputedStyle(element, "::after");
-        const icon = getComputedStyle(element.querySelector(".devtools-editor__playhead-icon"));
-        const pill = element.querySelector(".devtools-editor__playhead-progress").getBoundingClientRect();
+        const icon = getComputedStyle(element.querySelector(".rf__playhead-icon"));
+        const pill = element.querySelector(".rf__playhead-progress").getBoundingClientRect();
         return {
           top: bounds.top,
           bottom: bounds.bottom,
@@ -667,10 +667,10 @@ async function verify({ artifactDirectory, send }) {
         const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
         const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
         const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
-        const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        const pill = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
         return {
           progress,
-          text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+          text: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").textContent,
           lineX: playhead.left + playhead.width / 2,
           expectedLineX: content.left + 12 + (content.width - 24) * progress,
           pillLeft: pill.left,
@@ -759,10 +759,10 @@ async function verify({ artifactDirectory, send }) {
     scroller.style.height = innerHeight + "px";
     trigger.refresh();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const editorTop = document.querySelector("motion-devtools-editor").getBoundingClientRect().top;
+    const editorTop = document.querySelector("rf-editor").getBoundingClientRect().top;
     const scrollerBounds = scroller.getBoundingClientRect();
     const markerBounds = document.querySelector(
-      "[data-motion-devtools-owned-marker-type='scroller-start']",
+      "[data-rf-marker-owned-type='scroller-start']",
     ).getBoundingClientRect();
     const state = {
       editorTop,
@@ -785,7 +785,7 @@ async function verify({ artifactDirectory, send }) {
   const scrubPillDragStart = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.seek(0.5);
     const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
-    const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+    const pill = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
     return {
       x: pill.left + 2,
       y: pill.top + pill.height / 2,
@@ -847,10 +847,10 @@ async function verify({ artifactDirectory, send }) {
       const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
       const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
       const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
-      const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+      const pill = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
       return {
         progress,
-        text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+        text: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").textContent,
         lineX: playhead.left + playhead.width / 2,
         expectedLineX: content.left + 12 + (content.width - 24) * progress,
         pillLeft: pill.left,
@@ -880,11 +880,11 @@ async function verify({ artifactDirectory, send }) {
     const markerButton = window.__devtoolsEditorV2Harness.query(
       "[data-action='toggle-scrolltrigger-markers']",
     );
-    const markerBounds = [...document.querySelectorAll("[data-motion-devtools-owned-marker]")]
+    const markerBounds = [...document.querySelectorAll("[data-rf-marker-owned]")]
       .map((marker) => {
         const rect = marker.getBoundingClientRect();
         return {
-          type: marker.dataset.motionDevtoolsOwnedMarkerType,
+          type: marker.dataset.rfMarkerOwnedType,
           top: rect.top,
           bottom: rect.bottom,
           width: rect.width,
@@ -893,7 +893,7 @@ async function verify({ artifactDirectory, send }) {
       });
     markerButton.click();
     const ownedAfterToggleOff = document.querySelectorAll(
-      "[data-motion-devtools-owned-marker]",
+      "[data-rf-marker-owned]",
     ).length;
     const pressedAfterToggleOff = markerButton.getAttribute("aria-pressed");
     markerButton.click();
@@ -901,14 +901,14 @@ async function verify({ artifactDirectory, send }) {
       scrubbed: window.__devtoolsEditorV2Harness.view.scrollTrigger?.scrubbed,
       canPlay: window.__devtoolsEditorV2Harness.view.transport.canPlay,
       canPause: window.__devtoolsEditorV2Harness.view.transport.canPause,
-      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
-      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
-      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
-      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")?.hidden,
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__viewport-controls")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-hint")).display,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")?.hidden,
       ruler: window.__devtoolsEditorV2Harness.query("[data-role='ruler']")?.getAttribute("aria-label"),
-      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")]
+      ticks: [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")]
         .map((tick) => tick.textContent),
       markerButton: {
         hidden: markerButton.hidden,
@@ -952,12 +952,12 @@ async function verify({ artifactDirectory, send }) {
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/finite")`);
   assert(
-    await evaluate(send, `document.querySelectorAll("[data-motion-devtools-owned-marker]").length === 0 && window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").hidden`),
+    await evaluate(send, `document.querySelectorAll("[data-rf-marker-owned]").length === 0 && window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").hidden`),
     "Trigger-action fallback markers were not cleaned up after selecting an ordinary timeline.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   const collapsedTimelineList = await evaluate(send, `(() => ({
-    visible: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.timelinesVisible,
+    visible: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.timelinesVisible,
     listDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-pane='timelines']")).display,
     listWidth: window.__devtoolsEditorV2Harness.query("[data-pane='timelines']").getBoundingClientRect().width,
     expanded: window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").getAttribute("aria-expanded"),
@@ -1037,7 +1037,7 @@ async function verify({ artifactDirectory, send }) {
     button: "left",
     clickCount: 1,
   });
-  const enlargedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  const enlargedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height`);
   assert(
     Math.abs(enlargedHeight - 500) <= 1,
     `Dragging the editor border upward did not enlarge it: ${enlargedHeight}`,
@@ -1066,7 +1066,7 @@ async function verify({ artifactDirectory, send }) {
     button: "left",
     clickCount: 1,
   });
-  const reducedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  const reducedHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height`);
   assert(
     Math.abs(reducedHeight - 420) <= 1,
     `Dragging the editor border downward did not reduce it: ${reducedHeight}`,
@@ -1074,11 +1074,11 @@ async function verify({ artifactDirectory, send }) {
   const keyboardResize = await evaluate(send, `(() => {
     const separator = window.__devtoolsEditorV2Harness.query("[data-role='height-separator']");
     separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
-    const normal = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    const normal = window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height;
     separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }));
-    const large = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    const large = window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height;
     separator.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
-    const reset = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height;
+    const reset = window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height;
     return {
       normal,
       large,
@@ -1100,23 +1100,23 @@ async function verify({ artifactDirectory, send }) {
       separator.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }));
     }
   })()`);
-  const persistedDesktopHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height`);
+  const persistedDesktopHeight = await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height`);
   assert(
     persistedDesktopHeight >= 420 && persistedDesktopHeight <= 500,
     `The resized desktop height was not retained for persistence checks: ${persistedDesktopHeight}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
   const highlightState = await evaluate(send, `(() => {
-    const target = document.querySelector("[data-devtools-editor-selected='true']");
-    const overlay = document.querySelector("[data-devtools-editor-highlight]");
+    const target = document.querySelector("[data-rf-selected='true']");
+    const overlay = document.querySelector("[data-rf-highlight]");
     const targetBounds = target?.getBoundingClientRect();
     const overlayBounds = overlay?.getBoundingClientRect();
     return {
-      selectedTargets: document.querySelectorAll("[data-devtools-editor-selected='true']").length,
-      overlays: document.querySelectorAll("[data-devtools-editor-highlight]").length,
-      pointerEvents: getComputedStyle(document.querySelector("[data-devtools-editor-highlight-root]")).pointerEvents,
-      overlayZIndex: Number(getComputedStyle(document.querySelector("[data-devtools-editor-highlight-root]")).zIndex),
-      editorZIndex: Number(getComputedStyle(document.querySelector("motion-devtools-editor")).zIndex),
+      selectedTargets: document.querySelectorAll("[data-rf-selected='true']").length,
+      overlays: document.querySelectorAll("[data-rf-highlight]").length,
+      pointerEvents: getComputedStyle(document.querySelector("[data-rf-highlight-root]")).pointerEvents,
+      overlayZIndex: Number(getComputedStyle(document.querySelector("[data-rf-highlight-root]")).zIndex),
+      editorZIndex: Number(getComputedStyle(document.querySelector("rf-editor")).zIndex),
       label: overlay?.textContent,
       targetOutline: target?.style.outline,
       aligned: Boolean(targetBounds && overlayBounds
@@ -1152,13 +1152,13 @@ async function verify({ artifactDirectory, send }) {
     const labels = window.__devtoolsEditorV2Harness.query("[data-role='track-labels']");
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const trackLabelStyle = getComputedStyle(
-      window.__devtoolsEditorV2Harness.query(".devtools-editor__track-label"),
+      window.__devtoolsEditorV2Harness.query(".rf__track-label"),
     );
     const termStyle = getComputedStyle(
-      window.__devtoolsEditorV2Harness.query(".devtools-editor__inspector-term"),
+      window.__devtoolsEditorV2Harness.query(".rf__inspector-term"),
     );
     const valueStyle = getComputedStyle(
-      window.__devtoolsEditorV2Harness.query(".devtools-editor__inspector-value"),
+      window.__devtoolsEditorV2Harness.query(".rf__inspector-value"),
     );
     const before = labels.getBoundingClientRect();
     viewport.scrollLeft = 120;
@@ -1169,12 +1169,12 @@ async function verify({ artifactDirectory, send }) {
       hidden: content.hidden,
       paneHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
       text: content.textContent,
-      activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
-      inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen,
-      trackHeading: window.__devtoolsEditorV2Harness.query(".devtools-editor__track-heading")?.textContent,
-      hasMapping: Boolean(content.querySelector(".devtools-editor__inspector-mapping")),
-      hasKey: Boolean(content.querySelector(".devtools-editor__inspector-key")),
-      heading: window.__devtoolsEditorV2Harness.query("[data-role='inspector'] .devtools-editor__pane-heading-label")?.textContent,
+      activePane: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.activePane,
+      inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.inspectorOpen,
+      trackHeading: window.__devtoolsEditorV2Harness.query(".rf__track-heading")?.textContent,
+      hasMapping: Boolean(content.querySelector(".rf__inspector-mapping")),
+      hasKey: Boolean(content.querySelector(".rf__inspector-key")),
+      heading: window.__devtoolsEditorV2Harness.query("[data-role='inspector'] .rf__pane-heading-label")?.textContent,
       copyLabel: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.textContent,
       copyDisabled: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.disabled,
       copyStatusLive: window.__devtoolsEditorV2Harness.query("[data-role='copy-debug-status']")?.getAttribute("aria-live"),
@@ -1248,7 +1248,7 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
   assert(
-    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden && window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen === "false" && window.__devtoolsEditorV2Harness.view.selectedTrackKey === undefined && document.querySelectorAll("[data-devtools-editor-selected='true']").length === 0 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "false"`),
+    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden && window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.inspectorOpen === "false" && window.__devtoolsEditorV2Harness.view.selectedTrackKey === undefined && document.querySelectorAll("[data-rf-selected='true']").length === 0 && window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").getAttribute("aria-pressed") === "false"`),
     "The desktop inspector close button did not return the track to idle.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
@@ -1259,8 +1259,8 @@ async function verify({ artifactDirectory, send }) {
   );
   assert(
     await evaluate(send, `(() => {
-      const target = document.querySelector("[data-devtools-editor-selected='true']")?.getBoundingClientRect();
-      const overlay = document.querySelector("[data-devtools-editor-highlight]")?.getBoundingClientRect();
+      const target = document.querySelector("[data-rf-selected='true']")?.getBoundingClientRect();
+      const overlay = document.querySelector("[data-rf-highlight]")?.getBoundingClientRect();
       return Boolean(target && overlay
         && Math.abs(target.left - overlay.left) <= 1
         && Math.abs(target.top - overlay.top) <= 1
@@ -1271,7 +1271,7 @@ async function verify({ artifactDirectory, send }) {
   );
   const seekPoint = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-    const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
+    const lanes = window.__devtoolsEditorV2Harness.queryAll(".rf__track-lane");
     const lane = lanes[lanes.length - 1].getBoundingClientRect();
     return { x: content.left + 12 + (content.width - 24) * 0.03, y: lane.top + lane.height / 2 };
   })()`);
@@ -1291,7 +1291,7 @@ async function verify({ artifactDirectory, send }) {
   const verticalScrollState = await evaluate(send, `(() => {
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const lanes = window.__devtoolsEditorV2Harness.query("[data-role='track-lanes']");
-    const sourceLane = lanes.querySelector(".devtools-editor__track-lane");
+    const sourceLane = lanes.querySelector(".rf__track-lane");
     const clones = Array.from({ length: 18 }, () => {
       const clone = sourceLane.cloneNode(true);
       clone.dataset.verticalScrollFixture = "";
@@ -1300,7 +1300,7 @@ async function verify({ artifactDirectory, send }) {
     });
     const ruler = window.__devtoolsEditorV2Harness.query("[data-role='ruler']");
     const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
-    const icon = playhead.querySelector(".devtools-editor__playhead-icon");
+    const icon = playhead.querySelector(".rf__playhead-icon");
     viewport.scrollTop = 160;
     const viewportBounds = viewport.getBoundingClientRect();
     const rulerBounds = ruler.getBoundingClientRect();
@@ -1404,7 +1404,7 @@ async function verify({ artifactDirectory, send }) {
     "Replay did not return the finite timeline to its authored start.",
   );
   assert(
-    await evaluate(send, `window.__devtoolsEditorV2Harness.view.selectedTrackKey === "animation:1" && window.__devtoolsEditorV2Harness.view.inspector?.trackKey === "animation:1" && window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.inspectorOpen === "true" && !window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden`),
+    await evaluate(send, `window.__devtoolsEditorV2Harness.view.selectedTrackKey === "animation:1" && window.__devtoolsEditorV2Harness.view.inspector?.trackKey === "animation:1" && window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.inspectorOpen === "true" && !window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").hidden`),
     "Replay discarded the open automatic-track inspector detail.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click(); window.__devtoolsEditorV2Harness.seek(1)`);
@@ -1435,7 +1435,7 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.seek(1)`);
   const finishedSeekPoint = await evaluate(send, `(() => {
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-    const lanes = window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-lane");
+    const lanes = window.__devtoolsEditorV2Harness.queryAll(".rf__track-lane");
     const lane = lanes[lanes.length - 1].getBoundingClientRect();
     return { x: content.left + 12 + (content.width - 24) * 0.05, y: lane.top + lane.height / 2 };
   })()`);
@@ -1450,13 +1450,13 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline(window.__devtoolsEditorV2Harness.registerLongTimeline())`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.view.time?.duration === 16 && [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent === "16s"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.view.time?.duration === 16 && [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")].at(-1)?.textContent === "16s"`),
     "the expanded sixteen-second inspection window",
   );
   const longTimelineState = await evaluate(send, `(() => {
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
-    const ticks = [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")];
+    const ticks = [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")];
     const overflow = viewport.scrollWidth - viewport.clientWidth;
     viewport.scrollLeft = Math.min(240, overflow);
     const contentBounds = content.getBoundingClientRect();
@@ -1499,15 +1499,15 @@ async function verify({ artifactDirectory, send }) {
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/particles']").click()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000" && [...window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__tick")].at(-1)?.textContent === "12s"`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll(".rf__track-block").length === 1 && window.__devtoolsEditorV2Harness.query("[data-role='duration']").textContent === "00:05.000" && [...window.__devtoolsEditorV2Harness.queryAll(".rf__tick")].at(-1)?.textContent === "12s"`),
     "the finite particle window",
   );
   const particleZeroState = await evaluate(send, `(() => {
-    const tick = window.__devtoolsEditorV2Harness.query(".devtools-editor__tick[data-edge='start']").getBoundingClientRect();
-    const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon").getBoundingClientRect();
+    const tick = window.__devtoolsEditorV2Harness.query(".rf__tick[data-edge='start']").getBoundingClientRect();
+    const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .rf__playhead-icon").getBoundingClientRect();
     const marker = window.__devtoolsEditorV2Harness.query("[data-role='timeline-end-marker']");
     const postDuration = window.__devtoolsEditorV2Harness.query("[data-role='post-duration']");
-    const block = window.__devtoolsEditorV2Harness.query(".devtools-editor__track-block").getBoundingClientRect();
+    const block = window.__devtoolsEditorV2Harness.query(".rf__track-block").getBoundingClientRect();
     const markerBounds = marker.getBoundingClientRect();
     const markerStyle = getComputedStyle(marker);
     return {
@@ -1556,8 +1556,8 @@ async function verify({ artifactDirectory, send }) {
     const stage = document.querySelector("#devtools-v2-particles");
     const canvasBounds = canvas.getBoundingClientRect();
     const stageBounds = stage.getBoundingClientRect();
-    const editorBounds = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
-    const timelineBounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect();
+    const editorBounds = window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect();
+    const timelineBounds = window.__devtoolsEditorV2Harness.query(".rf__timeline").getBoundingClientRect();
     return {
       canvasHeight: canvasBounds.height,
       stageHeight: stageBounds.height,
@@ -1585,7 +1585,7 @@ async function verify({ artifactDirectory, send }) {
     inspectorText: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").textContent,
   }))()`);
   assert(
-    await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-devtools-editor-selected") === "true"`)
+    await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-rf-selected") === "true"`)
       && particleTiming.sourceDuration === 5
       && particleTiming.spans.length === 1
       && particleTiming.spans[0].start === 0
@@ -1622,7 +1622,7 @@ async function verify({ artifactDirectory, send }) {
     const seekState = await evaluate(send, `(() => ({
       progress: window.__devtoolsEditorV2Harness.view.time.progress,
       currentTime: window.__devtoolsEditorV2Harness.query("[data-role='current-time']").textContent,
-      blocks: window.__devtoolsEditorV2Harness.queryAll(".devtools-editor__track-block").length,
+      blocks: window.__devtoolsEditorV2Harness.queryAll(".rf__track-block").length,
     }))()`);
     assert(
       Math.abs(seekState.progress - cycleTime / 12) < 0.000001
@@ -1647,7 +1647,7 @@ async function verify({ artifactDirectory, send }) {
     await evaluate(send, `window.__devtoolsEditorV2Harness.seek(0)`);
     const endpointDrag = await evaluate(send, `(() => {
       const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
-      const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .devtools-editor__playhead-icon").getBoundingClientRect();
+      const icon = window.__devtoolsEditorV2Harness.query("[data-role='playhead'] .rf__playhead-icon").getBoundingClientRect();
       return {
         from: { x: icon.left + icon.width / 2, y: icon.top + icon.height / 2 },
         to: {
@@ -1702,20 +1702,20 @@ async function verify({ artifactDirectory, send }) {
     / resizeHitTarget.viewportHeight
     * 820;
   await waitFor(
-    () => evaluate(send, `Math.abs(window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height - ${expectedNarrowHeight}) <= 2`),
+    () => evaluate(send, `Math.abs(window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height - ${expectedNarrowHeight}) <= 2`),
     "the persisted editor ratio to adapt to the narrow viewport",
   );
   const narrowState = await evaluate(send, `(() => ({
     scrollWidth: document.documentElement.scrollWidth,
-    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+    activePane: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.activePane,
     selectedTab: window.__devtoolsEditorV2Harness.query("[data-pane-target][aria-selected='true']")?.dataset.paneTarget,
     visiblePanes: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].filter((pane) => getComputedStyle(pane).display !== "none").map((pane) => pane.dataset.pane),
-    timelineHeight: window.__devtoolsEditorV2Harness.query(".devtools-editor__timeline").getBoundingClientRect().height,
+    timelineHeight: window.__devtoolsEditorV2Harness.query(".rf__timeline").getBoundingClientRect().height,
     inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
     inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
     inspectorTab: Boolean(window.__devtoolsEditorV2Harness.query("[data-pane-target='inspector']")),
-    editorHeight: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
-    editorTop: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().top,
+    editorHeight: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height,
+    editorTop: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().top,
   }))()`);
   assert(
     narrowState.scrollWidth <= 640
@@ -1731,11 +1731,11 @@ async function verify({ artifactDirectory, send }) {
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
   const closedInspectorState = await evaluate(send, `(() => ({
-    activePane: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").dataset.activePane,
+    activePane: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.activePane,
     visiblePanes: [...window.__devtoolsEditorV2Harness.queryAll("[data-pane]")].filter((pane) => getComputedStyle(pane).display !== "none").map((pane) => pane.dataset.pane),
     inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
     selectedTrackKey: window.__devtoolsEditorV2Harness.view.selectedTrackKey,
-    highlightedTargets: document.querySelectorAll("[data-devtools-editor-selected='true']").length,
+    highlightedTargets: document.querySelectorAll("[data-rf-selected='true']").length,
   }))()`);
   assert(
     closedInspectorState.activePane === "timeline"
@@ -1749,32 +1749,32 @@ async function verify({ artifactDirectory, send }) {
   const narrowStandardMinimalState = await evaluate(send, `(() => {
     const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
     toggle.click();
-    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
+    const root = window.__devtoolsEditorV2Harness.query("[data-rf]");
     const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']");
-    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const transport = window.__devtoolsEditorV2Harness.query(".rf__transport");
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']");
     const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']");
-    const playheadIcon = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-icon");
+    const playheadIcon = window.__devtoolsEditorV2Harness.query(".rf__playhead-icon");
     const contentBounds = content.getBoundingClientRect();
     const playheadBounds = playhead.getBoundingClientRect();
     const playheadIconBounds = playheadIcon.getBoundingClientRect();
     return {
       rootHeight: root.getBoundingClientRect().height,
-      hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
+      hostHeight: document.querySelector("rf-editor").getBoundingClientRect().height,
       timelineHeight: timeline.getBoundingClientRect().height,
       transportHeight: transport.getBoundingClientRect().height,
       viewportHeight: viewport.getBoundingClientRect().height,
       documentWidth: document.documentElement.scrollWidth,
       rootWidth: root.getBoundingClientRect().width,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      playheadIconDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-icon")).display,
-      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      playheadIconDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playhead-icon")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
-      progressPosition: content.style.getPropertyValue("--editor-progress-position"),
+      progressPosition: content.style.getPropertyValue("--rf-progress-position"),
       progressPercentage: Number.parseFloat(
-        content.style.getPropertyValue("--editor-progress-position").slice(5),
+        content.style.getPropertyValue("--rf-progress-position").slice(5),
       ),
       playheadRightInset: contentBounds.right
         - (playheadBounds.left + playheadBounds.width / 2),
@@ -1805,33 +1805,33 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
   await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
   assert(
-    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - expectedNarrowHeight) <= 2,
+    Math.abs(await evaluate(send, `document.querySelector("rf-editor").getBoundingClientRect().height`) - expectedNarrowHeight) <= 2,
     "Expanding the narrow standard timeline did not restore its persisted height.",
   );
   const narrowScrollState = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll");
-    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect();
+    const root = window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect();
     const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
     return {
       documentWidth: document.documentElement.scrollWidth,
       rootWidth: root.width,
       timelineWidth: timeline.width,
-      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).display,
-      transportHeight: window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect().height,
-      transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport")).gridTemplateColumns.split(" ").length,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__viewport-controls")).display,
-      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
+      transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport")).display,
+      transportHeight: window.__devtoolsEditorV2Harness.query(".rf__transport").getBoundingClientRect().height,
+      transportColumns: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport")).gridTemplateColumns.split(" ").length,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      viewportControlsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__viewport-controls")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
       jumpDisabled: window.__devtoolsEditorV2Harness.query("[data-action='jump-to-scrolltrigger-target']").disabled,
       markersDisabled: window.__devtoolsEditorV2Harness.query("[data-action='toggle-scrolltrigger-markers']").disabled,
       resetDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
       hint: (() => {
-        const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport").getBoundingClientRect();
-        const hint = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint");
+        const transport = window.__devtoolsEditorV2Harness.query(".rf__transport").getBoundingClientRect();
+        const hint = window.__devtoolsEditorV2Harness.query(".rf__transport-hint");
         const bounds = hint.getBoundingClientRect();
         const viewport = window.__devtoolsEditorV2Harness
-          .query(".devtools-editor__viewport-controls").getBoundingClientRect();
+          .query(".rf__viewport-controls").getBoundingClientRect();
         return {
           display: getComputedStyle(hint).display,
           text: hint.textContent,
@@ -1841,10 +1841,10 @@ async function verify({ artifactDirectory, send }) {
           viewportLeft: viewport.left,
         };
       })(),
-      pillHidden: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").hidden,
+      pillHidden: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").hidden,
       mode: window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").dataset.timelineMode,
       pillBounds: (() => {
-        const bounds = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        const bounds = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
         return { left: bounds.left, right: bounds.right, width: bounds.width };
       })(),
       viewportBounds: (() => {
@@ -1856,10 +1856,10 @@ async function verify({ artifactDirectory, send }) {
         const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
         const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
         const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
-        const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+        const pill = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
         return {
           progress,
-          text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+          text: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").textContent,
           lineX: playhead.left + playhead.width / 2,
           expectedLineX: content.left + 12 + (content.width - 24) * progress,
           pillLeft: pill.left,
@@ -1899,10 +1899,10 @@ async function verify({ artifactDirectory, send }) {
   const narrowInspectorState = await evaluate(send, `(() => {
     window.__devtoolsEditorV2Harness.query("[data-track-key]")?.click();
     const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
-    const field = [...inspector.querySelectorAll(".devtools-editor__inspector-field")]
+    const field = [...inspector.querySelectorAll(".rf__inspector-field")]
       .find((candidate) => candidate.querySelector("dt")?.textContent === "Trigger");
-    const term = field.querySelector(".devtools-editor__inspector-term");
-    const value = field.querySelector(".devtools-editor__inspector-value");
+    const term = field.querySelector(".rf__inspector-term");
+    const value = field.querySelector(".rf__inspector-value");
     const inspectorBounds = inspector.getBoundingClientRect();
     const termBounds = term.getBoundingClientRect();
     const valueBounds = value.getBoundingClientRect();
@@ -1924,7 +1924,7 @@ async function verify({ artifactDirectory, send }) {
       valueWhiteSpace: valueStyle.whiteSpace,
       valueTextOverflow: valueStyle.textOverflow,
       valueOverflowX: valueStyle.overflowX,
-      valueTruncated: value.classList.contains("devtools-editor__inspector-value--truncate"),
+      valueTruncated: value.classList.contains("rf__inspector-value--truncate"),
     };
     window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click();
     return {
@@ -1951,24 +1951,24 @@ async function verify({ artifactDirectory, send }) {
     `The narrow Inspector did not wrap the long selector safely: ${JSON.stringify(narrowInspectorState)}`,
   );
   await screenshot(send, scrollScrubNarrow);
-  const narrowScrollExpandedHeight = await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`);
+  const narrowScrollExpandedHeight = await evaluate(send, `document.querySelector("rf-editor").getBoundingClientRect().height`);
   const narrowScrollMinimalState = await evaluate(send, `(() => {
     const toggle = window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']");
     toggle.click();
-    const root = window.__devtoolsEditorV2Harness.query("[data-devtools-editor]");
-    const transport = window.__devtoolsEditorV2Harness.query(".devtools-editor__transport");
+    const root = window.__devtoolsEditorV2Harness.query("[data-rf]");
+    const transport = window.__devtoolsEditorV2Harness.query(".rf__transport");
     const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']");
     return {
       rootHeight: root.getBoundingClientRect().height,
-      hostHeight: document.querySelector("motion-devtools-editor").getBoundingClientRect().height,
+      hostHeight: document.querySelector("rf-editor").getBoundingClientRect().height,
       transportHeight: transport.getBoundingClientRect().height,
       viewportHeight: viewport.getBoundingClientRect().height,
       documentWidth: document.documentElement.scrollWidth,
-      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playback")).display,
-      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-settings")).display,
-      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__transport-hint")).display,
-      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress")).display,
-      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".devtools-editor__zoom-control")).display,
+      playbackDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playback")).display,
+      actionsDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-settings")).display,
+      hintDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport-hint")).display,
+      progressPillDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__playhead-progress")).display,
+      zoomDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__zoom-control")).display,
       label: toggle.getAttribute("aria-label"),
     };
   })()`);
@@ -1990,7 +1990,7 @@ async function verify({ artifactDirectory, send }) {
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timeline-visibility']").click()`);
   await evaluate(send, `new Promise((resolve) => setTimeout(resolve, 160))`);
   assert(
-    Math.abs(await evaluate(send, `document.querySelector("motion-devtools-editor").getBoundingClientRect().height`) - narrowScrollExpandedHeight) <= 2,
+    Math.abs(await evaluate(send, `document.querySelector("rf-editor").getBoundingClientRect().height`) - narrowScrollExpandedHeight) <= 2,
     "Expanding the narrow ScrollTrigger timeline did not restore its height.",
   );
   await send("Emulation.setDeviceMetricsOverride", {
@@ -2006,10 +2006,10 @@ async function verify({ artifactDirectory, send }) {
       const content = window.__devtoolsEditorV2Harness.query("[data-role='timeline-content']").getBoundingClientRect();
       const viewport = window.__devtoolsEditorV2Harness.query("[data-role='timeline-viewport']").getBoundingClientRect();
       const playhead = window.__devtoolsEditorV2Harness.query("[data-role='playhead']").getBoundingClientRect();
-      const pill = window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").getBoundingClientRect();
+      const pill = window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").getBoundingClientRect();
       return {
         progress,
-        text: window.__devtoolsEditorV2Harness.query(".devtools-editor__playhead-progress").textContent,
+        text: window.__devtoolsEditorV2Harness.query(".rf__playhead-progress").textContent,
         lineX: playhead.left + playhead.width / 2,
         expectedLineX: content.left + 12 + (content.width - 24) * progress,
         pillLeft: pill.left,
@@ -2036,16 +2036,16 @@ async function verify({ artifactDirectory, send }) {
   await screenshot(send, narrow);
 
   await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/custom-scroll")`);
-  const ownedMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll("[data-motion-devtools-owned-marker]").length`);
+  const ownedMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll("[data-rf-marker-owned]").length`);
   const nativeMarkersBeforeEditorDestroy = await evaluate(send, `document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end").length`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.destroy()`);
   assert(
     await evaluate(send, `(() => {
       const markers = [...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")];
-      return document.querySelectorAll("motion-devtools-editor").length === 0
-        && document.querySelectorAll("[data-devtools-editor-highlight-root]").length === 0
+      return document.querySelectorAll("rf-editor").length === 0
+        && document.querySelectorAll("[data-rf-highlight-root]").length === 0
         && ${ownedMarkersBeforeEditorDestroy} === 4
-        && document.querySelectorAll("[data-motion-devtools-owned-marker]").length === 0
+        && document.querySelectorAll("[data-rf-marker-owned]").length === 0
         && markers.length === ${nativeMarkersBeforeEditorDestroy}
         && markers.every((marker) => getComputedStyle(marker).display !== "none")
         && markers.every((marker) => marker.textContent.endsWith("Window scrub"))
@@ -2056,11 +2056,11 @@ async function verify({ artifactDirectory, send }) {
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.remount()`);
   await waitFor(
-    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-devtools-editor]").length === 1`),
+    () => evaluate(send, `window.__devtoolsEditorV2Harness.queryAll("[data-rf]").length === 1`),
     "editor destroy and remount",
   );
   const remountedResizeState = await evaluate(send, `(() => ({
-    height: window.__devtoolsEditorV2Harness.query("[data-devtools-editor]").getBoundingClientRect().height,
+    height: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height,
     resizeState: window.__devtoolsEditorV2Harness.query("[data-role='height-separator']").dataset.resizeState,
     valueNow: window.__devtoolsEditorV2Harness.query("[data-role='height-separator']").getAttribute("aria-valuenow"),
   }))()`);

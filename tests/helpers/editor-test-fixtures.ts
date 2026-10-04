@@ -34,12 +34,12 @@ export function nativeMarker(type: MarkerType, id?: string, parent = document.bo
 }
 
 export function ownedMarkers(): readonly HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-motion-devtools-owned-marker]")];
+  return [...document.querySelectorAll<HTMLElement>("[data-rf-marker-owned]")];
 }
 
 export function markerPositions(): Readonly<Record<string, { top: string; right: string }>> {
   return Object.fromEntries(ownedMarkers().map((marker) => [
-    marker.dataset.motionDevtoolsOwnedMarkerType!,
+    marker.dataset.rfMarkerOwnedType!,
     { top: marker.style.top, right: marker.style.right },
   ]));
 }

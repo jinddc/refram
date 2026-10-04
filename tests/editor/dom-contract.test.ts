@@ -21,13 +21,13 @@ describe("editor DOM contract", () => {
       controls: tab.getAttribute("aria-controls"),
       selected: tab.getAttribute("aria-selected"),
     }))).toEqual([
-      { role: "tab", controls: "devtools-editor-pane-timelines", selected: "false" },
-      { role: "tab", controls: "devtools-editor-pane-timeline", selected: "true" },
+      { role: "tab", controls: "rf-pane-timelines", selected: "false" },
+      { role: "tab", controls: "rf-pane-timeline", selected: "true" },
     ]);
     expect(elements.timelineListPane.getAttribute("aria-labelledby"))
-      .toBe("devtools-editor-tab-timelines");
+      .toBe("rf-tab-timelines");
     expect(elements.timelinePane.getAttribute("aria-labelledby"))
-      .toBe("devtools-editor-tab-timeline");
+      .toBe("rf-tab-timeline");
     expect(elements.inspectorPane.getAttribute("aria-label")).toBe("Track inspector");
     expect([...elements.root.querySelectorAll("[role='group']")].map((group) => (
       group.getAttribute("aria-label")
@@ -36,7 +36,7 @@ describe("editor DOM contract", () => {
 
   it("keeps the stable selector seams and control inventory", () => {
     const elements = createEditorUiElements();
-    expect(elements.root.matches("section.devtools-editor[data-devtools-editor]")).toBe(true);
+    expect(elements.root.matches("section.rf[data-rf]")).toBe(true);
     expect([...elements.root.querySelectorAll<HTMLElement>("[data-role]")].map((node) => (
       node.dataset.role
     ))).toEqual(expect.arrayContaining([
@@ -121,20 +121,20 @@ describe("editor DOM contract", () => {
       title: "Hide timeline",
       icon: "timeline-visibility",
       variants: [
-        "devtools-editor__action--icon",
-        "devtools-editor__timeline-visibility",
+        "rf__action--icon",
+        "rf__timeline-visibility",
       ],
       expanded: true,
-      controls: "devtools-editor-timeline-body",
+      controls: "rf-timeline-body",
     });
     expect(button.type).toBe("button");
     expect(button.className).toBe(
-      "devtools-editor__action devtools-editor__action--icon devtools-editor__timeline-visibility",
+      "rf__action rf__action--icon rf__timeline-visibility",
     );
     expect(button.dataset.action).toBe("toggle-timeline-visibility");
     expect(button.getAttribute("aria-label")).toBe("Hide timeline");
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    expect(button.getAttribute("aria-controls")).toBe("devtools-editor-timeline-body");
+    expect(button.getAttribute("aria-controls")).toBe("rf-timeline-body");
     expect(button.title).toBe("Hide timeline");
 
     const icon = button.firstElementChild as SVGSVGElement;
@@ -154,7 +154,7 @@ describe("editor DOM contract", () => {
       })),
     }).toEqual({
       name: "timeline-visibility",
-      className: "devtools-editor__transport-icon",
+      className: "rf__transport-icon",
       width: "16",
       height: "16",
       viewBox: "0 0 24 24",
@@ -170,11 +170,11 @@ describe("editor DOM contract", () => {
 
     expect(createTransportIcon("play").querySelectorAll("path")).toHaveLength(1);
     const playhead = createPlayheadIcon();
-    expect(playhead.getAttribute("class")).toBe("devtools-editor__playhead-icon");
+    expect(playhead.getAttribute("class")).toBe("rf__playhead-icon");
     expect(playhead.getAttribute("viewBox")).toBe("0 0 12 18");
     expect(playhead.getAttribute("aria-hidden")).toBe("true");
-    expect(playhead.querySelector("mask")?.id).toBe("devtools-editor-playhead-mask");
-    expect(playhead.querySelector(".devtools-editor__playhead-icon-border")
-      ?.getAttribute("mask")).toBe("url(#devtools-editor-playhead-mask)");
+    expect(playhead.querySelector("mask")?.id).toBe("rf-playhead-mask");
+    expect(playhead.querySelector(".rf__playhead-icon-border")
+      ?.getAttribute("mask")).toBe("url(#rf-playhead-mask)");
   });
 });

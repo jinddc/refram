@@ -5,17 +5,17 @@ import {
   type ScrollTriggerMarkerType,
 } from "./marker-geometry";
 
-const HIDDEN_ATTRIBUTE = "data-motion-devtools-marker-hidden";
-const SELECTED_ATTRIBUTE = "data-motion-devtools-marker-selected";
-const VIEWPORT_SCROLLER_ATTRIBUTE = "data-motion-devtools-marker-viewport-scroller";
-const STYLE_ATTRIBUTE = "data-motion-devtools-marker-visibility";
-const OWNED_ATTRIBUTE = "data-motion-devtools-owned-marker";
-const OWNED_TYPE_ATTRIBUTE = "data-motion-devtools-owned-marker-type";
-const EDITOR_SELECTOR = "motion-devtools-editor";
-const INLINE_END_PROPERTY = "--motion-devtools-marker-inline-end";
-const SCROLLER_WIDTH_PROPERTY = "--motion-devtools-marker-scroller-width";
-const SCROLLER_START_TOP_PROPERTY = "--motion-devtools-marker-scroller-start-top";
-const SCROLLER_END_TOP_PROPERTY = "--motion-devtools-marker-scroller-end-top";
+const HIDDEN_ATTRIBUTE = "data-rf-marker-hidden";
+const SELECTED_ATTRIBUTE = "data-rf-marker-selected";
+const VIEWPORT_SCROLLER_ATTRIBUTE = "data-rf-marker-viewport-scroller";
+const STYLE_ATTRIBUTE = "data-rf-marker-visibility";
+const OWNED_ATTRIBUTE = "data-rf-marker-owned";
+const OWNED_TYPE_ATTRIBUTE = "data-rf-marker-owned-type";
+const EDITOR_SELECTOR = "rf-editor";
+const INLINE_END_PROPERTY = "--rf-marker-inline-end";
+const SCROLLER_WIDTH_PROPERTY = "--rf-marker-scroller-width";
+const SCROLLER_START_TOP_PROPERTY = "--rf-marker-scroller-start-top";
+const SCROLLER_END_TOP_PROPERTY = "--rf-marker-scroller-end-top";
 
 interface OwnedMarkerSet {
   readonly document: Document;

@@ -2,7 +2,7 @@ import type { EditorController } from "../controller";
 import editorStyles from "./editor.css?raw";
 import { mountEditorUi, type EditorUiHandle } from "./mount";
 
-export const MOTION_DEVTOOLS_EDITOR_TAG = "motion-devtools-editor";
+export const MOTION_DEVTOOLS_EDITOR_TAG = "rf-editor";
 
 export class MotionDevtoolsEditorElement extends HTMLElement {
   static readonly observedAttributes = ["theme"];
@@ -16,7 +16,7 @@ export class MotionDevtoolsEditorElement extends HTMLElement {
     const style = document.createElement("style");
     style.textContent = editorStyles;
     this.#mountPoint = document.createElement("div");
-    this.#mountPoint.dataset.devtoolsEditorMount = "";
+    this.#mountPoint.dataset.rfMount = "";
     shadow.append(style, this.#mountPoint);
   }
 

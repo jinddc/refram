@@ -19,7 +19,7 @@ function sourceLabel(source: Element): string {
 
 function createRoot(ownerDocument: Document): HTMLDivElement {
   const root = ownerDocument.createElement("div");
-  root.dataset.devtoolsEditorHighlightRoot = "";
+  root.dataset.rfHighlightRoot = "";
   root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
   root.style.inset = "0";
@@ -34,7 +34,7 @@ function createBox(ownerDocument: Document): {
   readonly label: HTMLSpanElement;
 } {
   const box = ownerDocument.createElement("div");
-  box.dataset.devtoolsEditorHighlight = "";
+  box.dataset.rfHighlight = "";
   box.style.position = "absolute";
   box.style.boxSizing = "border-box";
   box.style.border = `2px solid ${ACCENT}`;
@@ -46,7 +46,7 @@ function createBox(ownerDocument: Document): {
   box.style.pointerEvents = "none";
 
   const label = ownerDocument.createElement("span");
-  label.dataset.devtoolsEditorHighlightLabel = "";
+  label.dataset.rfHighlightLabel = "";
   label.style.position = "absolute";
   label.style.left = "-2px";
   label.style.padding = "3px 6px";
@@ -81,10 +81,10 @@ export function createSelectionHighlightOverlay(
   const clear = (): void => {
     for (const highlighted of highlightedSources) {
       if (highlighted.selectionAttribute === null) {
-        highlighted.source.removeAttribute("data-devtools-editor-selected");
+        highlighted.source.removeAttribute("data-rf-selected");
       } else {
         highlighted.source.setAttribute(
-          "data-devtools-editor-selected",
+          "data-rf-selected",
           highlighted.selectionAttribute,
         );
       }
@@ -104,11 +104,11 @@ export function createSelectionHighlightOverlay(
       const { box, label: boxLabel } = createBox(ownerDocument);
       const highlighted = {
         source,
-        selectionAttribute: source.getAttribute("data-devtools-editor-selected"),
+        selectionAttribute: source.getAttribute("data-rf-selected"),
         box,
         label: boxLabel,
       } satisfies HighlightedSource;
-      source.setAttribute("data-devtools-editor-selected", "true");
+      source.setAttribute("data-rf-selected", "true");
       root!.append(box);
       return highlighted;
     });

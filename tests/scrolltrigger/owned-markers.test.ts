@@ -85,7 +85,7 @@ describe("DevTools-owned ScrollTrigger marker lifecycle", () => {
     expect(ownedMarkers()).toHaveLength(4);
     presentation.destroy();
     expect(ownedMarkers()).toHaveLength(0);
-    expect(document.querySelector("[data-motion-devtools-marker-visibility]")).toBeNull();
+    expect(document.querySelector("[data-rf-marker-visibility]")).toBeNull();
 
     registration.destroy();
     registry.destroy();
