@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from "vitest";
+import { createActionButton } from "../../src/devtools/editor/ui/controls";
 import { createEditorUiElements } from "../../src/devtools/editor/ui/dom";
+import { createPlayheadIcon, createTransportIcon } from "../../src/devtools/editor/ui/icons";
 
 describe("editor DOM contract", () => {
   it("emits stable landmarks, pane relationships, and semantic group order", () => {
@@ -110,5 +112,69 @@ describe("editor DOM contract", () => {
       icon.getAttribute("role") === "presentation"
       && icon.getAttribute("aria-hidden") === "true"
     ))).toBe(true);
+  });
+
+  it("keeps action-button and icon factory output exact", () => {
+    const button = createActionButton({
+      action: "toggle-timeline-visibility",
+      accessibleLabel: "Hide timeline",
+      title: "Hide timeline",
+      icon: "timeline-visibility",
+      variants: [
+        "devtools-editor__action--icon",
+        "devtools-editor__timeline-visibility",
+      ],
+      expanded: true,
+      controls: "devtools-editor-timeline-body",
+    });
+    expect(button.type).toBe("button");
+    expect(button.className).toBe(
+      "devtools-editor__action devtools-editor__action--icon devtools-editor__timeline-visibility",
+    );
+    expect(button.dataset.action).toBe("toggle-timeline-visibility");
+    expect(button.getAttribute("aria-label")).toBe("Hide timeline");
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(button.getAttribute("aria-controls")).toBe("devtools-editor-timeline-body");
+    expect(button.title).toBe("Hide timeline");
+
+    const icon = button.firstElementChild as SVGSVGElement;
+    expect({
+      name: icon.dataset.icon,
+      className: icon.getAttribute("class"),
+      width: icon.getAttribute("width"),
+      height: icon.getAttribute("height"),
+      viewBox: icon.getAttribute("viewBox"),
+      preserveAspectRatio: icon.getAttribute("preserveAspectRatio"),
+      fill: icon.getAttribute("fill"),
+      role: icon.getAttribute("role"),
+      hidden: icon.getAttribute("aria-hidden"),
+      paths: [...icon.querySelectorAll("path")].map((path) => ({
+        fill: path.getAttribute("fill"),
+        followFill: path.getAttribute("data-follow-fill"),
+      })),
+    }).toEqual({
+      name: "timeline-visibility",
+      className: "devtools-editor__transport-icon",
+      width: "16",
+      height: "16",
+      viewBox: "0 0 24 24",
+      preserveAspectRatio: "xMidYMid meet",
+      fill: "none",
+      role: "presentation",
+      hidden: "true",
+      paths: [
+        { fill: "currentColor", followFill: "currentColor" },
+        { fill: "currentColor", followFill: "currentColor" },
+      ],
+    });
+
+    expect(createTransportIcon("play").querySelectorAll("path")).toHaveLength(1);
+    const playhead = createPlayheadIcon();
+    expect(playhead.getAttribute("class")).toBe("devtools-editor__playhead-icon");
+    expect(playhead.getAttribute("viewBox")).toBe("0 0 12 18");
+    expect(playhead.getAttribute("aria-hidden")).toBe("true");
+    expect(playhead.querySelector("mask")?.id).toBe("devtools-editor-playhead-mask");
+    expect(playhead.querySelector(".devtools-editor__playhead-icon-border")
+      ?.getAttribute("mask")).toBe("url(#devtools-editor-playhead-mask)");
   });
 });
