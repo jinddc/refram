@@ -196,7 +196,7 @@ export function createEditorUiElements(): EditorUiElements {
   playback.setAttribute("role", "group");
   playback.setAttribute("aria-label", "Playback controls");
   const playButton = createActionButton({
-    action: "toggle-play",
+    action: "play",
     accessibleLabel: "Play",
     variants: ["rf__action--primary"],
   });

@@ -81,7 +81,6 @@ export function createTransportIcon(name: TransportIconName): SVGSVGElement {
   svg.setAttribute("aria-hidden", "true");
   for (const data of definition.paths) {
     const path = document.createElementNS(SVG_NAMESPACE, "path");
-    path.setAttribute("data-follow-fill", "currentColor");
     path.setAttribute("d", data);
     path.setAttribute("fill", "currentColor");
     svg.append(path);

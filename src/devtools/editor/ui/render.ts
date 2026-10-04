@@ -629,5 +629,4 @@ export function renderEditorUi(
   renderFiniteEnd(elements, view, scale);
   renderTracks(elements, view, scale);
   renderInspector(elements, view);
-  elements.timelineViewport.dataset.seekable = String(view.transport.canSeek);
 }

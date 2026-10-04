@@ -67,7 +67,7 @@ describe("editor DOM contract", () => {
       "jump-to-scrolltrigger-target",
       "toggle-scrolltrigger-markers",
       "replay",
-      "toggle-play",
+      "play",
       "toggle-loop",
       "toggle-reverse",
       "set-speed",
@@ -148,10 +148,7 @@ describe("editor DOM contract", () => {
       fill: icon.getAttribute("fill"),
       role: icon.getAttribute("role"),
       hidden: icon.getAttribute("aria-hidden"),
-      paths: [...icon.querySelectorAll("path")].map((path) => ({
-        fill: path.getAttribute("fill"),
-        followFill: path.getAttribute("data-follow-fill"),
-      })),
+      paths: [...icon.querySelectorAll("path")].map((path) => path.getAttribute("fill")),
     }).toEqual({
       name: "timeline-visibility",
       className: "rf__transport-icon",
@@ -162,11 +159,9 @@ describe("editor DOM contract", () => {
       fill: "none",
       role: "presentation",
       hidden: "true",
-      paths: [
-        { fill: "currentColor", followFill: "currentColor" },
-        { fill: "currentColor", followFill: "currentColor" },
-      ],
+      paths: ["currentColor", "currentColor"],
     });
+    expect(icon.querySelector("[data-follow-fill]")).toBeNull();
 
     expect(createTransportIcon("play").querySelectorAll("path")).toHaveLength(1);
     const playhead = createPlayheadIcon();

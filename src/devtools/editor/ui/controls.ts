@@ -6,7 +6,7 @@ export type EditorActionName =
   | "toggle-scrolltrigger-markers"
   | "toggle-reverse"
   | "toggle-loop"
-  | "toggle-play"
+  | "play"
   | "replay"
   | "reset-timeline-zoom"
   | "zoom-out"

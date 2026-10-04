@@ -653,15 +653,15 @@
   scrollbar-color: #ffffff1f #0000;
 }
 
-/* .rf__timeline-viewport[data-seekable="true"] {
-  cursor: crosshair;
-} */
-
 .rf__timeline-content {
   position: relative;
   min-height: 100%;
   min-width: 1000px;
 
+}
+
+.rf__timeline[data-timeline-mode="scroll-scrub"] .rf__timeline-content {
+  min-width: 0;
 }
 
 .rf__ruler {
