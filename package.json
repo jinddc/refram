@@ -1,6 +1,6 @@
 {
   "name": "refram",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual timeline debugger for web animation",
   "keywords": [
     "animation",
@@ -12,12 +12,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jinddc/motion-lab.git"
+    "url": "git+https://github.com/jinddc/refram.git"
   },
   "bugs": {
-    "url": "https://github.com/jinddc/motion-lab/issues"
+    "url": "https://github.com/jinddc/refram/issues"
   },
-  "homepage": "https://github.com/jinddc/motion-lab#readme",
+  "homepage": "https://github.com/jinddc/refram#readme",
   "publishConfig": {
     "access": "public"
   },

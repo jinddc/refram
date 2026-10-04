@@ -249,7 +249,7 @@ async function verify({ artifactDirectory, send }) {
 try {
   await runVisualHarness(
     {
-      pagePath: "/devtools-editor-v2.html",
+      pagePath: "/index.html",
       profilePrefix: "motion-lab-editor-lanes-",
     },
     verify,

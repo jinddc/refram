@@ -5,18 +5,21 @@ import {
   type MotionDevtoolsEditorElement,
 } from "./element";
 
-export interface MotionDevtoolsEditorOptions {
+export interface ReframOptions {
   readonly container?: HTMLElement;
   readonly theme?: "dark" | "light";
 }
 
-const liveEditors = new WeakMap<Document, MotionDevtoolsEditor>();
+/** @deprecated Use `ReframOptions` instead. */
+export type MotionDevtoolsEditorOptions = ReframOptions;
+
+const liveEditors = new WeakMap<Document, Refram>();
 
 function invalidState(message: string): DOMException {
   return new DOMException(message, "InvalidStateError");
 }
 
-export class MotionDevtoolsEditor {
+export class Refram {
   readonly domElement: HTMLElement;
 
   readonly #document: Document;
@@ -31,7 +34,7 @@ export class MotionDevtoolsEditor {
     return controller;
   }
 
-  constructor(options: MotionDevtoolsEditorOptions = {}) {
+  constructor(options: ReframOptions = {}) {
     const ownerDocument = options.container?.ownerDocument ?? document;
     if (liveEditors.has(ownerDocument)) {
       throw invalidState("A Motion DevTools editor already exists in this document.");
@@ -65,3 +68,6 @@ export class MotionDevtoolsEditor {
     if (liveEditors.get(this.#document) === this) liveEditors.delete(this.#document);
   }
 }
+
+/** @deprecated Use `Refram` instead. */
+export { Refram as MotionDevtoolsEditor };

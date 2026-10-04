@@ -1,7 +1,7 @@
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-import { MotionDevtoolsEditor } from "../src/devtools/editor/ui/editor";
+import { Refram } from "../src/devtools/editor/ui/editor";
 import {
   defaultTimelineRegistry,
   type MotionTimelineRegistration,
@@ -204,8 +204,8 @@ function removeLongTimeline(): void {
   longTimeline = undefined;
 }
 
-function createFixtureEditor(): MotionDevtoolsEditor {
-  const fixtureEditor = new MotionDevtoolsEditor({
+function createFixtureEditor(): Refram {
+  const fixtureEditor = new Refram({
     // theme: "light",
   });
   const parameters = new URLSearchParams(location.search);

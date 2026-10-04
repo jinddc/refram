@@ -1,5 +1,9 @@
 export {
+  Refram,
+  type ReframOptions,
+  /** @deprecated Use `Refram` instead. */
   MotionDevtoolsEditor,
+  /** @deprecated Use `ReframOptions` instead. */
   type MotionDevtoolsEditorOptions,
 } from "./devtools/editor/ui/editor";
 export {

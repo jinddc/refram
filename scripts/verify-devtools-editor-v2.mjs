@@ -2149,7 +2149,7 @@ async function verify({ artifactDirectory, send }) {
 
 try {
   await runVisualHarness(
-    { pagePath: "/devtools-editor-v2.html", profilePrefix: "motion-lab-editor-v2-" },
+    { pagePath: "/index.html", profilePrefix: "motion-lab-editor-v2-" },
     verify,
   );
 } catch (error) {
