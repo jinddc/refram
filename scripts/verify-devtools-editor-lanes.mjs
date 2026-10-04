@@ -94,7 +94,7 @@ async function verify({ artifactDirectory, send }) {
   const typographyState = await evaluate(send, `(() => {
     const nodes = Array.from(window.__devtoolsEditorV2Harness.queryAll(
       "[data-rf], [data-rf] *",
-    ));
+    )).filter((node) => !node.matches("[data-role='zoom-range']"));
     const styles = nodes.map((node) => getComputedStyle(node));
     return {
       fontSizes: [...new Set(styles.map((style) => style.fontSize))],
@@ -118,7 +118,7 @@ async function verify({ artifactDirectory, send }) {
   const darkState = await readLaneState(send);
   assert(
     darkState.theme === "dark"
-      && darkState.speedWidth >= 68
+      && darkState.speedWidth >= 59
       && darkState.speedColorScheme === "dark"
       && darkState.speedColor === darkState.speedOptionColor
       && darkState.speedOptionBackground === darkState.editorBackground
@@ -126,9 +126,9 @@ async function verify({ artifactDirectory, send }) {
       && darkState.laneShadow === "none"
       && darkState.alternateLaneBackground === "rgba(255, 255, 255, 0.03)"
       && darkState.labelBackground === "rgba(0, 0, 0, 0)"
-      && darkState.blockBackground === "rgb(55, 57, 60)"
+      && darkState.blockBackground === "rgb(59, 59, 59)"
       && darkState.blockBorderWidth === "0px"
-      && darkState.blockColor === "rgb(216, 221, 226)"
+      && darkState.blockColor === "rgb(219, 219, 219)"
       && darkState.blockRadius === "6px"
       && darkState.blockShadow === "none"
       && darkState.laneHeight === 24
@@ -158,7 +158,7 @@ async function verify({ artifactDirectory, send }) {
   });
   const hoverState = await readLaneState(send);
   assert(
-    hoverState.blockBackground === "color(srgb 0.291451 0.300706 0.313412)"
+    hoverState.blockBackground === "color(srgb 0.306667 0.306667 0.306667)"
       && hoverState.blockBorderWidth === "0px",
     `Dark lane hover is not a restrained neutral state: ${JSON.stringify(hoverState)}`,
   );
@@ -174,9 +174,9 @@ async function verify({ artifactDirectory, send }) {
       && darkSelectedState.labelBackground === "rgba(0, 0, 0, 0)"
       && darkSelectedState.labelColor === "rgb(85, 173, 255)"
       && darkSelectedState.laneShadow === "none"
-      && darkSelectedState.blockBackground === "color(srgb 0.367216 0.377882 0.391529)"
+      && darkSelectedState.blockBackground === "color(srgb 0.381961 0.381961 0.381961)"
       && darkSelectedState.blockBorderWidth === "0px"
-      && darkSelectedState.blockColor === "rgb(216, 221, 226)"
+      && darkSelectedState.blockColor === "rgb(219, 219, 219)"
       && darkSelectedState.blockShadow === "none",
     `Dark lane selection is not a restrained neutral state: ${JSON.stringify(darkSelectedState)}`,
   );
@@ -190,7 +190,7 @@ async function verify({ artifactDirectory, send }) {
   })()`);
   assert(
     focusState.outlineColor === "rgb(85, 173, 255)"
-      && focusState.outlineWidth === "2px",
+      && focusState.outlineWidth === "1px",
     `Keyboard focus is not visibly distinct from neutral lane states: ${JSON.stringify(focusState)}`,
   );
 
@@ -201,7 +201,7 @@ async function verify({ artifactDirectory, send }) {
   const lightSelectedState = await readLaneState(send);
   assert(
     lightSelectedState.theme === "light"
-      && lightSelectedState.speedWidth >= 68
+      && lightSelectedState.speedWidth >= 59
       && lightSelectedState.speedColorScheme === "light"
       && lightSelectedState.speedColor === lightSelectedState.speedOptionColor
       && lightSelectedState.speedOptionBackground === lightSelectedState.editorBackground

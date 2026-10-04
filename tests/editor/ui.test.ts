@@ -3,6 +3,7 @@
 import { gsap } from "gsap";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MotionDevtoolsEditor } from "../../src/devtools/editor/ui/editor";
+import { createEditorController } from "../../src/devtools/editor/controller";
 import {
   defineMotionDevtoolsEditor,
   MOTION_DEVTOOLS_EDITOR_TAG,
@@ -1466,6 +1467,27 @@ describe("DevTools editor UI v2", () => {
     expect(container.querySelector("[data-role='preview-surface']")).toBeNull();
     handle.destroy();
     expect(handle.controller.selectTimeline("missing")).toBe(false);
+    registry.destroy();
+  });
+
+  it("does not destroy an externally supplied controller", () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("external-controller", "External controller");
+    const registered = registry.register(fixture.declaration);
+    const controller = createEditorController({ registry });
+    const destroyController = vi.spyOn(controller, "destroy");
+    const container = document.createElement("div");
+    document.body.append(container, fixture.root);
+    const handle = mountEditorUi(container, { controller });
+
+    handle.destroy();
+    handle.destroy();
+
+    expect(destroyController).not.toHaveBeenCalled();
+    expect(controller.selectTimeline("external-controller")).toBe(true);
+
+    controller.destroy();
+    registered.destroy();
     registry.destroy();
   });
 
