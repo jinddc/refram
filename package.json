@@ -1,7 +1,26 @@
 {
-  "name": "motion-lab",
-  "version": "0.0.0",
-  "private": true,
+  "name": "refram",
+  "version": "0.1.0",
+  "description": "Visual timeline debugger for web animation",
+  "keywords": [
+    "animation",
+    "devtools",
+    "gsap",
+    "timeline",
+    "visual-debugger"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jinddc/motion-lab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jinddc/motion-lab/issues"
+  },
+  "homepage": "https://github.com/jinddc/motion-lab#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
