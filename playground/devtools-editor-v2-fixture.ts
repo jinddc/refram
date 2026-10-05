@@ -29,8 +29,15 @@ function registerFiniteTimeline(): MotionTimelineRegistration {
         panels.forEach((panel, index) => {
           timeline.fromTo(
             panel,
-            { opacity: 0.2, y: 28 },
-            { opacity: 1, y: 0, duration: 0.8, ease: "power2.out", immediateRender: false },
+            { opacity: 0.2, y: 28, transformOrigin: "50% 100%" },
+            {
+              opacity: 1,
+              y: 0,
+              transformOrigin: "50% 50%",
+              duration: 0.8,
+              ease: "power2.out",
+              immediateRender: false,
+            },
             index * 0.42,
           );
         });

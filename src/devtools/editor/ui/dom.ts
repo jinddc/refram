@@ -19,6 +19,7 @@ export interface EditorUiElements {
   readonly viewportControls: HTMLElement;
   readonly timelineVisibilityButton: HTMLButtonElement;
   readonly inspectorPane: HTMLElement;
+  readonly inspectorWidthSeparator: HTMLElement;
   readonly inspectorCloseButton: HTMLButtonElement;
   readonly timelineListToggle: HTMLButtonElement;
   readonly inspectorContent: HTMLElement;
@@ -310,6 +311,15 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorPane.dataset.role = "inspector";
   inspectorPane.setAttribute("aria-label", "Track inspector");
   inspectorPane.hidden = true;
+  const inspectorWidthSeparator = element("div", "rf__inspector-width-separator");
+  inspectorWidthSeparator.dataset.role = "inspector-width-separator";
+  inspectorWidthSeparator.dataset.resizeState = "idle";
+  inspectorWidthSeparator.hidden = true;
+  inspectorWidthSeparator.tabIndex = -1;
+  inspectorWidthSeparator.setAttribute("role", "separator");
+  inspectorWidthSeparator.setAttribute("aria-label", "Resize Inspector width");
+  inspectorWidthSeparator.setAttribute("aria-orientation", "vertical");
+  inspectorWidthSeparator.setAttribute("aria-hidden", "true");
   const inspectorHeading = element("header", "rf__pane-heading");
   inspectorHeading.append(element("span", "rf__pane-heading-label", "Inspector"));
   const inspectorCloseButton = createActionButton({
@@ -330,6 +340,7 @@ export function createEditorUiElements(): EditorUiElements {
   inspectorContent.dataset.role = "inspector-content";
   inspectorContent.hidden = true;
   inspectorPane.append(
+    inspectorWidthSeparator,
     inspectorHeading,
     inspectorEmpty,
     inspectorContent,
@@ -354,6 +365,7 @@ export function createEditorUiElements(): EditorUiElements {
     viewportControls,
     timelineVisibilityButton,
     inspectorPane,
+    inspectorWidthSeparator,
     inspectorCloseButton,
     timelineListToggle,
     inspectorContent,

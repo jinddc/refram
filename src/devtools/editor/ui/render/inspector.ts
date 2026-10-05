@@ -68,7 +68,16 @@ function propertyTable(
   properties: NonNullable<EditorViewState["inspector"]>["propertyDetails"],
 ): HTMLTableElement {
   const table = createRenderNode("table", "rf__property-table");
-  table.append(createRenderNode("caption", "rf__visually-hidden", "Authored property values"));
+  const columns = createRenderNode("colgroup", "");
+  columns.append(
+    createRenderNode("col", "rf__property-name-column"),
+    createRenderNode("col", "rf__property-value-column"),
+    createRenderNode("col", "rf__property-value-column"),
+  );
+  table.append(
+    createRenderNode("caption", "rf__visually-hidden", "Authored property values"),
+    columns,
+  );
   const head = createRenderNode("thead", "");
   const headingRow = createRenderNode("tr", "");
   for (const label of ["Property", "From", "To"]) {
@@ -82,6 +91,7 @@ function propertyTable(
     const row = createRenderNode("tr", "");
     const name = createRenderNode("th", "rf__property-name", property.name);
     name.scope = "row";
+    name.title = property.name;
     row.append(
       name,
       propertyValueNode(property.from),

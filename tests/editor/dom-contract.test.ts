@@ -16,6 +16,8 @@ describe("editor DOM contract", () => {
     ]);
     expect(elements.heightSeparator.getAttribute("role")).toBe("separator");
     expect(elements.heightSeparator.getAttribute("aria-orientation")).toBe("horizontal");
+    expect(elements.inspectorWidthSeparator.getAttribute("role")).toBe("separator");
+    expect(elements.inspectorWidthSeparator.getAttribute("aria-orientation")).toBe("vertical");
     expect(elements.paneTabs.map((tab) => ({
       role: tab.getAttribute("role"),
       controls: tab.getAttribute("aria-controls"),
@@ -56,6 +58,7 @@ describe("editor DOM contract", () => {
       "timeline-end-marker",
       "playhead",
       "inspector",
+      "inspector-width-separator",
       "inspector-empty",
       "inspector-content",
     ]));
@@ -82,6 +85,7 @@ describe("editor DOM contract", () => {
     const elements = createEditorUiElements();
     const namedControls = [
       elements.heightSeparator,
+      elements.inspectorWidthSeparator,
       elements.timelineListToggle,
       elements.jumpToTargetButton,
       elements.toggleMarkersButton,

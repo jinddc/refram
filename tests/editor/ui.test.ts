@@ -121,6 +121,7 @@ describe("DevTools editor UI v2", () => {
     const clipPathRow = [...container.querySelectorAll<HTMLTableRowElement>(
       ".rf__property-table tbody tr",
     )].find((candidate) => candidate.querySelector("th")?.textContent === "clipPath")!;
+    expect(clipPathRow.querySelector("th")?.title).toBe("clipPath");
     const clipPathTo = clipPathRow.querySelectorAll<HTMLTableCellElement>("td")[1]!;
     expect(clipPathTo.textContent).toBe(
       '"polygon(0% 0%, 100% 0%, 100% 100%, 75% 80%, 50% 100%, 25% 80%, 0% 100%)"',
@@ -189,6 +190,89 @@ describe("DevTools editor UI v2", () => {
 
     handle.destroy();
     expect(container.style.getPropertyValue("height")).toBe("260px");
+    registry.destroy();
+  });
+
+  it("resizes the whole Inspector, clamps the timeline, and retains width while closed", async () => {
+    vi.stubGlobal("innerWidth", 1200);
+    const registry = createTimelineRegistry();
+    const fixture = registration("inspector-width", "Inspector width");
+    const registered = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(fixture.root, container);
+    const handle = mountEditorUi(container, { registry });
+    const root = container.querySelector<HTMLElement>("[data-rf]")!;
+    const workspace = container.querySelector<HTMLElement>("[data-role='workspace']")!;
+    const timeline = container.querySelector<HTMLElement>("[data-pane='timeline']")!;
+    const separator = container.querySelector<HTMLElement>(
+      "[data-role='inspector-width-separator']",
+    )!;
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 1200, 300));
+    vi.spyOn(timeline, "getBoundingClientRect").mockReturnValue(bounds(220, 0, 680, 300));
+    const setPointerCapture = vi.spyOn(separator, "setPointerCapture")
+      .mockImplementation(() => undefined);
+    const releasePointerCapture = vi.spyOn(separator, "releasePointerCapture")
+      .mockImplementation(() => undefined);
+    vi.spyOn(separator, "hasPointerCapture").mockReturnValue(true);
+
+    expect(separator.hidden).toBe(true);
+    container.querySelector<HTMLButtonElement>(
+      ".rf__track-block[data-track-key='track:opening']",
+    )!.click();
+    expect(separator.hidden).toBe(false);
+    expect(separator.tabIndex).toBe(0);
+    expect(separator.getAttribute("aria-hidden")).toBe("false");
+    expect(separator.getAttribute("aria-valuemin")).toBe("240");
+    expect(separator.getAttribute("aria-valuemax")).toBe("460");
+    expect(separator.getAttribute("aria-valuenow")).toBe("300");
+
+    separator.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowLeft" }));
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("316px");
+    separator.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "End" }));
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("460px");
+    separator.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Home" }));
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("240px");
+
+    separator.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 960,
+      pointerId: 8,
+    }));
+    separator.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientX: 700,
+      pointerId: 8,
+    }));
+    expect(setPointerCapture).toHaveBeenCalledWith(8);
+    expect(separator.dataset.resizeState).toBe("active");
+    await flush();
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("460px");
+    separator.dispatchEvent(new PointerEvent("pointercancel", {
+      bubbles: true,
+      pointerId: 8,
+    }));
+    expect(releasePointerCapture).toHaveBeenCalledWith(8);
+    expect(separator.dataset.resizeState).toBe("idle");
+
+    container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")!.click();
+    expect(separator.hidden).toBe(true);
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("460px");
+    container.querySelector<HTMLButtonElement>(
+      ".rf__track-block[data-track-key='track:opening']",
+    )!.click();
+    expect(separator.hidden).toBe(false);
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("460px");
+
+    vi.stubGlobal("innerWidth", 800);
+    window.dispatchEvent(new Event("resize"));
+    expect(separator.hidden).toBe(true);
+    expect(separator.tabIndex).toBe(-1);
+    expect(separator.getAttribute("aria-hidden")).toBe("true");
+
+    handle.destroy();
+    expect(root.style.getPropertyValue("--rf-inspector-width")).toBe("");
+    registered.destroy();
     registry.destroy();
   });
 
@@ -376,7 +460,7 @@ describe("DevTools editor UI v2", () => {
     expect(toggle.getAttribute("aria-label")).toBe("Show timeline");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.title).toBe("Show timeline");
-    expect(container.style.height).toBe("75px");
+    expect(container.style.height).toBe("102px");
     expect(content.style.getPropertyValue("--rf-playhead-position"))
       .toBe(playhead.style.left);
     expect(ruler.getAttribute("aria-label"))
@@ -550,6 +634,13 @@ describe("DevTools editor UI v2", () => {
     expect(overlay.style.top).toBe("36px");
     expect(overlay.style.width).toBe("120px");
     expect(overlay.style.height).toBe("48px");
+    expect(overlay.style.boxShadow).toBe("none");
+    expect(overlay.style.borderColor).toBe("#55adff");
+    const overlayLabel = overlay.querySelector<HTMLElement>("[data-rf-highlight-label]")!;
+    expect(overlayLabel.style.background).toBe("#55adff");
+    expect(overlayLabel.style.color).toBe("#071316");
+    expect(overlayLabel.style.fontFamily).toContain("sans-serif");
+    expect(overlayLabel.style.fontFamily).not.toContain("monospace");
     expect(overlay.textContent).toContain("Opening");
     expect(overlay.textContent).toContain("article#overlay-first");
     expect(fixture.first.style.outline).toBe(originalOutline);
@@ -1955,6 +2046,32 @@ describe("DevTools editor UI v2", () => {
     )?.click();
     expect(document.querySelectorAll("[data-rf-highlight]")).toHaveLength(1);
     expect(fixture.first.style.outline).toBe("");
+
+    const overlay = document.querySelector<HTMLElement>("[data-rf-highlight]")!;
+    const overlayLabel = overlay.querySelector<HTMLElement>("[data-rf-highlight-label]")!;
+    expect(overlay.style.borderColor).toBe("#55adff");
+    expect(overlay.style.boxShadow).toBe("none");
+    expect(overlayLabel.style.background).toBe("#55adff");
+    expect(overlayLabel.style.color).toBe("#071316");
+    expect(overlayLabel.style.fontFamily).toContain("sans-serif");
+
+    const editorRoot = shadow.querySelector<HTMLElement>("[data-rf]")!;
+    editorRoot.style.fontFamily = "Inter, sans-serif";
+    editor.setAttribute("theme", "light");
+    expect(document.querySelector("[data-rf-highlight]")).toBe(overlay);
+    expect(overlay.style.borderColor).toBe("#087b8a");
+    expect(overlayLabel.style.background).toBe("#087b8a");
+    expect(overlayLabel.style.color).toBe("#ffffff");
+    expect(overlayLabel.style.fontFamily).toBe(getComputedStyle(editorRoot).fontFamily);
+
+    editorRoot.style.fontFamily = "ui-monospace, monospace";
+    editor.setAttribute("theme", "dark");
+    expect(document.querySelector("[data-rf-highlight]")).toBe(overlay);
+    expect(overlay.style.borderColor).toBe("#55adff");
+    expect(overlayLabel.style.background).toBe("#55adff");
+    expect(overlayLabel.style.color).toBe("#071316");
+    expect(overlayLabel.style.fontFamily).toContain("sans-serif");
+    expect(overlayLabel.style.fontFamily).not.toContain("monospace");
 
     editor.remove();
     expect(editor.controller).toBeUndefined();

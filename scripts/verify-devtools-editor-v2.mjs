@@ -30,6 +30,65 @@ function validScrubEdgeGeometry(samples) {
     && end.pillRight <= end.lineX + 1.5;
 }
 
+function transportGroupsDoNotOverlap(state) {
+  const visible = state.groups.filter((group) => group.width > 0 && group.height > 0);
+  return visible.every((group, index) => (
+    group.left >= state.transport.left - 0.5
+      && group.right <= state.transport.right + 0.5
+      && visible.slice(index + 1).every((candidate) => (
+        group.right <= candidate.left + 0.5
+          || candidate.right <= group.left + 0.5
+          || group.bottom <= candidate.top + 0.5
+          || candidate.bottom <= group.top + 0.5
+      ))
+  ));
+}
+
+async function readTransportLayout(send, viewportWidth, label) {
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: viewportWidth,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await evaluate(send, `window.dispatchEvent(new Event("resize"))`);
+  await evaluate(send, `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  return evaluate(send, `(() => {
+    const transport = window.__devtoolsEditorV2Harness.query(".rf__transport");
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']");
+    const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector']");
+    const inspectorSeparator = window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']");
+    const rect = (node) => {
+      const bounds = node.getBoundingClientRect();
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+        bottom: bounds.bottom,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    return {
+      label: ${JSON.stringify(label)},
+      viewportWidth: innerWidth,
+      timelineWidth: timeline.getBoundingClientRect().width,
+      inspectorWidth: inspector.getBoundingClientRect().width,
+      inspectorValue: Number(inspectorSeparator.getAttribute("aria-valuenow")),
+      inspectorMaximum: Number(inspectorSeparator.getAttribute("aria-valuemax")),
+      inspectorOpen: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.inspectorOpen,
+      timelinesVisible: window.__devtoolsEditorV2Harness.query("[data-rf]").dataset.timelinesVisible,
+      transport: rect(transport),
+      groups: [
+        window.__devtoolsEditorV2Harness.query(".rf__transport-settings"),
+        window.__devtoolsEditorV2Harness.query(".rf__playback"),
+        window.__devtoolsEditorV2Harness.query(".rf__transport-hint"),
+        window.__devtoolsEditorV2Harness.query(".rf__viewport-controls"),
+      ].filter((node) => getComputedStyle(node).display !== "none").map(rect),
+    };
+  })()`);
+}
+
 async function verify({ artifactDirectory, send }) {
   const desktop = join(artifactDirectory, "devtools-editor-v2-desktop.png");
   const particles = join(artifactDirectory, "devtools-editor-v2-particles.png");
@@ -258,6 +317,58 @@ async function verify({ artifactDirectory, send }) {
   assert(
     await evaluate(send, `[...document.querySelectorAll(".gsap-marker-start, .gsap-marker-end, .gsap-marker-scroller-start, .gsap-marker-scroller-end")].every((marker) => getComputedStyle(marker).display === "none")`),
     "Native ScrollTrigger markers were visible before an explicit timeline selection.",
+  );
+  const responsiveMetrics = await evaluate(send, `({ width: innerWidth, height: innerHeight })`);
+  const closedTransportLayouts = [];
+  for (const width of [961, 1000, 1085]) {
+    closedTransportLayouts.push(await readTransportLayout(send, width, `closed-${width}`));
+  }
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1200,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query(".rf__track-block").click()`);
+  const openTransportLayouts = [];
+  for (const width of [1200, 1280, 1440]) {
+    openTransportLayouts.push(await readTransportLayout(send, width, `open-${width}`));
+  }
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
+  const hiddenListTransportLayouts = [];
+  for (const width of [1200, 1280]) {
+    hiddenListTransportLayouts.push(await readTransportLayout(send, width, `open-hidden-list-${width}`));
+  }
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click(); window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click()`);
+  await evaluate(send, `window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/action-scroll")`);
+  const actionTransportLayouts = [
+    await readTransportLayout(send, 1000, "action-closed-1000"),
+  ];
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query(".rf__track-block").click()`);
+  actionTransportLayouts.push(await readTransportLayout(send, 1200, "action-open-1200"));
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click(); window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/window-scroll")`);
+  const scrubTransportLayouts = [
+    await readTransportLayout(send, 961, "scrub-closed-961"),
+  ];
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query(".rf__track-block").click()`);
+  scrubTransportLayouts.push(await readTransportLayout(send, 1200, "scrub-open-1200"));
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='close-inspector']").click(); window.__devtoolsEditorV2Harness.selectTimeline("playground/v2/finite")`);
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: responsiveMetrics.width,
+    height: responsiveMetrics.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  const responsiveTransportLayouts = [
+    ...closedTransportLayouts,
+    ...openTransportLayouts,
+    ...hiddenListTransportLayouts,
+    ...actionTransportLayouts,
+    ...scrubTransportLayouts,
+  ];
+  assert(
+    responsiveTransportLayouts.every(transportGroupsDoNotOverlap),
+    `Transport groups overlap when the timeline pane narrows: ${JSON.stringify(responsiveTransportLayouts)}`,
   );
   const windowScrollState = await evaluate(send, `(async () => {
     window.__devtoolsEditorV2Harness.query("[data-timeline-id='playground/v2/window-scroll']").click();
@@ -1142,6 +1253,57 @@ async function verify({ artifactDirectory, send }) {
       && highlightState.pressed === "true",
     `Track selection overlay did not synchronize with the preview: ${JSON.stringify(highlightState)}`,
   );
+  const readHighlightThemeState = () => evaluate(send, `(() => {
+    const editorRoot = window.__devtoolsEditorV2Harness.query("[data-rf]");
+    const overlay = document.querySelector("[data-rf-highlight]");
+    const label = overlay?.querySelector("[data-rf-highlight-label]");
+    const normalizeColor = (value) => {
+      const probe = document.createElement("span");
+      probe.style.color = value;
+      document.body.append(probe);
+      const normalized = getComputedStyle(probe).color;
+      probe.remove();
+      return normalized;
+    };
+    const editorStyle = getComputedStyle(editorRoot);
+    const textWithMonoFonts = [...window.__devtoolsEditorV2Harness.queryAll("*")]
+      .filter((node) => node.textContent?.trim())
+      .map((node) => getComputedStyle(node).fontFamily)
+      .filter((fontFamily) => /monospace|\\bmono\\b/i.test(fontFamily));
+    return {
+      identity: overlay?.dataset.identity,
+      accent: normalizeColor(editorStyle.getPropertyValue("--rf-accent")),
+      onAccent: normalizeColor(editorStyle.getPropertyValue("--rf-on-accent")),
+      borderColor: getComputedStyle(overlay).borderColor,
+      boxShadow: getComputedStyle(overlay).boxShadow,
+      labelBackground: getComputedStyle(label).backgroundColor,
+      labelColor: getComputedStyle(label).color,
+      labelFontFamily: getComputedStyle(label).fontFamily,
+      editorFontFamily: editorStyle.fontFamily,
+      textWithMonoFonts,
+    };
+  })()`);
+  await evaluate(send, `document.querySelector("[data-rf-highlight]").dataset.identity = "active-selection"`);
+  const darkHighlightTheme = await readHighlightThemeState();
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-rf]").style.fontFamily = "Arial, sans-serif"; document.querySelector("rf-editor").setAttribute("theme", "light")`);
+  const lightHighlightTheme = await readHighlightThemeState();
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-rf]").style.removeProperty("font-family"); document.querySelector("rf-editor").setAttribute("theme", "dark")`);
+  const restoredHighlightTheme = await readHighlightThemeState();
+  const highlightThemeMatches = (state) => state.identity === "active-selection"
+    && state.borderColor === state.accent
+    && state.labelBackground === state.accent
+    && state.labelColor === state.onAccent
+    && state.boxShadow === "none"
+    && state.labelFontFamily === state.editorFontFamily
+    && !/monospace|\bmono\b/i.test(state.labelFontFamily)
+    && state.textWithMonoFonts.length === 0;
+  assert(
+    highlightThemeMatches(darkHighlightTheme)
+      && highlightThemeMatches(lightHighlightTheme)
+      && highlightThemeMatches(restoredHighlightTheme)
+      && darkHighlightTheme.accent !== lightHighlightTheme.accent,
+    `Editor or active selection overlay theme typography is incorrect: ${JSON.stringify({ darkHighlightTheme, lightHighlightTheme, restoredHighlightTheme })}`,
+  );
   await evaluate(send, `(() => {
     const range = window.__devtoolsEditorV2Harness.query("[data-role='zoom-range']");
     range.value = "2";
@@ -1199,6 +1361,20 @@ async function verify({ artifactDirectory, send }) {
         .map((heading) => heading.textContent),
       propertyRows: [...propertyTable.querySelectorAll("tbody tr")]
         .map((row) => row.textContent),
+      propertyNames: [...propertyTable.querySelectorAll(".rf__property-name")]
+        .map((name) => {
+          const range = document.createRange();
+          range.selectNodeContents(name);
+          return {
+            text: name.textContent,
+            title: name.title,
+            textHeight: range.getBoundingClientRect().height,
+            lineHeight: Number.parseFloat(getComputedStyle(name).lineHeight),
+            overflowWrap: getComputedStyle(name).overflowWrap,
+            whiteSpace: getComputedStyle(name).whiteSpace,
+            textOverflow: getComputedStyle(name).textOverflow,
+          };
+        }),
       propertyTableLeft: propertyTableBounds.left,
       propertyTableRight: propertyTableBounds.right,
       contentLeft: contentBounds.left,
@@ -1222,8 +1398,16 @@ async function verify({ artifactDirectory, send }) {
       && JSON.stringify(inspectorState.propertyHeadings) === JSON.stringify(["Property", "From", "To"])
       && JSON.stringify(inspectorState.propertyRows) === JSON.stringify([
         "opacity0.21",
+        "transformOrigin\"50% 100%\"\"50% 50%\"",
         "y280",
       ])
+      && inspectorState.propertyNames.every((name) => (
+        name.title === name.text
+          && name.textHeight <= name.lineHeight + 1
+          && name.overflowWrap === "normal"
+          && name.whiteSpace === "nowrap"
+          && name.textOverflow === "ellipsis"
+      ))
       && inspectorState.propertyTableLeft >= inspectorState.contentLeft - 0.5
       && inspectorState.propertyTableRight <= inspectorState.contentRight + 0.5
       && !inspectorState.hasMapping
@@ -1235,10 +1419,128 @@ async function verify({ artifactDirectory, send }) {
       && inspectorState.trackLabelFontSize === "12px"
       && inspectorState.termFontSize === "11px"
       && inspectorState.valueFontSize === "11px"
-      && inspectorState.termFontFamily.includes("monospace")
-      && inspectorState.valueFontFamily.includes("monospace")
+      && !/monospace|\bmono\b/i.test(inspectorState.termFontFamily)
+      && !/monospace|\bmono\b/i.test(inspectorState.valueFontFamily)
       && inspectorState.termColor !== inspectorState.valueColor,
     `Track inspector did not render without changing panes: ${JSON.stringify(inspectorState)}`,
+  );
+  const inspectorResizeStart = await evaluate(send, `(() => {
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']");
+    const bounds = separator.getBoundingClientRect();
+    const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector']").getBoundingClientRect();
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
+    const hit = window.__devtoolsEditorV2Harness.editorRoot.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
+    return {
+      x: bounds.left + bounds.width / 2,
+      y: bounds.top + bounds.height / 2,
+      inspectorWidth: inspector.width,
+      timelineWidth: timeline.width,
+      hitRole: hit?.dataset.role,
+      cursor: getComputedStyle(separator).cursor,
+      role: separator.getAttribute("role"),
+      orientation: separator.getAttribute("aria-orientation"),
+      minimum: separator.getAttribute("aria-valuemin"),
+      maximum: Number(separator.getAttribute("aria-valuemax")),
+    };
+  })()`);
+  assert(
+    inspectorResizeStart.hitRole === "inspector-width-separator"
+      && inspectorResizeStart.cursor === "col-resize"
+      && inspectorResizeStart.role === "separator"
+      && inspectorResizeStart.orientation === "vertical"
+      && inspectorResizeStart.minimum === "240"
+      && inspectorResizeStart.maximum >= inspectorResizeStart.inspectorWidth,
+    `The Inspector width separator is not an accessible left-edge hit target: ${JSON.stringify(inspectorResizeStart)}`,
+  );
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: inspectorResizeStart.x,
+    y: inspectorResizeStart.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: inspectorResizeStart.x - 96,
+    y: inspectorResizeStart.y,
+    button: "left",
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: inspectorResizeStart.x - 96,
+    y: inspectorResizeStart.y,
+    button: "left",
+    clickCount: 1,
+  });
+  const inspectorResized = await evaluate(send, `(() => {
+    const inspector = window.__devtoolsEditorV2Harness.query("[data-role='inspector']").getBoundingClientRect();
+    const timeline = window.__devtoolsEditorV2Harness.query("[data-pane='timeline']").getBoundingClientRect();
+    const separator = window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']");
+    const columns = [...window.__devtoolsEditorV2Harness.queryAll(".rf__property-table thead th")]
+      .map((cell) => cell.getBoundingClientRect().width);
+    return {
+      inspectorWidth: inspector.width,
+      timelineWidth: timeline.width,
+      resizeState: separator.dataset.resizeState,
+      value: Number(separator.getAttribute("aria-valuenow")),
+      valueText: separator.getAttribute("aria-valuetext"),
+      columns,
+    };
+  })()`);
+  assert(
+    Math.abs(inspectorResized.inspectorWidth - inspectorResizeStart.inspectorWidth - 96) <= 1
+      && Math.abs(inspectorResizeStart.timelineWidth - inspectorResized.timelineWidth - 96) <= 1
+      && inspectorResized.timelineWidth >= 520
+      && inspectorResized.resizeState === "idle"
+      && Math.abs(inspectorResized.value - inspectorResized.inspectorWidth) <= 1
+      && inspectorResized.valueText === `${Math.round(inspectorResized.inspectorWidth)} pixels wide`
+      && inspectorResized.columns.every((width) => width > 0)
+      && inspectorResized.columns[0] > inspectorResized.columns[1]
+      && Math.abs(inspectorResized.columns[1] - inspectorResized.columns[2]) <= 1,
+    `Dragging the Inspector edge did not resize the panel and rebalance its columns: ${JSON.stringify({ inspectorResizeStart, inspectorResized })}`,
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']").dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }))`);
+  const inspectorMinimumLayout = await readTransportLayout(
+    send,
+    responsiveMetrics.width,
+    "inspector-minimum",
+  );
+  await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']").dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }))`);
+  const inspectorMaximumLayout = await readTransportLayout(
+    send,
+    responsiveMetrics.width,
+    "inspector-maximum",
+  );
+  const inspectorViewportClampLayout = await readTransportLayout(
+    send,
+    1200,
+    "inspector-viewport-clamp",
+  );
+  const inspectorRestoredViewportLayout = await readTransportLayout(
+    send,
+    responsiveMetrics.width,
+    "inspector-restored-viewport",
+  );
+  assert(
+    Math.abs(inspectorMinimumLayout.inspectorWidth - 240) <= 1
+      && Math.abs(inspectorMinimumLayout.inspectorValue - 240) <= 1
+      && Math.abs(inspectorMaximumLayout.timelineWidth - 520) <= 1
+      && Math.abs(
+        inspectorMaximumLayout.inspectorWidth - inspectorMaximumLayout.inspectorMaximum,
+      ) <= 1
+      && Math.abs(inspectorViewportClampLayout.timelineWidth - 520) <= 1
+      && Math.abs(
+        inspectorViewportClampLayout.inspectorWidth
+          - inspectorViewportClampLayout.inspectorMaximum,
+      ) <= 1
+      && transportGroupsDoNotOverlap(inspectorMinimumLayout)
+      && transportGroupsDoNotOverlap(inspectorMaximumLayout)
+      && transportGroupsDoNotOverlap(inspectorViewportClampLayout)
+      && transportGroupsDoNotOverlap(inspectorRestoredViewportLayout),
+    `Inspector min/max or viewport revalidation broke transport layout: ${JSON.stringify({ inspectorMinimumLayout, inspectorMaximumLayout, inspectorViewportClampLayout, inspectorRestoredViewportLayout })}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='reset-timeline-zoom']").click()`);
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='toggle-timelines']").click()`);
@@ -1270,6 +1572,10 @@ async function verify({ artifactDirectory, send }) {
     "The desktop inspector close button did not return the track to idle.",
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='animation:1']").click()`);
+  assert(
+    await evaluate(send, `Math.abs(window.__devtoolsEditorV2Harness.query("[data-role='inspector']").getBoundingClientRect().width - ${inspectorRestoredViewportLayout.inspectorWidth}) <= 1`),
+    "The Inspector did not retain its chosen width after close and reopen.",
+  );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='play']").click()`);
   await waitFor(
     () => evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='pause']")?.getAttribute("aria-label") === "Pause" && window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='play']").hasAttribute("hidden") && !window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='pause']").hasAttribute("hidden") && getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='play']")).display === "none" && getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-action='pause'] [data-icon='pause']")).display === "block"`),
@@ -1751,6 +2057,9 @@ async function verify({ artifactDirectory, send }) {
     inspectorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector']").hidden,
     inspectorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector']")).display,
     inspectorTab: Boolean(window.__devtoolsEditorV2Harness.query("[data-pane-target='inspector']")),
+    widthSeparatorHidden: window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']").hidden,
+    widthSeparatorDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']")).display,
+    widthSeparatorTabIndex: window.__devtoolsEditorV2Harness.query("[data-role='inspector-width-separator']").tabIndex,
     editorHeight: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().height,
     editorTop: window.__devtoolsEditorV2Harness.query("[data-rf]").getBoundingClientRect().top,
   }))()`);
@@ -1762,6 +2071,9 @@ async function verify({ artifactDirectory, send }) {
       && !narrowState.inspectorHidden
       && narrowState.inspectorDisplay !== "none"
       && !narrowState.inspectorTab
+      && narrowState.widthSeparatorHidden
+      && narrowState.widthSeparatorDisplay === "none"
+      && narrowState.widthSeparatorTabIndex === -1
       && Math.abs(narrowState.editorHeight - expectedNarrowHeight) <= 2
       && narrowState.editorTop >= 280,
     `The mobile track-triggered inspector is incorrect: ${JSON.stringify(narrowState)}`,
@@ -2150,6 +2462,7 @@ async function verify({ artifactDirectory, send }) {
       "playhead-drag-states",
       "application-root-ownership",
       "stable-track-selection",
+      "selection-highlight-theme-and-sans-type",
       "transport-visual-hierarchy",
       "transport",
       "replay",

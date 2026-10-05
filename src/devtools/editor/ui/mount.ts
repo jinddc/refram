@@ -14,6 +14,10 @@ import {
   type PlayheadDragHandle,
 } from "./interactions/playhead-drag";
 import {
+  createInspectorWidthResize,
+  type InspectorWidthResizeHandle,
+} from "./inspector-width-resize";
+import {
   createTimelineViewport,
   type TimelineViewportHandle,
 } from "./interactions/timeline-viewport";
@@ -22,6 +26,7 @@ import { createSelectionHighlightOverlay } from "./selection-highlight-overlay";
 
 export interface EditorUiHandle {
   readonly controller: EditorController;
+  syncTheme(): void;
   destroy(): void;
 }
 
@@ -33,7 +38,8 @@ type EditorPane = "timelines" | "timeline";
 
 const EDITOR_PANES = ["timelines", "timeline"] as const;
 const EDITOR_MINIMAL_HEIGHT = 75;
-const EDITOR_NARROW_MINIMAL_HEIGHT = 102;
+const EDITOR_COMPACT_MINIMAL_HEIGHT = 102;
+const EDITOR_COMPACT_TRANSPORT_MAX_WIDTH = 880;
 
 function ownsNativeKeyboardBehavior(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -58,18 +64,23 @@ export function mountEditorUi(
   let timelineListVisible = true;
   let timelineCollapsed = false;
   let heightResize: EditorHeightResizeHandle | undefined;
+  let inspectorWidthResize: InspectorWidthResizeHandle | undefined;
   let timelineViewport: TimelineViewportHandle;
   let playheadDrag: PlayheadDragHandle | undefined;
 
   const minimalEditorHeight = (): number => {
     const scrubbed = elements.timelinePane.dataset.timelineMode === "scroll-scrub";
-    const narrow = (container.ownerDocument.defaultView?.innerWidth ?? 1024) <= 700;
-    return narrow && !scrubbed ? EDITOR_NARROW_MINIMAL_HEIGHT : EDITOR_MINIMAL_HEIGHT;
+    const compactTransport = elements.timelinePane.getBoundingClientRect().width
+      <= EDITOR_COMPACT_TRANSPORT_MAX_WIDTH;
+    return compactTransport && !scrubbed
+      ? EDITOR_COMPACT_MINIMAL_HEIGHT
+      : EDITOR_MINIMAL_HEIGHT;
   };
 
   const setInspectorOpen = (open: boolean): void => {
     elements.root.dataset.inspectorOpen = String(open);
     elements.inspectorPane.hidden = !open;
+    inspectorWidthResize?.setOpen(open);
   };
 
   const closeInspector = (restoreFocus = false): void => {
@@ -89,6 +100,7 @@ export function mountEditorUi(
     const label = visible ? "Hide timelines pane" : "Show timelines pane";
     elements.timelineListToggle.setAttribute("aria-label", label);
     elements.timelineListToggle.title = label;
+    inspectorWidthResize?.revalidate();
   };
 
   const setTimelineCollapsed = (collapsed: boolean): void => {
@@ -308,11 +320,14 @@ export function mountEditorUi(
   setTimelineCollapsed(false);
   setActivePane("timeline");
   container.append(elements.root);
+  selectionHighlight.syncTheme(elements.root);
   heightResize = createEditorHeightResize(
     container,
     elements.root,
     elements.heightSeparator,
   );
+  inspectorWidthResize = createInspectorWidthResize(elements);
+  inspectorWidthResize.setOpen(false);
   elements.root.addEventListener("click", onClick, listenerOptions);
   elements.root.addEventListener("change", onChange, listenerOptions);
   elements.root.addEventListener("input", onInput, listenerOptions);
@@ -321,6 +336,9 @@ export function mountEditorUi(
 
   return {
     controller,
+    syncTheme() {
+      selectionHighlight.syncTheme(elements.root);
+    },
     destroy() {
       if (destroyed) return;
       destroyed = true;
@@ -329,6 +347,7 @@ export function mountEditorUi(
       eventController.abort();
       unsubscribe();
       heightResize?.destroy();
+      inspectorWidthResize?.destroy();
       selectionHighlight.destroy();
       elements.root.remove();
       if (ownsController) controller.destroy();

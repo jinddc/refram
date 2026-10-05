@@ -53,6 +53,7 @@ export function defineMotionDevtoolsEditor(
 
     #syncTheme(): void {
       this.dataset.theme = this.getAttribute("theme") === "light" ? "light" : "dark";
+      this.#handle?.syncTheme();
     }
   }
 
