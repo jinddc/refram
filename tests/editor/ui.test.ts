@@ -93,6 +93,45 @@ function registration(id: string, label: string) {
 }
 
 describe("DevTools editor UI v2", () => {
+  it("rounds long relative numeric strings in the Inspector without changing authored data", () => {
+    const registry = createTimelineRegistry();
+    const fixture = registration("relative-value", "Relative value");
+    const tween = fixture.declaration.tracks[0]!.animation as gsap.core.Tween;
+    tween.vars.x = "+=6.283185307179586";
+    tween.vars.clipPath = "polygon(0% 0%, 100% 0%, 100% 100%, 75% 80%, 50% 100%, 25% 80%, 0% 100%)";
+    const registered = registry.register(fixture.declaration);
+    const container = document.createElement("div");
+    document.body.append(fixture.root, container);
+    const handle = mountEditorUi(container, { registry });
+
+    container.querySelector<HTMLButtonElement>(
+      ".rf__track-block[data-track-key='track:opening']",
+    )?.click();
+    const row = [...container.querySelectorAll<HTMLTableRowElement>(
+      ".rf__property-table tbody tr",
+    )].find((candidate) => candidate.querySelector("th")?.textContent === "x")!;
+    const toValue = row.querySelectorAll<HTMLTableCellElement>("td")[1]!;
+    expect(toValue.textContent).toBe('"+=6.28"');
+    expect(toValue.title).toBe('"+=6.283185307179586"');
+    expect(handle.controller.getSnapshot().view.inspector?.propertyDetails[0]?.to)
+      .toEqual({
+        kind: "literal",
+        value: "polygon(0% 0%, 100% 0%, 100% 100%, 75% 80%, 50% 100%, 25% 80%, 0% 100%)",
+      });
+    const clipPathRow = [...container.querySelectorAll<HTMLTableRowElement>(
+      ".rf__property-table tbody tr",
+    )].find((candidate) => candidate.querySelector("th")?.textContent === "clipPath")!;
+    const clipPathTo = clipPathRow.querySelectorAll<HTMLTableCellElement>("td")[1]!;
+    expect(clipPathTo.textContent).toBe(
+      '"polygon(0% 0%, 100% 0%, 100% 100%, 75% 80%, 50% 100%, 25% 80%, 0% 100%)"',
+    );
+    expect(clipPathTo.title).toBe(clipPathTo.textContent);
+
+    handle.destroy();
+    registered.destroy();
+    registry.destroy();
+  });
+
   it("exposes keyboard height resizing, clamps values, and resets to the CSS default", () => {
     vi.stubGlobal("innerHeight", 800);
     const registry = createTimelineRegistry();
@@ -558,41 +597,6 @@ describe("DevTools editor UI v2", () => {
     registry.destroy();
   });
 
-  it("preserves copy feedback through zoom reset and clears its timer on destroy", async () => {
-    vi.useFakeTimers();
-    const registry = createTimelineRegistry();
-    const fixture = registration("copy-lifecycle", "Copy lifecycle");
-    const registered = registry.register(fixture.declaration);
-    const container = document.createElement("div");
-    document.body.append(container, fixture.root);
-    const handle = mountEditorUi(container, { registry });
-    const clipboard = vi.spyOn(window.navigator, "clipboard", "get").mockReturnValue({
-      writeText: vi.fn().mockResolvedValue(undefined),
-    } as unknown as Clipboard);
-
-    expect(handle.controller.selectItem(0)).toBe(true);
-    const copyDebug = container.querySelector<HTMLButtonElement>(
-      "[data-action='copy-debug-json']",
-    )!;
-    const baselineTimerCount = vi.getTimerCount();
-    copyDebug.click();
-    await flush();
-    expect(copyDebug.textContent).toBe("Copied");
-    expect(vi.getTimerCount()).toBe(baselineTimerCount + 1);
-
-    container.querySelector<HTMLButtonElement>(
-      "[data-action='reset-timeline-zoom']",
-    )?.click();
-    expect(copyDebug.textContent).toBe("Copied");
-    expect(vi.getTimerCount()).toBe(baselineTimerCount + 1);
-
-    handle.destroy();
-    expect(vi.getTimerCount()).toBeLessThanOrEqual(baselineTimerCount);
-    clipboard.mockRestore();
-    registered.destroy();
-    registry.destroy();
-  });
-
   it("renders controller state and routes timeline, track, transport, and seek actions", async () => {
     vi.useFakeTimers();
     const registry = createTimelineRegistry();
@@ -697,7 +701,6 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.hidden).toBe(false);
     expect(inspector.textContent).toContain("Opening");
     expect(inspector.textContent).not.toContain("track:opening");
-    expect(inspector.textContent).not.toContain("Authored");
     expect(inspector.querySelector(".rf__inspector-key")).toBeNull();
     expect(inspector.querySelector(".rf__inspector-mapping")).toBeNull();
     expect(container.querySelector(".rf__track-heading")?.textContent)
@@ -705,58 +708,19 @@ describe("DevTools editor UI v2", () => {
     expect(inspector.textContent).toContain("0.00s");
     expect(inspector.textContent).toContain("1.00s");
     expect(inspector.textContent).toContain("Targets1");
-    expect(inspector.textContent).toContain("Propertiesx");
+    expect(inspector.textContent).toContain("Tween typeTo");
+    const propertyTable = inspector.querySelector<HTMLTableElement>(".rf__property-table")!;
+    expect(propertyTable.querySelector("caption")?.textContent)
+      .toBe("Authored property values");
+    expect([...propertyTable.querySelectorAll("thead th")].map(({ textContent }) => textContent))
+      .toEqual(["Property", "From", "To"]);
+    expect([...propertyTable.querySelectorAll<HTMLTableCellElement>("thead th")]
+      .map(({ scope }) => scope))
+      .toEqual(["col", "col", "col"]);
+    expect(propertyTable.querySelector<HTMLTableCellElement>("tbody th")?.scope).toBe("row");
+    expect(propertyTable.querySelector("tbody tr")?.textContent).toBe("xCurrent20");
     expect(inspectorPane.querySelector(".rf__pane-heading")?.textContent)
       .toContain("Inspector");
-    const copyDebug = container.querySelector<HTMLButtonElement>(
-      "[data-action='copy-debug-json']",
-    )!;
-    expect(copyDebug.disabled).toBe(false);
-    expect(copyDebug.getAttribute("aria-describedby")).toBe("rf-copy-debug-status");
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    const clipboard = vi.spyOn(window.navigator, "clipboard", "get").mockReturnValue({
-      writeText,
-    } as unknown as Clipboard);
-    copyDebug.click();
-    await flush();
-    expect(writeText).toHaveBeenCalledOnce();
-    expect(JSON.parse(writeText.mock.calls[0]![0])).toMatchObject({
-      schemaVersion: 1,
-      timeline: { id: "first", label: "First sequence" },
-      track: {
-        label: "Opening",
-        type: "authored",
-        start: 0,
-        duration: 1,
-        end: 1,
-        ease: "Unavailable",
-        targets: {
-          animatedCount: 1,
-          visualCount: 1,
-          descriptors: ["article#first-first"],
-        },
-        properties: ["x"],
-      },
-    });
-    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent)
-      .toBe("Copied debug JSON.");
-    expect(copyDebug.textContent).toBe("Copied");
-    expect(copyDebug.disabled).toBe(false);
-    vi.advanceTimersByTime(1_000);
-    expect(copyDebug.textContent).toBe("Copy debug JSON");
-    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent).toBe("");
-
-    writeText.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
-    copyDebug.click();
-    await flush();
-    expect(container.querySelector("[data-role='copy-debug-status']")?.textContent)
-      .toBe("Could not copy debug JSON. Clipboard access is unavailable.");
-    expect(copyDebug.textContent).toBe("Copy failed");
-    expect(copyDebug.disabled).toBe(false);
-    vi.advanceTimersByTime(1_000);
-    expect(copyDebug.textContent).toBe("Copy debug JSON");
-    clipboard.mockRestore();
-
     container.querySelector<HTMLButtonElement>("[data-action='close-inspector']")?.click();
     expect(root.dataset.inspectorOpen).toBe("false");
     expect(inspectorPane.hidden).toBe(true);

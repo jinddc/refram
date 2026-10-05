@@ -1,8 +1,10 @@
 import type { gsap } from "gsap";
 import type { MotionTimelineReplayState } from "../timeline/control";
 import type { EditorTimeWindow } from "./time";
-import type {
-  TimelineInspectionItem,
+import {
+  inspectTimelineItemProperties,
+  type TimelineInspectionProperty,
+  type TimelineInspectionItem,
   TimelineInspectionSnapshot,
   TimelinePlayState,
   TimelineScrollTriggerSnapshot,
@@ -57,6 +59,8 @@ export interface EditorViewInspector {
   readonly animatedTargetCount: number;
   readonly visualTargetCount: number;
   readonly properties: readonly string[];
+  readonly mode: "to" | "from" | "fromTo" | "mixed";
+  readonly propertyDetails: readonly TimelineInspectionProperty[];
 }
 
 export type EditorViewStatus =
@@ -151,53 +155,6 @@ function trackLabel(item: TimelineInspectionItem): TrackLabel {
   return automaticTrackLabel(item);
 }
 
-const GSAP_OPTION_KEYS = new Set([
-  "autoRevert",
-  "callbackScope",
-  "data",
-  "delay",
-  "defaults",
-  "duration",
-  "ease",
-  "id",
-  "immediateRender",
-  "inherit",
-  "keyframes",
-  "lazy",
-  "onCompleteParams",
-  "onInterruptParams",
-  "onRepeatParams",
-  "onReverseCompleteParams",
-  "onStartParams",
-  "onUpdateParams",
-  "overwrite",
-  "parent",
-  "paused",
-  "repeat",
-  "repeatDelay",
-  "reversed",
-  "runBackwards",
-  "scrollTrigger",
-  "stagger",
-  "startAt",
-  "yoyo",
-  "yoyoEase",
-]);
-
-function animatedProperties(item: TimelineInspectionItem): readonly string[] {
-  const properties = new Set<string>();
-  for (const animation of item.animations) {
-    const vars = (animation as gsap.core.Animation & {
-      readonly vars?: Readonly<Record<string, unknown>>;
-    }).vars;
-    for (const key of Object.keys(vars ?? {})) {
-      if (GSAP_OPTION_KEYS.has(key) || /^on[A-Z]/.test(key)) continue;
-      properties.add(key);
-    }
-  }
-  return Object.freeze([...properties].sort((left, right) => left.localeCompare(right)));
-}
-
 function status(input: EditorViewInput): EditorViewStatus {
   if (!input.activeTimelineId) return "empty";
   if (input.rebuilding) return "rebuilding";
@@ -222,6 +179,7 @@ function inspector(
   const firstEase = eases[0];
   const mixedEase = eases.some((ease) => ease !== firstEase);
   const timing = timeWindow?.trackTimings.find((candidate) => candidate.item === item);
+  const authoredProperties = inspectTimelineItemProperties(item);
   return Object.freeze({
     trackKey: editorTrackKey(item),
     label: trackLabel(item).short,
@@ -233,7 +191,9 @@ function inspector(
     mixedEase,
     animatedTargetCount: item.animatedTargetCount,
     visualTargetCount: item.sources.length,
-    properties: animatedProperties(item),
+    properties: Object.freeze(authoredProperties.properties.map(({ name }) => name)),
+    mode: authoredProperties.mode,
+    propertyDetails: authoredProperties.properties,
   });
 }
 

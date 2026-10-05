@@ -1,3 +1,4 @@
+import type { TimelineInspectionPropertyValue } from "../../../timeline/session";
 import type { EditorViewState } from "../../view-state";
 import type { EditorUiElements } from "../dom";
 import { createRenderNode, formatInspectorTime } from "./shared";
@@ -27,19 +28,75 @@ function formatMarkersStatus(markers: false | true | object): string {
   return markers === true ? "On" : "On (custom)";
 }
 
+function formatTweenMode(mode: "to" | "from" | "fromTo" | "mixed"): string {
+  if (mode === "fromTo") return "FromTo";
+  return mode[0]!.toUpperCase() + mode.slice(1);
+}
+
+function formatPropertyValue(value: TimelineInspectionPropertyValue): string {
+  if (value.kind === "literal") return typeof value.value === "string"
+    ? JSON.stringify(value.value)
+    : String(value.value);
+  if (value.kind === "undefined") return "Undefined";
+  if (value.kind === "implicit") return "Current";
+  return value.kind[0]!.toUpperCase() + value.kind.slice(1);
+}
+
+function formatPropertyDisplayValue(value: TimelineInspectionPropertyValue): string {
+  if (value.kind !== "literal" || typeof value.value !== "string") {
+    return formatPropertyValue(value);
+  }
+  const relativeNumber = /^([+-]=)(-?(?:\d+(?:\.\d*)?|\.\d+))([a-z%]*)$/i.exec(value.value);
+  if (!relativeNumber) return formatPropertyValue(value);
+  const numericValue = Number(relativeNumber[2]);
+  if (!Number.isFinite(numericValue)) return formatPropertyValue(value);
+  const roundedValue = Math.round(numericValue * 100) / 100;
+  return JSON.stringify(`${relativeNumber[1]}${roundedValue}${relativeNumber[3]}`);
+}
+
+function propertyValueNode(value: TimelineInspectionPropertyValue): HTMLTableCellElement {
+  const exactValue = formatPropertyValue(value);
+  const displayValue = formatPropertyDisplayValue(value);
+  const node = createRenderNode("td", "rf__property-value", displayValue);
+  if (value.kind === "literal" && typeof value.value === "string") {
+    node.title = exactValue;
+  }
+  return node;
+}
+
+function propertyTable(
+  properties: NonNullable<EditorViewState["inspector"]>["propertyDetails"],
+): HTMLTableElement {
+  const table = createRenderNode("table", "rf__property-table");
+  table.append(createRenderNode("caption", "rf__visually-hidden", "Authored property values"));
+  const head = createRenderNode("thead", "");
+  const headingRow = createRenderNode("tr", "");
+  for (const label of ["Property", "From", "To"]) {
+    const heading = createRenderNode("th", "rf__property-heading", label);
+    heading.scope = "col";
+    headingRow.append(heading);
+  }
+  head.append(headingRow);
+  const body = createRenderNode("tbody", "");
+  for (const property of properties) {
+    const row = createRenderNode("tr", "");
+    const name = createRenderNode("th", "rf__property-name", property.name);
+    name.scope = "row";
+    row.append(
+      name,
+      propertyValueNode(property.from),
+      propertyValueNode(property.to),
+    );
+    body.append(row);
+  }
+  table.append(head, body);
+  return table;
+}
+
 export function renderInspector(elements: EditorUiElements, view: EditorViewState): void {
   const inspector = view.inspector;
   elements.inspectorEmpty.hidden = inspector !== undefined;
   elements.inspectorContent.hidden = inspector === undefined;
-  elements.inspectorActions.hidden = inspector === undefined;
-  const statusTrackKey = elements.copyDebugStatus.dataset.trackKey;
-  if (statusTrackKey !== inspector?.trackKey) {
-    elements.copyDebugStatus.textContent = "";
-    elements.copyDebugStatus.dataset.state = "";
-    elements.copyDebugStatus.dataset.trackKey = inspector?.trackKey ?? "";
-  }
-  elements.copyDebugButton.disabled = inspector === undefined
-    || elements.copyDebugStatus.dataset.state === "pending";
   if (!inspector) {
     elements.inspectorContent.replaceChildren();
     elements.inspectorContent.dataset.signature = "";
@@ -49,7 +106,15 @@ export function renderInspector(elements: EditorUiElements, view: EditorViewStat
   const signature = [
     inspector.trackKey, inspector.label, inspector.start, inspector.duration, inspector.end,
     ease, inspector.animatedTargetCount, inspector.visualTargetCount,
-    inspector.properties.join(","), view.scrollTrigger?.start, view.scrollTrigger?.end,
+    inspector.mode,
+    ...inspector.propertyDetails.flatMap((property) => [
+      property.name,
+      formatPropertyValue(property.from),
+      property.from.kind === "literal" && property.from.truncated ? "truncated" : "",
+      formatPropertyValue(property.to),
+      property.to.kind === "literal" && property.to.truncated ? "truncated" : "",
+    ]),
+    view.scrollTrigger?.start, view.scrollTrigger?.end,
     view.scrollTrigger?.rawStart, view.scrollTrigger?.rawEnd, view.scrollTrigger?.distance,
     view.scrollTrigger?.progress, view.scrollTrigger?.animationProgress,
     view.scrollTrigger?.state, view.scrollTrigger?.direction, view.scrollTrigger?.scrub,
@@ -103,10 +168,15 @@ export function renderInspector(elements: EditorUiElements, view: EditorViewStat
     inspectorField("End", formatInspectorTime(inspector.end)),
     inspectorField("Ease", ease),
     ...targetFields,
-    inspectorField("Properties", inspector.properties.length > 0
-      ? inspector.properties.join(", ")
-      : "Unavailable"),
+    inspectorField("Tween type", formatTweenMode(inspector.mode)),
+    ...(inspector.propertyDetails.length === 0
+      ? [inspectorField("Properties", "Unavailable")]
+      : []),
     ...scrollTriggerFields,
   );
-  elements.inspectorContent.replaceChildren(identity, details);
+  elements.inspectorContent.replaceChildren(
+    identity,
+    details,
+    ...(inspector.propertyDetails.length > 0 ? [propertyTable(inspector.propertyDetails)] : []),
+  );
 }

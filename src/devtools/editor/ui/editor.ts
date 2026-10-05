@@ -35,7 +35,12 @@ export class Refram {
   }
 
   constructor(options: ReframOptions = {}) {
-    const ownerDocument = options.container?.ownerDocument ?? document;
+    const ownerDocument = options.container?.ownerDocument
+      ?? (typeof document === "undefined" ? undefined : document);
+    if (!ownerDocument || typeof HTMLElement === "undefined"
+      || !ownerDocument.defaultView?.customElements) {
+      throw new Error("Refram requires a browser document. Create the editor in a client-side lifecycle hook.");
+    }
     if (liveEditors.has(ownerDocument)) {
       throw invalidState("A Motion DevTools editor already exists in this document.");
     }

@@ -155,6 +155,10 @@ async function verify({ artifactDirectory, send }) {
     workspaceTop: window.__devtoolsEditorV2Harness.query("[data-role='workspace']").getBoundingClientRect().top,
   }))()`);
   assert(desktopState.timelines === 5, "The new editor did not list all fixture timelines.");
+  assert(
+    await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-action='copy-timeline-report'], [data-action='copy-debug-json']") === null`),
+    "Removed copy actions are still rendered.",
+  );
   assert(desktopState.visibleTimelineIds === 0, "Timeline IDs are still visible in the list UI.");
   assert(!desktopState.hasPreviewSurface, "The removed embedded preview surface is still rendered.");
   assert(desktopState.tracks === 3, "The finite timeline did not render three tracks.");
@@ -1160,6 +1164,9 @@ async function verify({ artifactDirectory, send }) {
     const valueStyle = getComputedStyle(
       window.__devtoolsEditorV2Harness.query(".rf__inspector-value"),
     );
+    const propertyTable = content.querySelector(".rf__property-table");
+    const propertyTableBounds = propertyTable.getBoundingClientRect();
+    const contentBounds = content.getBoundingClientRect();
     const before = labels.getBoundingClientRect();
     viewport.scrollLeft = 120;
     const after = labels.getBoundingClientRect();
@@ -1175,9 +1182,6 @@ async function verify({ artifactDirectory, send }) {
       hasMapping: Boolean(content.querySelector(".rf__inspector-mapping")),
       hasKey: Boolean(content.querySelector(".rf__inspector-key")),
       heading: window.__devtoolsEditorV2Harness.query("[data-role='inspector'] .rf__pane-heading-label")?.textContent,
-      copyLabel: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.textContent,
-      copyDisabled: window.__devtoolsEditorV2Harness.query("[data-action='copy-debug-json']")?.disabled,
-      copyStatusLive: window.__devtoolsEditorV2Harness.query("[data-role='copy-debug-status']")?.getAttribute("aria-live"),
       labelColumnLeftBefore: before.left,
       labelColumnLeftAfter: after.left,
       labelColumnWidthBefore: before.width,
@@ -1190,6 +1194,15 @@ async function verify({ artifactDirectory, send }) {
       valueFontFamily: valueStyle.fontFamily,
       termColor: termStyle.color,
       valueColor: valueStyle.color,
+      propertyCaption: propertyTable.querySelector("caption")?.textContent,
+      propertyHeadings: [...propertyTable.querySelectorAll("thead th")]
+        .map((heading) => heading.textContent),
+      propertyRows: [...propertyTable.querySelectorAll("tbody tr")]
+        .map((row) => row.textContent),
+      propertyTableLeft: propertyTableBounds.left,
+      propertyTableRight: propertyTableBounds.right,
+      contentLeft: contentBounds.left,
+      contentRight: contentBounds.right,
     };
   })()`);
   assert(
@@ -1204,13 +1217,18 @@ async function verify({ artifactDirectory, send }) {
       && inspectorState.inspectorOpen === "true"
       && inspectorState.trackHeading === "3 tracks"
       && inspectorState.text.includes("Targets1")
-      && inspectorState.text.includes("Propertiesopacity, y")
+      && inspectorState.text.includes("Tween typeFromTo")
+      && inspectorState.propertyCaption === "Authored property values"
+      && JSON.stringify(inspectorState.propertyHeadings) === JSON.stringify(["Property", "From", "To"])
+      && JSON.stringify(inspectorState.propertyRows) === JSON.stringify([
+        "opacity0.21",
+        "y280",
+      ])
+      && inspectorState.propertyTableLeft >= inspectorState.contentLeft - 0.5
+      && inspectorState.propertyTableRight <= inspectorState.contentRight + 0.5
       && !inspectorState.hasMapping
       && !inspectorState.hasKey
       && inspectorState.heading === "Inspector"
-      && inspectorState.copyLabel === "Copy debug JSON"
-      && inspectorState.copyDisabled === false
-      && inspectorState.copyStatusLive === "polite"
       && inspectorState.horizontalScroll > 0
       && Math.abs(inspectorState.labelColumnLeftBefore - inspectorState.labelColumnLeftAfter) <= 0.5
       && Math.abs(inspectorState.labelColumnWidthBefore - inspectorState.labelColumnWidthAfter) <= 0.5
@@ -1578,12 +1596,25 @@ async function verify({ artifactDirectory, send }) {
     `The Canvas or docked editor size is incorrect: ${JSON.stringify(canvasSize)}`,
   );
   await evaluate(send, `window.__devtoolsEditorV2Harness.query("[data-track-key='track:particles']").click()`);
-  const particleTiming = await evaluate(send, `(() => ({
-    sourceDuration: window.__devtoolsEditorV2Harness.view.time.sourceDuration,
-    spans: window.__devtoolsEditorV2Harness.view.tracks[0].spans,
-    inspector: window.__devtoolsEditorV2Harness.view.inspector,
-    inspectorText: window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']").textContent,
-  }))()`);
+  const particleTiming = await evaluate(send, `(() => {
+    const inspectorContent = window.__devtoolsEditorV2Harness.query("[data-role='inspector-content']");
+    const angleRow = [...inspectorContent.querySelectorAll(".rf__property-table tbody tr")]
+      .find((row) => row.querySelector("th")?.textContent === "angle");
+    const angleTo = angleRow?.querySelectorAll("td")[1];
+    const angleToStyle = angleTo ? getComputedStyle(angleTo) : undefined;
+    return {
+      sourceDuration: window.__devtoolsEditorV2Harness.view.time.sourceDuration,
+      spans: window.__devtoolsEditorV2Harness.view.tracks[0].spans,
+      inspector: window.__devtoolsEditorV2Harness.view.inspector,
+      inspectorText: inspectorContent.textContent,
+      angleToText: angleTo?.textContent,
+      angleToTitle: angleTo?.title,
+      angleToOverflow: angleToStyle?.overflowX,
+      angleToOverflowWrap: angleToStyle?.overflowWrap,
+      angleToTextOverflow: angleToStyle?.textOverflow,
+      angleToWhiteSpace: angleToStyle?.whiteSpace,
+    };
+  })()`);
   assert(
     await evaluate(send, `document.querySelector("#devtools-v2-canvas").getAttribute("data-rf-selected") === "true"`)
       && particleTiming.sourceDuration === 5
@@ -1594,6 +1625,12 @@ async function verify({ artifactDirectory, send }) {
       && particleTiming.inspector.duration === 5
       && particleTiming.inspector.end === 5
       && particleTiming.inspectorText.includes("5.00s")
+      && particleTiming.angleToText === '"+=6.28"'
+      && particleTiming.angleToTitle === '"+=6.283185307179586"'
+      && particleTiming.angleToOverflow === "hidden"
+      && particleTiming.angleToOverflowWrap === "normal"
+      && particleTiming.angleToTextOverflow === "ellipsis"
+      && particleTiming.angleToWhiteSpace === "nowrap"
       && !particleTiming.inspectorText.includes("∞"),
     `The particle cycle geometry, inspector timing, or target highlight is incorrect: ${JSON.stringify(particleTiming)}`,
   );
@@ -1815,6 +1852,8 @@ async function verify({ artifactDirectory, send }) {
     return {
       documentWidth: document.documentElement.scrollWidth,
       rootWidth: root.width,
+      rootLeft: root.left,
+      rootRight: root.right,
       timelineWidth: timeline.width,
       transportDisplay: getComputedStyle(window.__devtoolsEditorV2Harness.query(".rf__transport")).display,
       transportHeight: window.__devtoolsEditorV2Harness.query(".rf__transport").getBoundingClientRect().height,

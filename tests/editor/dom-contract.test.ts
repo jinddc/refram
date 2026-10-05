@@ -58,7 +58,6 @@ describe("editor DOM contract", () => {
       "inspector",
       "inspector-empty",
       "inspector-content",
-      "copy-debug-status",
     ]));
     expect([...elements.root.querySelectorAll<HTMLElement>("[data-action]")].map((node) => (
       node.dataset.action
@@ -76,7 +75,6 @@ describe("editor DOM contract", () => {
       "zoom-in",
       "toggle-timeline-visibility",
       "close-inspector",
-      "copy-debug-json",
     ]);
   });
 
@@ -102,9 +100,6 @@ describe("editor DOM contract", () => {
     expect(namedControls.every((control) => Boolean(
       control.getAttribute("aria-label") || control.textContent?.trim(),
     ))).toBe(true);
-    expect(elements.copyDebugButton.getAttribute("aria-describedby"))
-      .toBe(elements.copyDebugStatus.id);
-    expect(elements.copyDebugStatus.getAttribute("aria-live")).toBe("polite");
     expect(elements.playhead.getAttribute("role")).toBe("slider");
     expect(elements.playhead.getAttribute("aria-valuemin")).toBe("0");
     expect(elements.playhead.getAttribute("aria-valuemax")).toBe("100");

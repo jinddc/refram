@@ -80,6 +80,12 @@ describe("headless editor controller", () => {
       animatedTargetCount: 1,
       visualTargetCount: 1,
       properties: ["x"],
+      mode: "to",
+      propertyDetails: [{
+        name: "x",
+        from: { kind: "implicit" },
+        to: { kind: "literal", value: 40 },
+      }],
     });
     expect(Object.isFrozen(editor.getSnapshot().view.inspector)).toBe(true);
     expect(editor.getSnapshot().view.transport.canSeek).toBe(true);
@@ -251,8 +257,8 @@ describe("headless editor controller", () => {
     const second = document.createElement("article");
     root.append(first, second);
     const timeline = gsap.timeline({ paused: true });
-    timeline.to(first, { opacity: 0.5, y: 20, duration: 1 });
-    timeline.to(second, { y: 40, opacity: 0.25, duration: 1 });
+    timeline.to(first, { opacity: 0.5, scale: 1, y: 20, duration: 1 });
+    timeline.to(second, { y: 40, scale: 1, opacity: 0.25, duration: 1 });
     const animations = timeline.getChildren(false, true, false) as gsap.core.Tween[];
     registry.register({
       id: "grouped-properties",
@@ -270,11 +276,223 @@ describe("headless editor controller", () => {
     expect(editor.getSnapshot().view.inspector).toMatchObject({
       animatedTargetCount: 2,
       visualTargetCount: 1,
-      properties: ["opacity", "y"],
+      properties: ["opacity", "scale", "y"],
+      mode: "to",
+      propertyDetails: [
+        {
+          name: "opacity",
+          from: { kind: "implicit" },
+          to: { kind: "mixed" },
+        },
+        {
+          name: "scale",
+          from: { kind: "implicit" },
+          to: { kind: "literal", value: 1 },
+        },
+        {
+          name: "y",
+          from: { kind: "implicit" },
+          to: { kind: "mixed" },
+        },
+      ],
     });
 
     editor.destroy();
     registry.destroy();
+  });
+
+  it("projects authored to, from, and fromTo endpoint semantics", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const targets = Array.from({ length: 3 }, () => document.createElement("article"));
+    root.append(...targets);
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(targets[0]!, { x: 10, duration: 1 });
+    timeline.from(targets[1]!, { opacity: 0, duration: 1 });
+    timeline.fromTo(targets[2]!, { y: 20 }, { y: 0, duration: 1 });
+    registry.register({ id: "directions", root, timeline });
+    const editor = createEditorController({ registry });
+
+    expect(editor.selectItem(0)).toBe(true);
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      mode: "to",
+      propertyDetails: [{
+        name: "x",
+        from: { kind: "implicit" },
+        to: { kind: "literal", value: 10 },
+      }],
+    });
+    expect(editor.selectItem(1)).toBe(true);
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      mode: "from",
+      propertyDetails: [{
+        name: "opacity",
+        from: { kind: "literal", value: 0 },
+        to: { kind: "implicit" },
+      }],
+    });
+    expect(editor.selectItem(2)).toBe(true);
+    expect(editor.getSnapshot().view.inspector).toMatchObject({
+      mode: "fromTo",
+      propertyDetails: [{
+        name: "y",
+        from: { kind: "literal", value: 20 },
+        to: { kind: "literal", value: 0 },
+      }],
+    });
+
+    editor.destroy();
+    registry.destroy();
+  });
+
+  it("normalizes grouped missing, dynamic, complex, accessor, and bounded values safely", () => {
+    const registry = createTimelineRegistry();
+    const root = document.createElement("section");
+    const first = document.createElement("article");
+    const second = document.createElement("article");
+    root.append(first, second);
+    const timeline = gsap.timeline({ paused: true });
+    timeline.to(first, { x: 10, opacity: 0.5, duration: 1 });
+    timeline.from(second, { x: 20, y: 30, duration: 1 });
+    const animations = timeline.getChildren(false, true, false) as gsap.core.Tween[];
+    const getter = vi.fn(() => 100);
+    Object.defineProperty(animations[0]!.vars, "accessorValue", {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+    });
+    animations[0]!.vars.dynamicValue = () => 100;
+    animations[0]!.vars.pluginValue = { nested: "not inspected" };
+    animations[0]!.vars.longValue = `line\n${"x".repeat(200)}`;
+    registry.register({
+      id: "safe-values",
+      root,
+      timeline,
+      tracks: [{ id: "safe", animations, targets: [first, second] }],
+    });
+    const editor = createEditorController({ registry });
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(editor.selectTrack("track:safe")).toBe(true);
+    const inspector = editor.getSnapshot().view.inspector!;
+    expect(getter).not.toHaveBeenCalled();
+    expect(inspector.mode).toBe("mixed");
+    expect(inspector.propertyDetails.find(({ name }) => name === "x")).toEqual({
+      name: "x",
+      from: { kind: "mixed" },
+      to: { kind: "mixed" },
+    });
+    expect(inspector.propertyDetails.find(({ name }) => name === "opacity")).toEqual({
+      name: "opacity",
+      from: { kind: "mixed" },
+      to: { kind: "mixed" },
+    });
+    expect(inspector.propertyDetails.find(({ name }) => name === "accessorValue")).toEqual({
+      name: "accessorValue",
+      from: { kind: "mixed" },
+      to: { kind: "mixed" },
+    });
+
+    expect(editor.clearTrackSelection()).toBe(true);
+    const isolatedTimeline = gsap.timeline({ paused: true }).to(first, { z: 1, duration: 1 });
+    const isolatedTween = isolatedTimeline.getChildren(false, true, false)[0] as gsap.core.Tween;
+    Object.defineProperty(isolatedTween.vars, "accessorValue", {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+    });
+    isolatedTween.vars.dynamicValue = () => 100;
+    isolatedTween.vars.pluginValue = { nested: "not inspected" };
+    isolatedTween.vars.longValue = `line\n${"x".repeat(200)}`;
+    const isolatedRegistration = registry.register({
+      id: "isolated-safe-values",
+      root,
+      timeline: isolatedTimeline,
+    });
+    expect(editor.selectTimeline("isolated-safe-values")).toBe(true);
+    expect(editor.selectItem(0)).toBe(true);
+    const isolated = editor.getSnapshot().view.inspector!;
+    expect(getter).not.toHaveBeenCalled();
+    expect(isolated.propertyDetails.find(({ name }) => name === "accessorValue")?.to)
+      .toEqual({ kind: "dynamic" });
+    expect(isolated.propertyDetails.find(({ name }) => name === "dynamicValue")?.to)
+      .toEqual({ kind: "dynamic" });
+    expect(isolated.propertyDetails.find(({ name }) => name === "pluginValue")?.to)
+      .toEqual({ kind: "complex" });
+    const bounded = isolated.propertyDetails.find(({ name }) => name === "longValue")?.to;
+    expect(bounded).toMatchObject({ kind: "literal", truncated: true });
+    expect(bounded?.kind === "literal" && typeof bounded.value === "string"
+      ? bounded.value.length
+      : 0).toBe(160);
+    expect(bounded?.kind === "literal" ? bounded.value : "").not.toContain("\n");
+    expect(Object.isFrozen(isolated.propertyDetails)).toBe(true);
+    expect(isolated.propertyDetails.every((property) => (
+      Object.isFrozen(property) && Object.isFrozen(property.from) && Object.isFrozen(property.to)
+    ))).toBe(true);
+
+    editor.destroy();
+    isolatedRegistration.destroy();
+    registry.destroy();
+  });
+
+  it.each([undefined, null])("treats an empty startAt (%s) as a to tween", (startAt) => {
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("empty-start-at");
+    const tween = fixture.timeline.getChildren(false, true, false)[0]!;
+    Object.defineProperty(tween.vars, "startAt", { configurable: true, value: startAt });
+    registry.register(fixture);
+    const editor = createEditorController({ registry });
+    try {
+      expect(editor.selectItem(0)).toBe(true);
+      expect(editor.getSnapshot().view.inspector).toMatchObject({
+        mode: "to",
+        propertyDetails: [{
+          name: "x",
+          from: { kind: "implicit" },
+          to: { kind: "literal", value: 40 },
+        }],
+      });
+    } finally {
+      editor.destroy();
+      registry.destroy();
+      fixture.timeline.kill();
+    }
+  });
+
+  it("never reads a startAt getter during attach, selection, or frame sampling", () => {
+    let sample: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      sample = callback;
+      return 1;
+    }));
+    const registry = createTimelineRegistry();
+    const fixture = directTimeline("accessor-start-at");
+    const tween = fixture.timeline.getChildren(false, true, false)[0]!;
+    const getter = vi.fn(() => { throw new Error("startAt getter must not execute"); });
+    Object.defineProperty(tween.vars, "startAt", {
+      configurable: true, enumerable: true, get: getter,
+    });
+    registry.register(fixture);
+    const editor = createEditorController({ registry });
+    try {
+      expect(getter).not.toHaveBeenCalled();
+      expect(editor.selectItem(0)).toBe(true);
+      expect(editor.getSnapshot().view.inspector).toMatchObject({
+        mode: "fromTo",
+        propertyDetails: [{ name: "x", from: { kind: "dynamic" }, to: { kind: "literal", value: 40 } }],
+      });
+      expect(sample).toBeTypeOf("function");
+      sample!(0);
+      editor.clearTrackSelection();
+      sample!(16);
+      expect(getter).not.toHaveBeenCalled();
+      expect(editor.getSnapshot().view.inspector).toBeUndefined();
+    } finally {
+      editor.destroy();
+      registry.destroy();
+      delete tween.vars.startAt;
+      fixture.timeline.kill();
+    }
   });
 
   it("keeps playback paused when seeking from a finished timeline", () => {

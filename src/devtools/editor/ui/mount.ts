@@ -9,7 +9,6 @@ import {
   createEditorHeightResize,
   type EditorHeightResizeHandle,
 } from "./editor-height-resize";
-import { createClipboardInteraction } from "./interactions/clipboard";
 import {
   createPlayheadDrag,
   type PlayheadDragHandle,
@@ -51,11 +50,6 @@ export function mountEditorUi(
   const controller = options.controller ?? createEditorController(options);
   const elements = createEditorUiElements();
   const selectionHighlight = createSelectionHighlightOverlay(container.ownerDocument);
-  const clipboard = createClipboardInteraction(
-    controller,
-    elements,
-    container.ownerDocument,
-  );
   const eventController = new AbortController();
   const listenerOptions = { signal: eventController.signal };
   let destroyed = false;
@@ -127,7 +121,6 @@ export function mountEditorUi(
 
   const render = (snapshot: EditorSnapshot): void => {
     if (destroyed) return;
-    clipboard.syncSelectedTrack(snapshot.view.selectedTrackKey);
     selectionHighlight.update(
       snapshot.selectedItem?.sources ?? [],
       snapshot.selectedItem?.label,
@@ -179,9 +172,6 @@ export function mountEditorUi(
         break;
       case "toggle-scrolltrigger-markers":
         controller.toggleScrollTriggerMarkers();
-        break;
-      case "copy-debug-json":
-        void clipboard.copySelectedTrackDebugJson();
         break;
       case "play":
         controller.play();
@@ -336,7 +326,6 @@ export function mountEditorUi(
       destroyed = true;
       playheadDrag?.destroy();
       timelineViewport.destroy();
-      clipboard.destroy();
       eventController.abort();
       unsubscribe();
       heightResize?.destroy();

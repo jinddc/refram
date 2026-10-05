@@ -29,6 +29,12 @@ npm install --save-dev refram
 Keep the dynamic `import("refram")` behind your build tool's development flag so
 the editor and registration calls can be removed from production bundles.
 
+The package can also be statically imported during SSR without DOM globals.
+Creating `new Refram()` and registering DOM-backed timelines still belong in
+client-side lifecycle hooks. A static import alone does not make those calls
+server-safe or exclude the editor from production bundles; the examples below
+retain development-gated dynamic imports for that purpose.
+
 ## Quick start
 
 Mount one editor at the application or layout boundary:
@@ -321,6 +327,14 @@ its timeline and ScrollTrigger. A rebuildable runtime should do that work in
 and [plugin registration guidance](https://gsap.com/docs/v3/GSAP/gsap.registerPlugin()/).
 
 ## Framework integration
+
+### Lenis and nested scrolling
+
+Refram marks its editor host and internal UI with `data-lenis-prevent`, so Lenis
+leaves wheel and touch gestures inside the devtools to native browser scrolling.
+The Inspector, timeline viewport, and timeline list also contain overscroll at
+their edges. No Lenis dependency or instance configuration is required for this
+exclusion. See [Lenis nested-scroll guidance](https://github.com/darkroomengineering/lenis#nested-scroll).
 
 The ownership rule is the same everywhere: mount one `Refram` in the application
 shell/layout, and register a timeline in the component that creates and cleans

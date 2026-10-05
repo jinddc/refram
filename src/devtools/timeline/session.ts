@@ -27,6 +27,31 @@ export interface TimelineInspectionItem {
   readonly resolvedEnd: number;
 }
 
+export type TimelineInspectionTweenMode = "to" | "from" | "fromTo" | "mixed";
+
+export type TimelineInspectionPropertyValue =
+  | Readonly<{
+    readonly kind: "literal";
+    readonly value: string | number | boolean | null;
+    readonly truncated?: true;
+  }>
+  | Readonly<{ readonly kind: "undefined" }>
+  | Readonly<{ readonly kind: "implicit" }>
+  | Readonly<{ readonly kind: "dynamic" }>
+  | Readonly<{ readonly kind: "complex" }>
+  | Readonly<{ readonly kind: "mixed" }>;
+
+export interface TimelineInspectionProperty {
+  readonly name: string;
+  readonly from: TimelineInspectionPropertyValue;
+  readonly to: TimelineInspectionPropertyValue;
+}
+
+export interface TimelineInspectionProperties {
+  readonly mode: TimelineInspectionTweenMode;
+  readonly properties: readonly TimelineInspectionProperty[];
+}
+
 export interface TimelineInspectionSnapshot {
   readonly driver: TimelineInspectionDriver;
   readonly readiness: TimelineInspectionReadiness;
@@ -217,6 +242,187 @@ function animationTargets(animation: gsap.core.Animation): readonly unknown[] {
   return typeof candidate.targets === "function" ? candidate.targets() : [];
 }
 
+const GSAP_OPTION_KEYS = new Set([
+  "autoRevert",
+  "callbackScope",
+  "data",
+  "delay",
+  "defaults",
+  "duration",
+  "ease",
+  "id",
+  "immediateRender",
+  "inherit",
+  "keyframes",
+  "lazy",
+  "onCompleteParams",
+  "onInterruptParams",
+  "onRepeatParams",
+  "onReverseCompleteParams",
+  "onStartParams",
+  "onUpdateParams",
+  "overwrite",
+  "parent",
+  "paused",
+  "repeat",
+  "repeatDelay",
+  "reversed",
+  "runBackwards",
+  "scrollTrigger",
+  "stagger",
+  "startAt",
+  "yoyo",
+  "yoyoEase",
+]);
+
+const MAX_AUTHORED_STRING_LENGTH = 160;
+const IMPLICIT_VALUE = Object.freeze({ kind: "implicit" } as const);
+const DYNAMIC_VALUE = Object.freeze({ kind: "dynamic" } as const);
+const COMPLEX_VALUE = Object.freeze({ kind: "complex" } as const);
+const UNDEFINED_VALUE = Object.freeze({ kind: "undefined" } as const);
+const MIXED_VALUE = Object.freeze({ kind: "mixed" } as const);
+
+interface AnimationPropertyInspection {
+  readonly mode: Exclude<TimelineInspectionTweenMode, "mixed">;
+  readonly properties: ReadonlyMap<string, Readonly<{
+    readonly from: TimelineInspectionPropertyValue;
+    readonly to: TimelineInspectionPropertyValue;
+  }>>;
+}
+
+function ownDescriptors(value: object): Readonly<Record<string, PropertyDescriptor>> {
+  try {
+    return Object.getOwnPropertyDescriptors(value);
+  } catch {
+    return Object.freeze({});
+  }
+}
+
+function literalString(value: string): TimelineInspectionPropertyValue {
+  const normalized = value.replace(/[\r\n\t]/g, " ");
+  if (normalized.length <= MAX_AUTHORED_STRING_LENGTH) {
+    return Object.freeze({ kind: "literal", value: normalized });
+  }
+  return Object.freeze({
+    kind: "literal",
+    value: `${normalized.slice(0, MAX_AUTHORED_STRING_LENGTH - 1)}…`,
+    truncated: true,
+  });
+}
+
+function propertyValue(descriptor: PropertyDescriptor | undefined): TimelineInspectionPropertyValue {
+  if (!descriptor || !("value" in descriptor)) return DYNAMIC_VALUE;
+  const value = descriptor.value;
+  if (typeof value === "function") return DYNAMIC_VALUE;
+  if (typeof value === "string") return literalString(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? Object.freeze({ kind: "literal", value })
+      : COMPLEX_VALUE;
+  }
+  if (typeof value === "boolean" || value === null) {
+    return Object.freeze({ kind: "literal", value });
+  }
+  if (value === undefined) return UNDEFINED_VALUE;
+  return COMPLEX_VALUE;
+}
+
+function animatedDescriptors(
+  descriptors: Readonly<Record<string, PropertyDescriptor>>,
+): ReadonlyMap<string, PropertyDescriptor> {
+  const properties = new Map<string, PropertyDescriptor>();
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (GSAP_OPTION_KEYS.has(key) || /^on[A-Z]/.test(key)) continue;
+    properties.set(key, descriptor);
+  }
+  return properties;
+}
+
+function inspectAnimationProperties(
+  animation: gsap.core.Animation,
+): AnimationPropertyInspection {
+  const vars = (animation as gsap.core.Animation & {
+    readonly vars?: Readonly<Record<string, unknown>>;
+  }).vars;
+  const descriptors = vars && typeof vars === "object" ? ownDescriptors(vars) : {};
+  const destination = animatedDescriptors(descriptors);
+  const runBackwards = descriptors.runBackwards;
+  const startAt = descriptors.startAt;
+  const startAtValue = startAt && "value" in startAt ? startAt.value : undefined;
+  const startAtIsDynamic = Boolean(startAt && !("value" in startAt));
+  const hasStartingObject = startAtValue !== null && typeof startAtValue === "object";
+  const mode = runBackwards && "value" in runBackwards && Boolean(runBackwards.value)
+    ? "from"
+    : hasStartingObject || startAtIsDynamic ? "fromTo" : "to";
+  const start = hasStartingObject
+    ? animatedDescriptors(ownDescriptors(startAtValue))
+    : new Map<string, PropertyDescriptor>();
+  const names = mode === "fromTo"
+    ? new Set([...destination.keys(), ...start.keys()])
+    : new Set(destination.keys());
+  const properties = new Map<string, Readonly<{
+    readonly from: TimelineInspectionPropertyValue;
+    readonly to: TimelineInspectionPropertyValue;
+  }>>();
+
+  for (const name of names) {
+    if (mode === "from") {
+      properties.set(name, Object.freeze({
+        from: propertyValue(destination.get(name)),
+        to: IMPLICIT_VALUE,
+      }));
+    } else if (mode === "fromTo") {
+      properties.set(name, Object.freeze({
+        from: startAtIsDynamic ? DYNAMIC_VALUE
+          : start.has(name) ? propertyValue(start.get(name)) : IMPLICIT_VALUE,
+        to: destination.has(name) ? propertyValue(destination.get(name)) : IMPLICIT_VALUE,
+      }));
+    } else {
+      properties.set(name, Object.freeze({
+        from: IMPLICIT_VALUE,
+        to: propertyValue(destination.get(name)),
+      }));
+    }
+  }
+  return { mode, properties };
+}
+
+function samePropertyValue(
+  left: TimelineInspectionPropertyValue,
+  right: TimelineInspectionPropertyValue,
+): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind !== "literal" || right.kind !== "literal") return true;
+  return Object.is(left.value, right.value) && left.truncated === right.truncated;
+}
+
+function aggregatePropertyValue(
+  values: readonly (TimelineInspectionPropertyValue | undefined)[],
+): TimelineInspectionPropertyValue {
+  const first = values[0];
+  if (!first || values.some((value) => !value || !samePropertyValue(first, value))) {
+    return MIXED_VALUE;
+  }
+  return first;
+}
+
+export function inspectTimelineItemProperties(
+  item: TimelineInspectionItem,
+): TimelineInspectionProperties {
+  const members = item.animations.map(inspectAnimationProperties);
+  const firstMode = members[0]?.mode ?? "to";
+  const mode = members.some((member) => member.mode !== firstMode) ? "mixed" : firstMode;
+  const names = new Set(members.flatMap((member) => [...member.properties.keys()]));
+  const properties = [...names]
+    .sort((left, right) => left.localeCompare(right))
+    .map((name): TimelineInspectionProperty => Object.freeze({
+      name,
+      from: aggregatePropertyValue(members.map((member) => member.properties.get(name)?.from)),
+      to: aggregatePropertyValue(members.map((member) => member.properties.get(name)?.to)),
+    }));
+  return Object.freeze({ mode, properties: Object.freeze(properties) });
+}
+
 function readItems(
   timeline: gsap.core.Timeline,
   tracks: readonly MotionTimelineTrack[],
@@ -269,7 +475,10 @@ function readItems(
       const vars = animation.vars as Record<string, unknown>;
       const start = animation.startTime();
       const duration = animation.totalDuration();
-      const startAt = vars.startAt;
+      const startAtDescriptor = Object.getOwnPropertyDescriptor(vars, "startAt");
+      const startAt = startAtDescriptor && "value" in startAtDescriptor
+        ? startAtDescriptor.value
+        : undefined;
       return [{
         source,
         sources,

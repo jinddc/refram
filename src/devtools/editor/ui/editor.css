@@ -241,6 +241,7 @@
 .rf__timeline-list {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 6px;
 }
 
@@ -650,6 +651,7 @@
 .rf__timeline-viewport {
   position: relative;
   overflow: auto;
+  overscroll-behavior: contain;
 
   scrollbar-width: thin;
   scrollbar-color: #ffffff1f #0000;
@@ -1048,39 +1050,10 @@
 .rf__inspector-content {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 14px;
   scrollbar-width: thin;
   scrollbar-color: #ffffff1f #0000;
-}
-
-.rf__inspector-actions {
-  display: grid;
-  margin-top: auto;
-  padding: 12px 14px 14px;
-  border-top: 1px solid var(--rf-border);
-}
-
-.rf__inspector-actions[hidden] {
-  display: none;
-}
-
-.rf__copy-debug {
-  justify-content: center;
-  min-height: 30px;
-  border: 1px solid var(--rf-border);
-}
-
-.rf__copy-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  margin: -1px;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .rf__inspector-identity {
@@ -1135,6 +1108,61 @@
 
 .rf__inspector-value--truncate {
   overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rf__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rf__property-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  table-layout: fixed;
+}
+
+.rf__property-heading,
+.rf__property-name,
+.rf__property-value {
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--rf-divider);
+  font: 11px/1.45 ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.rf__property-heading {
+  color: var(--rf-text-muted);
+  font-weight: 500;
+  text-align: left;
+}
+
+.rf__property-heading:not(:first-child),
+.rf__property-value {
+  text-align: right;
+}
+
+.rf__property-name {
+  color: var(--rf-text-muted);
+  font-weight: 500;
+  text-align: left;
+}
+
+.rf__property-value {
+  overflow: hidden;
+  color: var(--rf-text);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: normal;
   text-overflow: ellipsis;
   white-space: nowrap;

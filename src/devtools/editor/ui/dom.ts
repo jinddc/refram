@@ -23,9 +23,6 @@ export interface EditorUiElements {
   readonly timelineListToggle: HTMLButtonElement;
   readonly inspectorContent: HTMLElement;
   readonly inspectorEmpty: HTMLElement;
-  readonly inspectorActions: HTMLElement;
-  readonly copyDebugButton: HTMLButtonElement;
-  readonly copyDebugStatus: HTMLOutputElement;
   readonly playButton: HTMLButtonElement;
   readonly playIcon: SVGSVGElement;
   readonly pauseIcon: SVGSVGElement;
@@ -85,6 +82,7 @@ function configurePane(node: HTMLElement, pane: string, active = false): void {
 export function createEditorUiElements(): EditorUiElements {
   const root = element("section", "rf");
   root.dataset.rf = "";
+  root.dataset.lenisPrevent = "";
   root.tabIndex = -1;
 
   const heightSeparator = element("div", "rf__height-separator");
@@ -331,25 +329,10 @@ export function createEditorUiElements(): EditorUiElements {
   const inspectorContent = element("div", "rf__inspector-content");
   inspectorContent.dataset.role = "inspector-content";
   inspectorContent.hidden = true;
-  const inspectorActions = element("footer", "rf__inspector-actions");
-  inspectorActions.hidden = true;
-  const copyDebugButton = createActionButton({
-    action: "copy-debug-json",
-    label: "Copy debug JSON",
-    variants: ["rf__copy-debug"],
-  });
-  copyDebugButton.disabled = true;
-  const copyDebugStatus = element("output", "rf__copy-status");
-  copyDebugStatus.dataset.role = "copy-debug-status";
-  copyDebugStatus.id = "rf-copy-debug-status";
-  copyDebugStatus.setAttribute("aria-live", "polite");
-  copyDebugButton.setAttribute("aria-describedby", copyDebugStatus.id);
-  inspectorActions.append(copyDebugButton, copyDebugStatus);
   inspectorPane.append(
     inspectorHeading,
     inspectorEmpty,
     inspectorContent,
-    inspectorActions,
   );
 
   workspace.append(timelineListPane, timeline, inspectorPane);
@@ -375,9 +358,6 @@ export function createEditorUiElements(): EditorUiElements {
     timelineListToggle,
     inspectorContent,
     inspectorEmpty,
-    inspectorActions,
-    copyDebugButton,
-    copyDebugStatus,
     playButton,
     playIcon,
     pauseIcon,

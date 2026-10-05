@@ -12,8 +12,7 @@ export type EditorActionName =
   | "zoom-out"
   | "zoom-in"
   | "toggle-timeline-visibility"
-  | "close-inspector"
-  | "copy-debug-json";
+  | "close-inspector";
 
 interface ActionButtonConfiguration {
   readonly action: EditorActionName;
