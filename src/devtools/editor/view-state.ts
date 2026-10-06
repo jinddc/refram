@@ -106,7 +106,7 @@ export interface EditorViewState {
 }
 
 export function editorTrackKey(item: TimelineInspectionItem): string {
-  const sourceKey = (item.source as HTMLElement).dataset.key;
+  const sourceKey = item.source.getAttribute("data-key");
   if (sourceKey) return sourceKey;
   return item.trackId === undefined
     ? `animation:${item.index}`
@@ -136,8 +136,18 @@ function meaningfulClass(classes: readonly string[]): string | undefined {
   )) ?? classes[0];
 }
 
+function tweenIdLabel(item: TimelineInspectionItem): string | undefined {
+  const id = (item.animation as gsap.core.Animation & {
+    readonly vars?: Readonly<Record<string, unknown>>;
+  }).vars?.id;
+  if (typeof id === "string") return id.trim() || undefined;
+  return typeof id === "number" && Number.isFinite(id) ? String(id) : undefined;
+}
+
 function automaticTrackLabel(item: TimelineInspectionItem): TrackLabel {
-  const authoredLabel = (item.source as HTMLElement).dataset.label;
+  const tweenId = tweenIdLabel(item);
+  if (tweenId) return { short: tweenId, full: tweenId };
+  const authoredLabel = item.source.getAttribute("data-label");
   if (authoredLabel) return { short: authoredLabel, full: authoredLabel };
   const classes = [...item.source.classList].filter((name) => name.trim().length > 0);
   const preferredClass = meaningfulClass(classes);

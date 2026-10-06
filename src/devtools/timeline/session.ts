@@ -467,7 +467,7 @@ function readItems(
       if (mapped.has(animation)) return [];
       const targets = animationTargets(animation);
       const sources = targets.filter(
-        (target): target is HTMLElement => target instanceof HTMLElement,
+        (target): target is Element => target instanceof Element,
       );
       const source = sources[0];
       if (!source) return [];
