@@ -136,7 +136,7 @@ Registers a direct or rebuildable timeline. The optional registry defaults to
 | --- | --- | --- | --- |
 | `id` | `string` | Yes | Unique, non-empty registry key. |
 | `root` | `HTMLElement` | Yes | Preview/target-resolution boundary owned by the animation. |
-| `label` | `string` | No | Human-readable name; defaults to `id`. |
+| `label` | `string` | No | Timeline sidebar name. An explicit label wins over ScrollTrigger names; otherwise the sidebar uses the ScrollTrigger ID/trigger selector, or the registration `id`. |
 | `timeline` | `gsap.core.Timeline` | Direct only | Existing host-owned timeline. |
 | `tracks` | `MotionTimelineTrackDeclaration[]` | No (direct) | Optional custom rows: name or group child tweens, or provide representative elements. Unmapped element tweens still get automatic rows. |
 | `replay` | `"restart"` | No (direct) | Documents the direct timeline's rewind strategy. |

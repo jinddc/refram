@@ -37,6 +37,14 @@ interface RegistryEntry {
   removed: boolean;
 }
 
+const registrationsWithAuthoredLabels = new WeakSet<MotionTimelineRegistration>();
+
+export function hasAuthoredTimelineLabel(
+  registration: MotionTimelineRegistration,
+): boolean {
+  return registrationsWithAuthoredLabels.has(registration);
+}
+
 function invalidState(message: string): DOMException {
   return new DOMException(message, "InvalidStateError");
 }
@@ -118,6 +126,9 @@ export function createTimelineRegistry(): MotionTimelineRegistry {
           remove(entry);
         },
       };
+      if (declaration.label !== undefined) {
+        registrationsWithAuthoredLabels.add(registration);
+      }
       entry = { control, registration, removed: false };
       entries.push(entry);
       entriesById.set(id, entry);

@@ -11,6 +11,7 @@ const VIEWPORT_SCROLLER_ATTRIBUTE = "data-rf-marker-viewport-scroller";
 const STYLE_ATTRIBUTE = "data-rf-marker-visibility";
 const OWNED_ATTRIBUTE = "data-rf-marker-owned";
 const OWNED_TYPE_ATTRIBUTE = "data-rf-marker-owned-type";
+const LABEL_AFTER_LINE_ATTRIBUTE = "data-rf-marker-label-after-line";
 const EDITOR_SELECTOR = "rf-editor";
 const INLINE_END_PROPERTY = "--rf-marker-inline-end";
 const SCROLLER_WIDTH_PROPERTY = "--rf-marker-scroller-width";
@@ -102,6 +103,11 @@ export function createScrollTriggerOwnedMarkers(): ScrollTriggerOwnedMarkers {
 }
 [${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="scroller-start"] {
   border-bottom-style: dashed;
+}
+[${OWNED_ATTRIBUTE}][${OWNED_TYPE_ATTRIBUTE}="start"][${LABEL_AFTER_LINE_ATTRIBUTE}] {
+  transform: none;
+  border-top: 1px solid currentColor;
+  border-bottom: 0;
 }
 [${SELECTED_ATTRIBUTE}].gsap-marker-start,
 [${SELECTED_ATTRIBUTE}].gsap-marker-end {
@@ -260,6 +266,13 @@ ${scrollerStartRule}
           ? geometry.scrollerInlineEnd
           : geometry.contentInlineEnd}px`;
       }
+      const startMarker = owned.nodes.start;
+      const startLine = geometry.positions.start;
+      const startLabelHeight = startMarker.getBoundingClientRect().height;
+      startMarker.toggleAttribute(
+        LABEL_AFTER_LINE_ATTRIBUTE,
+        startLine >= 0 && startLine < startLabelHeight,
+      );
     },
     destroy() {
       for (const timeline of [...ownedByTimeline.keys()]) remove(timeline);

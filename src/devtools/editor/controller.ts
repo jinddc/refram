@@ -14,6 +14,7 @@ import {
 } from "../timeline/session";
 import {
   defaultTimelineRegistry,
+  hasAuthoredTimelineLabel,
   type MotionTimelineRegistration,
   type MotionTimelineRegistry,
   type MotionTimelineRegistrySnapshot,
@@ -100,6 +101,10 @@ export function createEditorController(
   const timelineLabel = (registration: MotionTimelineRegistration): string => {
     const cached = timelineLabels.get(registration);
     if (cached) return cached;
+    if (hasAuthoredTimelineLabel(registration)) {
+      timelineLabels.set(registration, registration.label);
+      return registration.label;
+    }
     try {
       const trigger = readTimelineScrollTrigger(registration.timeline);
       const label = trigger?.id ?? trigger?.trigger ?? registration.label;
