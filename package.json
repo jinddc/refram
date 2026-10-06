@@ -36,14 +36,9 @@
   ],
   "packageManager": "npm@11.13.0",
   "scripts": {
-    "dev": "vite",
     "build": "npm run typecheck && vite build && tsc -p tsconfig.build.json",
-    "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify:package:ssr": "node scripts/verify-package-ssr.mjs",
-    "prepack": "npm run build",
-    "verify:visual:devtools-editor-v2": "node scripts/verify-devtools-editor-v2.mjs",
-    "verify:visual:devtools-editor-lanes": "node scripts/verify-devtools-editor-lanes.mjs"
+    "prepack": "npm run build"
   },
   "peerDependencies": {
     "gsap": "^3.13.0"

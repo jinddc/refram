@@ -2,3 +2,8 @@ node_modules/
 dist/
 coverage/
 artifacts/
+
+/index.html
+/playground/
+/scripts/
+/tests/
