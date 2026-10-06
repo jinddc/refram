@@ -231,9 +231,9 @@ All element targets in an array belong to the same tween's row. Tweens that
 animate only plain objects need an explicit track with a representative element,
 such as the canvas they affect.
 
-The SVG discovery fix is not yet published: npm version 0.1.2 discovers only
-HTML targets automatically. In that version, use an explicit track for SVG tweens
-as shown below.
+Automatic SVG discovery and tween-ID track naming are available from version
+0.1.3. Version 0.1.2 discovers only HTML targets automatically; upgrade for SVG
+support, or use an explicit track for SVG tweens as shown below.
 
 If a track is missing, check that the selector matches elements when the tween
 is created. When using `gsap.context(callback, root)`, selector strings inside
