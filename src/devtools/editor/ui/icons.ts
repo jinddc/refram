@@ -2,6 +2,18 @@ const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 interface TransportIconDefinition {
   readonly paths: readonly string[];
+  readonly strokedPaths?: readonly {
+    readonly data: string;
+    readonly opacity?: string;
+  }[];
+  readonly circles?: readonly {
+    readonly cx: string;
+    readonly cy: string;
+    readonly radius: string;
+  }[];
+  readonly width?: string;
+  readonly height?: string;
+  readonly strokeWidth?: string;
   readonly viewBox?: string;
 }
 
@@ -49,6 +61,21 @@ const transportIcons = {
       "m 16 5 v 6 h -1 v -0.007812 c -0.265625 0.003906 -0.519531 -0.101563 -0.707031 -0.285157 l -2 -2 c -0.390625 -0.390625 -0.390625 -1.023437 0 -1.414062 l 2 -2 c 0.1875 -0.183594 0.441406 -0.289063 0.707031 -0.289063 v -0.003906 z m 0 0",
     ],
   },
+  ease: {
+    paths: [],
+    strokedPaths: [
+      { data: "M4.18 12.5c6 0 3-9 9-9" },
+      { data: "M13.18 3.5h-7M11.18 12.5h-7", opacity: "0.6" },
+    ],
+    circles: [
+      { cx: "12.18", cy: "12.5", radius: "1" },
+      { cx: "5.18", cy: "3.5", radius: "1" },
+    ],
+    width: "17",
+    height: "16",
+    strokeWidth: "1.5",
+    viewBox: "0 0 17 16",
+  },
   "zoom-out": {
     paths: [
       "M4 11C4 7.13401 7.13401 4 11 4C14.866 4 18 7.13401 18 11C18 14.866 14.866 18 11 18C7.13401 18 4 14.866 4 11ZM11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C13.125 20 15.078 19.2635 16.6177 18.0319L20.2929 21.7071C20.6834 22.0976 21.3166 22.0976 21.7071 21.7071C22.0976 21.3166 22.0976 20.6834 21.7071 20.2929L18.0319 16.6177C19.2635 15.078 20 13.125 20 11C20 6.02944 15.9706 2 11 2Z",
@@ -72,11 +99,14 @@ export function createTransportIcon(name: TransportIconName): SVGSVGElement {
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
   svg.classList.add("rf__transport-icon");
   svg.dataset.icon = name;
-  svg.setAttribute("width", "16");
-  svg.setAttribute("height", "16");
+  svg.setAttribute("width", definition.width ?? "16");
+  svg.setAttribute("height", definition.height ?? "16");
   svg.setAttribute("viewBox", definition.viewBox ?? "0 0 16 16");
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("fill", "none");
+  if (definition.strokeWidth !== undefined) {
+    svg.setAttribute("stroke-width", definition.strokeWidth);
+  }
   svg.setAttribute("role", "presentation");
   svg.setAttribute("aria-hidden", "true");
   for (const data of definition.paths) {
@@ -84,6 +114,23 @@ export function createTransportIcon(name: TransportIconName): SVGSVGElement {
     path.setAttribute("d", data);
     path.setAttribute("fill", "currentColor");
     svg.append(path);
+  }
+  for (const { data, opacity } of definition.strokedPaths ?? []) {
+    const path = document.createElementNS(SVG_NAMESPACE, "path");
+    path.setAttribute("d", data);
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-linecap", "round");
+    if (opacity !== undefined) path.setAttribute("stroke-opacity", opacity);
+    svg.append(path);
+  }
+  for (const { cx, cy, radius } of definition.circles ?? []) {
+    const circle = document.createElementNS(SVG_NAMESPACE, "circle");
+    circle.setAttribute("cx", cx);
+    circle.setAttribute("cy", cy);
+    circle.setAttribute("r", radius);
+    circle.setAttribute("fill", "currentColor");
+    circle.setAttribute("stroke", "currentColor");
+    svg.append(circle);
   }
   return svg;
 }

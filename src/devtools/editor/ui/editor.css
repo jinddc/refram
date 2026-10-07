@@ -199,6 +199,7 @@
 .rf__action:focus-visible,
 .rf__zoom-range:focus-visible,
 .rf__speed:focus-visible,
+.rf__ease-dialog:focus-visible,
 .rf__track-label:focus-visible,
 .rf__track-block:focus-visible {
   outline: 1px solid var(--rf-focus);
@@ -332,7 +333,11 @@
   gap: 4px;
 }
 
-.rf__transport-settings {
+.rf__transport-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
   grid-column: var(--rf-transport-settings-column);
   grid-row: var(--rf-transport-settings-row);
   justify-self: start;
@@ -350,6 +355,117 @@
 
 .rf__playback-actions {
   gap: 8px;
+}
+
+.rf__ease-toggle .rf__transport-icon {
+  width: 17px;
+  height: 16px;
+}
+
+.rf__ease-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rf__ease-dialog {
+  position: fixed;
+  z-index: 4;
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--rf-divider);
+  border-radius: 7px;
+  background: var(--rf-surface-subtle);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 32%);
+}
+
+.rf__ease-dialog[hidden] {
+  display: none;
+}
+
+.rf__ease-heading {
+  min-width: 0;
+}
+
+.rf__ease-track,
+.rf__ease-name,
+.rf__ease-type,
+.rf__ease-status,
+.rf__ease-note {
+  overflow-wrap: anywhere;
+}
+
+.rf__ease-track,
+.rf__ease-type,
+.rf__ease-status,
+.rf__ease-note {
+  color: var(--rf-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.rf__ease-name {
+  margin-top: 2px;
+  color: var(--rf-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.rf__ease-type {
+  margin-top: 1px;
+}
+
+.rf__ease-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+  overflow: visible;
+}
+
+.rf__ease-graph[hidden] {
+  display: none;
+}
+
+.rf__ease-graph-frame {
+  fill: color-mix(in srgb, var(--rf-surface) 72%, transparent);
+  stroke: var(--rf-divider);
+  vector-effect: non-scaling-stroke;
+}
+
+.rf__ease-guide {
+  stroke: color-mix(in srgb, var(--rf-text-muted) 40%, transparent);
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.rf__ease-curve {
+  fill: none;
+  stroke: var(--rf-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.rf__ease-meta {
+  margin-top: 8px;
+}
+
+.rf__ease-dialog[data-ease-status="mixed"] .rf__ease-status,
+.rf__ease-dialog[data-ease-status="unsupported"] .rf__ease-status,
+.rf__ease-dialog[data-ease-status="failed"] .rf__ease-status {
+  color: var(--rf-text);
+}
+
+.rf__ease-note {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--rf-divider);
 }
 
 .rf__viewport-controls {
@@ -396,6 +512,11 @@
 }
 
 .rf__action[aria-pressed="true"] {
+  color: var(--rf-accent);
+  background: var(--rf-accent-soft);
+}
+
+.rf__ease-toggle[aria-expanded="true"] {
   color: var(--rf-accent);
   background: var(--rf-accent-soft);
 }
@@ -1383,7 +1504,7 @@
     padding: 1px 6px;
   }
 
-  .rf__transport-settings {
+  .rf__transport-left {
     grid-column: 1;
     grid-row: 2;
   }
@@ -1416,7 +1537,7 @@
     padding: 0 10px;
   }
 
-  .rf__timeline:where([data-timeline-mode="scroll-scrub"]) .rf__transport-settings {
+  .rf__timeline:where([data-timeline-mode="scroll-scrub"]) .rf__transport-left {
     grid-column: 1;
     grid-row: 1;
   }

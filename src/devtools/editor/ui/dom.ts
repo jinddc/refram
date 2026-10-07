@@ -1,4 +1,5 @@
 import { createActionButton } from "./controls";
+import { EASE_GRAPH_VIEW_BOX } from "./ease-visualizer";
 import { createPlayheadIcon, createTransportIcon } from "./icons";
 
 export const EDITOR_TIMELINE_EDGE_GUTTER = 12;
@@ -16,6 +17,8 @@ export interface EditorUiElements {
   readonly jumpToTargetButton: HTMLButtonElement;
   readonly toggleMarkersButton: HTMLButtonElement;
   readonly playback: HTMLElement;
+  readonly easeButton: HTMLButtonElement;
+  readonly easeDialog: HTMLElement;
   readonly viewportControls: HTMLElement;
   readonly timelineVisibilityButton: HTMLButtonElement;
   readonly inspectorPane: HTMLElement;
@@ -147,7 +150,6 @@ export function createEditorUiElements(): EditorUiElements {
   transportSettings.classList.add("rf__transport-group");
   transportSettings.setAttribute("role", "group");
   transportSettings.setAttribute("aria-label", "Timeline actions");
-  transportSettings.setAttribute("aria-hidden", "true");
   const jumpToTargetButton = createActionButton({
     action: "jump-to-scrolltrigger-target",
     accessibleLabel: "Jump to target",
@@ -165,7 +167,7 @@ export function createEditorUiElements(): EditorUiElements {
     pressed: false,
   });
   toggleMarkersButton.hidden = true;
-  transportSettings.append(jumpToTargetButton, toggleMarkersButton);
+  const transportLeft = element("div", "rf__transport-left");
   const speedSelect = element("select", "rf__speed");
   speedSelect.dataset.action = "set-speed";
   speedSelect.setAttribute("aria-label", "Playback speed");
@@ -194,6 +196,84 @@ export function createEditorUiElements(): EditorUiElements {
   const playback = element("div", "rf__transport-group rf__playback");
   playback.setAttribute("role", "group");
   playback.setAttribute("aria-label", "Playback controls");
+  const easeDialog = element("div", "rf__ease-dialog");
+  easeDialog.id = "rf-ease-dialog";
+  easeDialog.hidden = true;
+  easeDialog.tabIndex = -1;
+  easeDialog.setAttribute("role", "dialog");
+  easeDialog.setAttribute("aria-label", "Ease");
+  const easeHeading = element("div", "rf__ease-heading");
+  const easeTrack = element("div", "rf__ease-track", "Track · Selected track");
+  easeTrack.dataset.role = "ease-track";
+  const easeName = element("div", "rf__ease-name", "Unavailable");
+  easeName.dataset.role = "ease-name";
+  const easeType = element("div", "rf__ease-type", "No readable ease");
+  easeType.dataset.role = "ease-type";
+  easeHeading.append(easeTrack, easeName, easeType);
+  const easeGraph = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  easeGraph.classList.add("rf__ease-graph");
+  easeGraph.dataset.role = "ease-graph";
+  easeGraph.setAttribute("viewBox", EASE_GRAPH_VIEW_BOX);
+  easeGraph.setAttribute("role", "img");
+  easeGraph.setAttribute("aria-labelledby", "rf-ease-graph-title rf-ease-graph-description");
+  const easeGraphTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+  easeGraphTitle.id = "rf-ease-graph-title";
+  easeGraphTitle.textContent = "Ease input to output curve";
+  const easeGraphDescription = document.createElementNS("http://www.w3.org/2000/svg", "desc");
+  easeGraphDescription.id = "rf-ease-graph-description";
+  easeGraphDescription.dataset.role = "ease-graph-description";
+  const graphFrame = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  graphFrame.classList.add("rf__ease-graph-frame");
+  graphFrame.setAttribute("x", "28");
+  graphFrame.setAttribute("y", "10");
+  graphFrame.setAttribute("width", "204");
+  graphFrame.setAttribute("height", "146");
+  const zeroLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  zeroLine.classList.add("rf__ease-guide");
+  zeroLine.dataset.role = "ease-zero-line";
+  zeroLine.setAttribute("x1", "28");
+  zeroLine.setAttribute("x2", "232");
+  const oneLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  oneLine.classList.add("rf__ease-guide");
+  oneLine.dataset.role = "ease-one-line";
+  oneLine.setAttribute("x1", "28");
+  oneLine.setAttribute("x2", "232");
+  const easeCurve = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  easeCurve.classList.add("rf__ease-curve");
+  easeCurve.dataset.role = "ease-curve";
+  easeGraph.append(
+    easeGraphTitle,
+    easeGraphDescription,
+    graphFrame,
+    zeroLine,
+    oneLine,
+    easeCurve,
+  );
+  const easeMeta = element("div", "rf__ease-meta");
+  const easeStatus = element("span", "rf__ease-status", "Unavailable");
+  easeStatus.dataset.role = "ease-status";
+  easeMeta.append(easeStatus);
+  const easeReverseNote = element(
+    "p",
+    "rf__ease-note",
+    "Forward ease; reverse easing may differ",
+  );
+  easeReverseNote.dataset.role = "ease-reverse-note";
+  easeReverseNote.hidden = true;
+  easeDialog.append(easeHeading, easeGraph, easeMeta, easeReverseNote);
+  const easeButton = createActionButton({
+    action: "toggle-ease",
+    accessibleLabel: "Ease",
+    title: "Ease",
+    icon: "ease",
+    variants: ["rf__action--icon", "rf__ease-toggle"],
+    expanded: false,
+    controls: easeDialog.id,
+  });
+  const easeControl = element("div", "rf__ease-control");
+  easeControl.append(easeButton, easeDialog);
+  transportSettings.append(jumpToTargetButton, easeControl, toggleMarkersButton);
+  transportLeft.append(transportSettings);
   const playButton = createActionButton({
     action: "play",
     accessibleLabel: "Play",
@@ -264,7 +344,7 @@ export function createEditorUiElements(): EditorUiElements {
     controls: "rf-timeline-body",
   });
   viewportControls.append(resetButton, zoomControl, timelineVisibilityButton);
-  transport.append(transportSettings, playback, transportHint, viewportControls);
+  transport.append(transportLeft, playback, transportHint, viewportControls);
 
   const timelineBody = element("div", "rf__timeline-body");
   timelineBody.id = "rf-timeline-body";
@@ -362,6 +442,8 @@ export function createEditorUiElements(): EditorUiElements {
     jumpToTargetButton,
     toggleMarkersButton,
     playback,
+    easeButton,
+    easeDialog,
     viewportControls,
     timelineVisibilityButton,
     inspectorPane,

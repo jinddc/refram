@@ -4,6 +4,7 @@ export type EditorActionName =
   | "toggle-timelines"
   | "jump-to-scrolltrigger-target"
   | "toggle-scrolltrigger-markers"
+  | "toggle-ease"
   | "toggle-reverse"
   | "toggle-loop"
   | "play"

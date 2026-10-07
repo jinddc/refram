@@ -4,7 +4,17 @@ import {
   type EditorControllerOptions,
   type EditorSnapshot,
 } from "../controller";
+import { defaultTimelineRegistry } from "../../timeline/registry";
 import { createEditorUiElements } from "./dom";
+import {
+  buildEaseVisualization,
+  clearEaseVisualization,
+  readEaseVisualizerIdentity,
+  readTimelineEaseVisualizerIdentity,
+  renderEaseVisualization,
+  sameEaseVisualizerIdentity,
+  type EaseVisualizerIdentity,
+} from "./ease-visualizer";
 import {
   createEditorHeightResize,
   type EditorHeightResizeHandle,
@@ -53,7 +63,11 @@ export function mountEditorUi(
   options: EditorUiOptions = {},
 ): EditorUiHandle {
   const ownsController = options.controller === undefined;
-  const controller = options.controller ?? createEditorController(options);
+  const registry = options.registry ?? defaultTimelineRegistry;
+  const controller = options.controller ?? createEditorController({
+    registry,
+    initialTimelineId: options.initialTimelineId,
+  });
   const elements = createEditorUiElements();
   const selectionHighlight = createSelectionHighlightOverlay(container.ownerDocument);
   const eventController = new AbortController();
@@ -63,6 +77,8 @@ export function mountEditorUi(
   let inspectorTriggerClass: string | undefined;
   let timelineListVisible = true;
   let timelineCollapsed = false;
+  let easeDialogOpen = false;
+  let easeVisualizerIdentity: EaseVisualizerIdentity | undefined;
   let heightResize: EditorHeightResizeHandle | undefined;
   let inspectorWidthResize: InspectorWidthResizeHandle | undefined;
   let timelineViewport: TimelineViewportHandle;
@@ -93,6 +109,84 @@ export function mountEditorUi(
       ?.focus();
   };
 
+  const placeEaseDialog = (): void => {
+    if (!easeDialogOpen) return;
+    const buttonBounds = elements.easeButton.getBoundingClientRect();
+    const dialogBounds = elements.easeDialog.getBoundingClientRect();
+    const viewportWidth = container.ownerDocument.defaultView?.innerWidth
+      ?? buttonBounds.right;
+    const left = `${Math.min(
+      Math.max(8, buttonBounds.left),
+      Math.max(8, viewportWidth - dialogBounds.width - 8),
+    )}px`;
+    const top = `${Math.max(
+      8,
+      buttonBounds.top - dialogBounds.height - 8,
+    )}px`;
+    if (elements.easeDialog.style.left !== left) elements.easeDialog.style.left = left;
+    if (elements.easeDialog.style.top !== top) elements.easeDialog.style.top = top;
+  };
+
+  const updateEaseDialog = (snapshot: EditorSnapshot): void => {
+    if (!easeDialogOpen) return;
+    if (snapshot.rebuilding) {
+      easeVisualizerIdentity = undefined;
+      clearEaseVisualization(elements.easeDialog);
+      placeEaseDialog();
+      return;
+    }
+    const inspectorOpen = elements.root.dataset.inspectorOpen === "true";
+    const activeRegistration = snapshot.activeTimelineId
+      ? registry.getSnapshot().registrations.find(
+          ({ id }) => id === snapshot.activeTimelineId,
+        )
+      : undefined;
+    let identity: EaseVisualizerIdentity | undefined;
+    if (inspectorOpen && snapshot.selectedItem) {
+      identity = readEaseVisualizerIdentity(
+        snapshot.selectedItem,
+        snapshot.view.inspector?.label,
+      );
+    } else if (activeRegistration) {
+      try {
+        identity = readTimelineEaseVisualizerIdentity(
+          activeRegistration.timeline,
+          snapshot.view.timelines.find(({ id }) => id === activeRegistration.id)?.label,
+        );
+      } catch {
+        identity = undefined;
+      }
+    }
+    if (!identity) {
+      easeVisualizerIdentity = undefined;
+      clearEaseVisualization(elements.easeDialog);
+      placeEaseDialog();
+      return;
+    }
+    if (sameEaseVisualizerIdentity(easeVisualizerIdentity, identity)) return;
+    easeVisualizerIdentity = identity;
+    renderEaseVisualization(
+      elements.easeDialog,
+      buildEaseVisualization(identity),
+    );
+    placeEaseDialog();
+  };
+
+  const setEaseDialogOpen = (open: boolean, restoreFocus = false): void => {
+    easeDialogOpen = open;
+    elements.easeButton.setAttribute("aria-expanded", String(open));
+    elements.easeDialog.hidden = !open;
+    if (open) {
+      updateEaseDialog(controller.getSnapshot());
+      placeEaseDialog();
+      elements.easeDialog.focus();
+    } else {
+      easeVisualizerIdentity = undefined;
+      clearEaseVisualization(elements.easeDialog);
+      if (restoreFocus) elements.easeButton.focus();
+    }
+  };
+
   const setTimelineListVisible = (visible: boolean): void => {
     timelineListVisible = visible;
     elements.root.dataset.timelinesVisible = String(visible);
@@ -104,6 +198,7 @@ export function mountEditorUi(
   };
 
   const setTimelineCollapsed = (collapsed: boolean): void => {
+    if (collapsed && easeDialogOpen) setEaseDialogOpen(false);
     timelineCollapsed = collapsed;
     elements.root.dataset.timelineCollapsed = String(collapsed);
     const label = collapsed ? "Show timeline" : "Hide timeline";
@@ -116,6 +211,7 @@ export function mountEditorUi(
 
   const setActivePane = (pane: EditorPane, focus = false): void => {
     closeInspector();
+    if (pane !== "timeline" && easeDialogOpen) setEaseDialogOpen(false);
     elements.root.dataset.activePane = pane;
     for (const tab of elements.paneTabs) {
       const selected = tab.dataset.paneTarget === pane;
@@ -138,6 +234,8 @@ export function mountEditorUi(
       snapshot.selectedItem?.label,
     );
     renderEditorUi(elements, snapshot.view, timelineViewport.getZoom());
+    if (easeDialogOpen && elements.easeButton.disabled) setEaseDialogOpen(false);
+    else updateEaseDialog(snapshot);
     timelineViewport.render(snapshot);
     if (timelineCollapsed && snapshot.view.scrollTrigger?.scrubbed !== true) {
       elements.ruler.setAttribute("aria-label", "Timeline progress ruler from 0% to 100%");
@@ -166,6 +264,7 @@ export function mountEditorUi(
         inspectorTriggerKey = trackKey;
         inspectorTriggerClass = clickedClass;
         setInspectorOpen(true);
+        updateEaseDialog(controller.getSnapshot());
       }
       return;
     }
@@ -184,6 +283,10 @@ export function mountEditorUi(
         break;
       case "toggle-scrolltrigger-markers":
         controller.toggleScrollTriggerMarkers();
+        break;
+      case "toggle-ease":
+        if (elements.easeButton.disabled) break;
+        setEaseDialogOpen(!easeDialogOpen, easeDialogOpen);
         break;
       case "play":
         controller.play();
@@ -230,6 +333,12 @@ export function mountEditorUi(
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape" && easeDialogOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setEaseDialogOpen(false, true);
+      return;
+    }
     const paneTab = event.target instanceof HTMLElement
       ? event.target.closest<HTMLButtonElement>("[data-pane-target]")
       : null;
@@ -328,10 +437,20 @@ export function mountEditorUi(
   );
   inspectorWidthResize = createInspectorWidthResize(elements);
   inspectorWidthResize.setOpen(false);
+  const easeLayoutObserver = typeof ResizeObserver === "function"
+    ? new ResizeObserver(placeEaseDialog)
+    : undefined;
+  easeLayoutObserver?.observe(elements.root);
+  easeLayoutObserver?.observe(elements.transport);
   elements.root.addEventListener("click", onClick, listenerOptions);
   elements.root.addEventListener("change", onChange, listenerOptions);
   elements.root.addEventListener("input", onInput, listenerOptions);
   elements.root.addEventListener("keydown", onKeyDown, listenerOptions);
+  container.ownerDocument.defaultView?.addEventListener(
+    "resize",
+    placeEaseDialog,
+    listenerOptions,
+  );
   const unsubscribe = controller.subscribe(render);
 
   return {
@@ -342,6 +461,8 @@ export function mountEditorUi(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      setEaseDialogOpen(false);
+      easeLayoutObserver?.disconnect();
       playheadDrag?.destroy();
       timelineViewport.destroy();
       eventController.abort();

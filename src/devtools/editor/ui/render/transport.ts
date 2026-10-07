@@ -50,10 +50,9 @@ export function renderTransport(
   const scrollTrigger = view.scrollTrigger;
   const scrubbed = scrollTrigger?.scrubbed === true;
   elements.transport.hidden = false;
+  elements.easeButton.disabled = view.activeTimelineId === undefined;
   elements.playback.hidden = scrubbed;
   elements.transportHint.hidden = !scrubbed;
-  if (view.activeTimelineId) elements.scrollTriggerActions.removeAttribute("aria-hidden");
-  else elements.scrollTriggerActions.setAttribute("aria-hidden", "true");
   elements.jumpToTargetButton.hidden = !view.activeTimelineId;
   elements.toggleMarkersButton.hidden = scrollTrigger === undefined;
   elements.jumpToTargetButton.disabled = !view.transport.canJumpToScrollTriggerTarget;
